@@ -2,9 +2,35 @@
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+
+# Match ruff-compatible suppression comments. Both forms work:
+#   # noqa: SARJ001
+#   # noqa: SARJ001, SARJ002 — reason text
+#   # noqa  (bare; suppresses all codes on this line)
+_NOQA_RE = re.compile(r"#\s*noqa(?::\s*([A-Za-z0-9_, ]+))?", re.IGNORECASE)
+
+
+def is_suppressed(source_lines: list[str], line: int, code: str) -> bool:
+    """Return True if the diagnostic's line carries a `# noqa[: CODE]` comment.
+
+    `line` is 1-based to match Diagnostic.line.
+    """
+    if line < 1 or line > len(source_lines):
+        return False
+    text = source_lines[line - 1]
+    m = _NOQA_RE.search(text)
+    if not m:
+        return False
+    codes_str = m.group(1)
+    if not codes_str:
+        # Bare `# noqa` suppresses every code on the line
+        return True
+    codes = {c.strip().upper() for c in codes_str.split(",") if c.strip()}
+    return code.upper() in codes
 
 
 @dataclass(frozen=True, slots=True)

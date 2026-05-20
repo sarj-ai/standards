@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from sarj_python_lint import __version__
-from sarj_python_lint.rule_base import Diagnostic
+from sarj_python_lint.rule_base import Diagnostic, is_suppressed
 from sarj_python_lint.rules import REGISTRY
 
 
@@ -72,13 +72,17 @@ def _check(rule_ids: list[str], paths: list[Path]) -> list[Diagnostic]:
         except OSError:
             continue
         is_sql = p.suffix.lower() == ".sql"
+        source_lines = source.splitlines()
         for rule in rules:
             # SQL rules only run on .sql files; Python rules only on .py.
             if is_sql and rule.id not in {"enforce-timestamptz"}:
                 continue
             if not is_sql and rule.id == "enforce-timestamptz":
                 continue
-            diags.extend(rule.check(p, source))
+            for d in rule.check(p, source):
+                if is_suppressed(source_lines, d.line, d.code):
+                    continue
+                diags.append(d)
     return diags
 
 
