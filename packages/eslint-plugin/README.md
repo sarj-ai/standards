@@ -41,24 +41,26 @@ export default [
 
 ## Rules
 
+Each rule links to its own docs page with bad/good examples, rationale, and suppression syntax.
+
 ### Foundations
 | Rule | Description |
 |---|---|
-| `@sarj/zod-naming-convention` | Zod schemas must be `Z<Name>` (e.g. `ZUser`). |
-| `@sarj/require-assert-never` | `switch` over discriminated union must end with `assertNever(_)`. |
-| `@sarj/require-zod-form-validation` | Forms must validate via Zod schemas. |
-| `@sarj/enforce-file-structure` | Components / hooks / utils must live in canonical folders. |
-| `@sarj/no-raw-env` | Don't read `process.env.*` directly; route through typed config. |
-| `@sarj/prefer-shadcn` | Use shadcn/ui primitives instead of raw HTML. |
-| `@sarj/no-enum` | TS `enum` is banned; use `as const` objects + string literal types. |
+| [`@sarj/zod-naming-convention`](docs/rules/zod-naming-convention.md) | Zod schemas must be `Z<Name>` (e.g. `ZUser`). |
+| [`@sarj/require-assert-never`](docs/rules/require-assert-never.md) | `switch` over discriminated union must end with `assertNever(_)`. |
+| [`@sarj/require-zod-form-validation`](docs/rules/require-zod-form-validation.md) | `FormData` must be parsed through a Zod schema. |
+| [`@sarj/enforce-file-structure`](docs/rules/enforce-file-structure.md) | Canonical top-of-file order: imports → types → constants → functions → exports. |
+| [`@sarj/no-raw-env`](docs/rules/no-raw-env.md) | `process.env.*` must flow through a Zod-validated env module. |
+| [`@sarj/prefer-shadcn`](docs/rules/prefer-shadcn.md) | Use shadcn/ui primitives instead of native HTML form elements. |
+| [`@sarj/no-enum`](docs/rules/no-enum.md) | TypeScript `enum` is banned; use string literal unions or `as const`. |
 
-### Next.js / RSC boundary (added in 1.1.0, motivated by lessons from real codebases)
+### Next.js / RSC boundary (added in 1.1.0)
 | Rule | Description |
 |---|---|
-| `@sarj/no-client-side-data-fetching` | No `fetch`/`axios` inside `useEffect`. Move to RSC / Server Action. |
-| `@sarj/prefer-server-actions` | Avoid `fetch('/api/*', { method: POST/PUT/DELETE })`. Prefer Server Actions. |
-| `@sarj/no-unnecessary-use-client` | `'use client'` files with no hooks / event handlers can be Server Components. |
-| `@sarj/prefer-schema-for-api-payload` | Don't access `response.json()` fields without `zodSchema.parse()`. |
+| [`@sarj/no-client-side-data-fetching`](docs/rules/no-client-side-data-fetching.md) | No `fetch`/`axios` inside `useEffect`. Move to RSC / Server Action. |
+| [`@sarj/prefer-server-actions`](docs/rules/prefer-server-actions.md) | `fetch('/api/*', { method: POST/PUT/DELETE })` should be a Server Action. |
+| [`@sarj/no-unnecessary-use-client`](docs/rules/no-unnecessary-use-client.md) | `'use client'` files with no hooks / events can be RSC. |
+| [`@sarj/prefer-schema-for-api-payload`](docs/rules/prefer-schema-for-api-payload.md) | `response.json()` must flow through a Zod schema parse. |
 
 ## Configs
 

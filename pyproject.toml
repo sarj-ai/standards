@@ -3,7 +3,7 @@
 # layout as packages/python-lint/ — hatchling just points at it.
 [project]
 name = "sarj-python-lint"
-version = "0.1.3"
+version = "0.1.4"
 description = "Custom Python + SQL lint rules — AST-based, pre-commit-friendly, hypermodern defaults"
 readme = "packages/python-lint/README.md"
 authors = [{ name = "sarj-ai" }]

@@ -31,3 +31,33 @@
   entry: sarj-python-lint check --rule enforce-timestamptz
   language: python
   types: [sql]
+
+# ---------------------------------------------------------------------------
+# Postgres migration hygiene — pure regex pygrep hooks, no Python required.
+# Consumers should set `files: '<migrations-glob>'` to limit scope, and
+# `exclude: <legacy-file-list>` to grandfather pre-ratchet violations.
+# ---------------------------------------------------------------------------
+
+- id: sarj-ban-postgres-enums
+  name: 'sarj-lint(sql): ban native postgres ENUM types (prefer TEXT with CHECK)'
+  entry: '(?i)CREATE TYPE.*AS ENUM'
+  language: pygrep
+  types: [sql]
+
+- id: sarj-ban-create-trigger
+  name: 'sarj-lint(sql): ban database triggers (prefer application-level logic)'
+  entry: '(?i)CREATE TRIGGER'
+  language: pygrep
+  types: [sql]
+
+- id: sarj-require-if-not-exists-on-create
+  name: 'sarj-lint(sql): CREATE TABLE must use IF NOT EXISTS (idempotent DDL)'
+  entry: '(?i)CREATE TABLE(?! IF NOT EXISTS)'
+  language: pygrep
+  types: [sql]
+
+- id: sarj-prefer-text-over-varchar
+  name: 'sarj-lint(sql): ban VARCHAR(n) in postgres migrations (use TEXT)'
+  entry: '(?i)VARCHAR\('
+  language: pygrep
+  types: [sql]
