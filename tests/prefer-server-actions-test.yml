@@ -1,0 +1,404 @@
+"id": |-
+  prefer-server-actions
+"valid":
+- |
+  fetch('/api/users');
+- |
+  fetch('/users', { method: 'POST' });
+- |
+  fetch('/posts/1', { method: 'PUT' });
+- |
+  fetch('/comments/1', { method: 'DELETE' });
+- |
+  fetch('/items/1', { method: 'PATCH' });
+- |
+  fetch('https://api.example.com/v1', { method: 'POST' });
+- |
+  fetch('http://localhost/api/users', { method: 'POST' });
+- |
+  fetch('/ap/users', { method: 'POST' });
+- |
+  fetch('/api', { method: 'POST' });
+- |
+  const url = '/api/users'; fetch(url, { method: 'POST' });
+- |
+  const opts = { method: 'POST' }; fetch('/api/users', opts);
+- |
+  const method = 'POST'; fetch('/api/users', { method });
+- |
+  axios.post('/api/users', {});
+- |
+  customFetch('/api/users', { method: 'POST' });
+- |
+  fetch('/api/users', { headers: { 'Content-Type': 'application/json' } });
+- |
+  fetch('/api-v2/users', { method: 'POST' });
+- |
+  fetch('/apis/users', { method: 'POST' });
+- |
+  api.fetch('/api/users', { method: 'POST' });
+- |
+  fetch('/assets/api/data.json', { method: 'POST' });
+- |
+  fetch('/api/users', { keepalive: true });
+- |
+  fetch('/api/users', { referrer: 'no-referrer' });
+- |
+  fetch('/api/users', { credentials: 'omit' });
+- |
+  fetch('/api/users', { mode: 'cors' });
+- |
+  fetch('/api/users', { cache: 'default' });
+- |
+  fetch('/api/users', { redirect: 'follow' });
+- |
+  fetch('/api/users', { integrity: 'sha256-123' });
+- |
+  fetch('/api/users', { signal: null });
+- |
+  fetch('/api/users', { window: null });
+- |
+  fetch('/api/users', { priority: 'high' });
+- |
+  fetch('api/users', { method: 'POST' });
+- |
+  fetch('/_api/users', { method: 'POST' });
+- |
+  fetch('/api/users');
+- |
+  fetch('/api/users', { headers: {} });
+- |
+  fetch('/users', { method: 'POST' });
+- |
+  fetch('https://example.com/api/users', { method: 'POST' });
+- |
+  fetch('/apiv2/users', { method: 'POST' });
+- |
+  const url = '/api/users';
+  fetch(url, { method: 'POST' });
+- |
+  const method = 'POST';
+  fetch('/api/users', { method });
+- |
+  const options = { method: 'POST' };
+  fetch('/api/users', options);
+- |
+  const customFetch = (url: string, init: any) => {};
+  customFetch('/api/users', { method: 'POST' });
+- |
+  const axios = { post: (url: string, data: any) => {} };
+  axios.post('/api/users', {});
+- |
+  fetch('/api', { method: 'POST' });
+- |
+  fetch('/api-route', { method: 'POST' });
+- |
+  fetch();
+- |
+  window.fetch('/api/users', { method: 'POST' });
+- |
+  const obj = { fetch: (a: string, b: any) => {} };
+  obj.fetch('/api/users', { method: 'POST' });
+- |
+  class Api {
+    fetch(a: string, b: any) {}
+  }
+  const api = new Api();
+  api.fetch('/api/users', { method: 'POST' });
+- |
+  fetch(' /api/users', { method: 'POST' });
+- |
+  fetch('http://localhost:3000/api/users', { method: 'POST' });
+- |
+  fetch('//api/users', { method: 'POST' });
+- |
+  fetch('/../api/users', { method: 'POST' });
+- |
+  fetch('/API/users', { method: 'POST' });
+- |
+  fetch('/Api/users', { method: 'POST' });
+- |
+  fetch('/aPi/users', { method: 'POST' });
+- |
+  fetch('/apI/users', { method: 'POST' });
+- |
+  const getUrl = () => '/api/users';
+  fetch(getUrl(), { method: 'POST' });
+- |
+  fetch(window.location.pathname, { method: 'POST' });
+- |
+  declare const process: any;
+  fetch(process.env.API_URL, { method: 'POST' });
+"invalid":
+- |
+  fetch("/api/users", { method: "POST" });
+- |
+  fetch('/api/posts', { method: 'POST' });
+- |
+  fetch(`/api/comments`, { method: 'POST' });
+- |
+  fetch('/api/users/1', { method: 'PUT' });
+- |
+  fetch("/api/posts/2", { method: "PUT" });
+- |
+  fetch(`/api/comments/3`, { method: 'PUT' });
+- |
+  fetch('/api/users/1', { method: 'DELETE' });
+- |
+  fetch("/api/posts/2", { method: "DELETE" });
+- |
+  fetch(`/api/comments/3`, { method: 'DELETE' });
+- |
+  fetch('/api/users/1', { method: 'PATCH' });
+- |
+  fetch("/api/posts/2", { method: "PATCH" });
+- |
+  fetch(`/api/comments/3`, { method: 'PATCH' });
+- |
+  fetch('/api/data', { method: 'post' });
+- |
+  fetch('/api/data', { method: 'put' });
+- |
+  fetch('/api/data', { method: 'delete' });
+- |
+  fetch('/api/data', { method: 'patch' });
+- |
+  fetch('/api/data', { method: 'Post' });
+- |
+  fetch('/api/data', { method: 'pUt' });
+- |
+  fetch('/api/data', { method: 'DeLeTe' });
+- |
+  fetch('/api/data', { method: 'pAtCh' });
+- |
+  fetch('/api/v2/items', { headers: { 'Content-Type': 'application/json' }, method: 'POST' });
+- |
+  fetch('/api/v2/items', { method: 'POST', body: JSON.stringify({ id: 1 }) });
+- |
+  fetch('/api/v2/items', { mode: 'cors', method: 'POST', body: '{}' });
+- |
+  const req = () => fetch('/api/action', { method: 'POST' });
+- |
+  async function mutate() { return await fetch('/api/mutate', { method: 'PUT' }); }
+- |
+  export const deleteItem = (id: string) => fetch(`/api/items/${id}`, { method: 'DELETE' });
+- |
+  class Service { create() { fetch('/api/create', { method: 'POST' }); } }
+- |
+  function update(id: number) { fetch(`/api/update/${id}`, { method: 'PATCH' }); }
+- |
+  const res = fetch('/api/upload', { method: 'POST', body: new FormData() });
+- |
+  fetch('/api/auth/login', { method: 'POST', credentials: 'include' });
+- |
+  fetch('/api/logout', { method: 'POST', redirect: 'follow' });
+- |
+  fetch('/api/analytics', { keepalive: true, method: 'POST' });
+- |
+  fetch('/api/cache-clear', { cache: 'no-store', method: 'DELETE' });
+- |
+  fetch('/api/test', { referrerPolicy: 'no-referrer', method: 'PUT' });
+- |
+  fetch('/api/signal', { signal: new AbortController().signal, method: 'POST' });
+- |
+  fetch('/api/nested', { method: 'POST', headers: { Authorization: 'Bearer token' } });
+- |
+  const handler = () => { fetch('/api/handler', { method: 'POST' }).then(r => r.json()); };
+- |
+  fetch('/api/users', { method: 'POST' }).catch(err => console.error(err));
+- |
+  fetch('/api/users', { method: 'POST' }).finally(() => {});
+- |
+  const p: Promise<Response> = fetch('/api/users', { method: 'POST' });
+- |
+  (fetch('/api/users', { method: 'POST' }));
+- |
+  const promise = fetch('/api/promise', { method: 'POST' });
+- |
+  export default function handler() { fetch('/api/default', { method: 'POST' }); }
+- |
+  (() => fetch('/api/iife', { method: 'POST' }))();
+- |
+  fetch('/api/multi', { method: 'POST', headers: {}, body: '' });
+- |
+  fetch('/api/v1/resource', { method: 'DELETE', headers: { 'Accept': 'application/json' } });
+- |
+  fetch('/api/v1/resource', { method: 'PATCH', body: JSON.stringify({ active: true }) });
+- |
+  fetch('/api/v1/resource', { method: 'PUT', headers: { 'X-Custom': 'value' } });
+- |
+  fetch('/api/v1/resource', { method: 'POST', mode: 'same-origin' });
+- |
+  fetch('/api/todo', { method: 'POST', body: 'todo' });
+- |
+  fetch('/api/todo/1', { method: 'DELETE', body: 'todo' });
+- |
+  fetch('/api/todo/1', { method: 'PUT', body: 'todo' });
+- |
+  fetch('/api/todo/1', { method: 'PATCH', body: 'todo' });
+- |
+  fetch('/api/sub/route', { method: 'POST' });
+- |
+  fetch('/api/sub/route/deep', { method: 'POST' });
+- |
+  fetch('/api/a/b/c/d', { method: 'POST' });
+- |
+  fetch('/api/123', { method: 'POST' });
+- |
+  fetch('/api/special-chars_123', { method: 'POST' });
+- |
+  fetch('/api/trailing/', { method: 'POST' });
+- |
+  fetch('/api/', { method: 'POST' });
+- |
+  fetch('/api/users', { method: 'POST' });
+- |
+  fetch("/api/posts", { method: "PUT" });
+- |
+  fetch(`/api/comments`, { method: `DELETE` });
+- |
+  fetch('/api/v1/profile', { method: 'PATCH' });
+- |
+  fetch('/api/users', { method: 'post' });
+- |
+  fetch('/api/users', { method: 'put' });
+- |
+  fetch('/api/users', { method: 'delete' });
+- |
+  fetch('/api/users', { method: 'patch' });
+- |
+  fetch('/api/users', { method: 'Post' });
+- |
+  fetch('/api/users', { method: 'Put' });
+- |
+  fetch('/api/users', { method: 'Delete' });
+- |
+  fetch('/api/users', { method: 'Patch' });
+- |
+  async function save() {
+    await fetch('/api/save', { method: 'POST' });
+  }
+- |
+  const update = async () => {
+    await fetch('/api/update', { method: 'PUT' });
+  };
+- |
+  const res = await fetch('/api/delete-account', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' }
+  });
+- |
+  fetch('/api/patch-data', {
+    headers: {},
+    method: 'PATCH',
+    body: '{}'
+  });
+- |
+  const id = 123;
+  fetch(`/api/users/${id}`, { method: 'POST' });
+- |
+  const postId = 456;
+  const body = '{}';
+  fetch(`/api/posts/${postId}/comments`, { method: 'POST', body });
+- |
+  function onSubmit() {
+    fetch('/api/submit', { method: 'POST' });
+  }
+- |
+  class ApiClient {
+    destroy() {
+      fetch('/api/destroy', { method: 'DELETE' });
+    }
+  }
+- |
+  import { useEffect } from 'react';
+  useEffect(() => {
+    fetch('/api/analytics', { method: 'POST' });
+  }, []);
+- |
+  const todo = {};
+  const handler = () => fetch('/api/todo', { method: 'POST', body: JSON.stringify(todo) });
+- |
+  const formData = new FormData();
+  fetch("/api/upload", { method: "POST", body: formData });
+- |
+  fetch('/api/reset-password', { method: 'POST', credentials: 'omit' });
+- |
+  fetch('/api/session', { method: 'DELETE', keepalive: true });
+- |
+  fetch('/api/cache-clear', { method: 'POST', cache: 'no-store' });
+- |
+  const query = '';
+  fetch('/api/v2/graphql', { method: 'POST', body: JSON.stringify({ query }) });
+- |
+  fetch('/api/webhook', { method: 'POST', mode: 'cors' });
+- |
+  fetch('/api/jobs/trigger', { method: 'POST', redirect: 'follow' });
+- |
+  fetch('/api/logs', { method: 'POST', referrerPolicy: 'no-referrer' });
+- |
+  fetch('/api/auth/logout', { method: 'POST' }).then(r => r.json());
+- |
+  fetch('/api/settings', { method: 'PUT' }).catch(err => console.error(err));
+- |
+  const promise = fetch('/api/data', { method: 'PATCH' });
+- |
+  export const deleteItem = (id: string) => fetch(`/api/items/${id}`, { method: 'DELETE' });
+- |
+  export default function Page() {
+    const handle = () => fetch('/api/action', { method: 'POST' });
+    return null;
+  }
+- |
+  fetch('/api/users', { method: 'POST', priority: 'low' });
+- |
+  fetch('/api/users', { method: 'POST', duplex: 'half' });
+- |
+  fetch('/api/users', { method: 'POST', credentials: 'include' });
+- |
+  fetch('/api/users', { method: 'POST', window: null });
+- |
+  fetch('/api/users', { method: 'POST', referrer: 'about:client' });
+- |
+  fetch('/api/users', { method: 'POST', signal: new AbortController().signal });
+- |
+  fetch('/api/items', { method: 'POST', headers: { Authorization: 'Bearer token' } });
+- |
+  fetch('/api/items', { headers: { 'Content-Type': 'application/json' }, method: 'POST' });
+- |
+  fetch('/api/items', { method: 'POST', body: 'test' }) as Promise<Response>;
+- |
+  const x = [
+    fetch('/api/1', { method: 'POST' }),
+    fetch('/api/2', { method: 'POST' })
+  ];
+- |
+  fetch('/api/nested/route/deep', { method: 'POST' });
+- |
+  fetch('/api/trailing-slash/', { method: 'POST' });
+- |
+  fetch('/api/query?param=1', { method: 'POST' });
+- |
+  fetch('/api/query?param=1&other=2', { method: 'POST' });
+- |
+  fetch('/api/special-chars-@#$', { method: 'POST' });
+- |
+  fetch('/api/12345', { method: 'POST' });
+- |
+  fetch('/api/a/b/c/d/e/f', { method: 'POST' });
+- |
+  fetch('/api/', { method: 'POST' });
+- |
+  fetch('/api/users', { method: 'POST', integrity: 'sha256-...' });
+- |
+  fetch('/api/users', { method: 'POST', priority: 'high' });
+- |
+  fetch('/api/users', { method: 'POST', body: JSON.stringify({ a: 1 }) });
+- |
+  fetch('/api/users', { method: 'POST', headers: new Headers() });
+- |
+  const run = () => fetch('/api/users', { method: 'POST' });
+- |
+  fetch('/api/users', { method: 'POST', body: new URLSearchParams() });
+- |
+  fetch('/api/users', { method: 'POST', body: new Blob() });

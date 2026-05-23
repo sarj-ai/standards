@@ -1,0 +1,466 @@
+"id": |-
+  inefficient-string-concat-in-loop
+"valid":
+- |
+  s = "a"
+  s += "b"
+- |
+  def concat(a, b):
+      a += b
+      return a
+- |
+  class Adder:
+      def __init__(self):
+          self.val = 0
+      def add(self, x):
+          self.val += x
+- |
+  x = 10
+  x += 5
+- |
+  my_list = [1, 2]
+  my_list += [3, 4]
+- |
+  try:
+      x = 1
+      x += 1
+  except Exception:
+      pass
+- |
+  if True:
+      s = "hello"
+      s += " world"
+- |
+  with open("file.txt", "w") as f:
+      content = "data"
+      content += "!"
+- |
+  def process():
+      total = 0
+      total += 10
+      return total
+- |
+  x = "start"
+  # comment
+  x += "end"
+- |
+  parts = []
+  for x in range(10):
+      parts.append(str(x))
+  s = "".join(parts)
+- |
+  parts = [str(x) for x in range(10)]
+  s = "".join(parts)
+- |
+  s = "".join(str(x) for x in range(10))
+- |
+  parts = []
+  while cond:
+      parts.append(get_val())
+  s = "".join(parts)
+- |
+  res = []
+  for item in items:
+      res.append(item.name)
+  final = ", ".join(res)
+- |
+  def build_string(items):
+      acc = []
+      for x in items:
+          acc.append(x)
+      return "".join(acc)
+- |
+  words = ["hello", "world"]
+  for w in words:
+      print(w)
+- |
+  for i in range(10):
+      my_list.extend([i])
+- |
+  for item in items:
+      my_set.add(item)
+- |
+  for k, v in d.items():
+      new_dict[k] = v
+- |
+  s = ""
+  for x in range(10):
+      s = s + str(x)
+- |
+  s = ""
+  while cond:
+      s = s + "a"
+- |
+  total = 0
+  for i in range(10):
+      total = total + i
+- |
+  lst = []
+  for x in items:
+      lst = lst + [x]
+- |
+  val = 1.0
+  while val < 10:
+      val = val + 0.5
+- |
+  for char in "hello":
+      res = char + res
+- |
+  for i in range(5):
+      msg = f"{msg}{i}"
+- |
+  while True:
+      data = socket.recv(1024)
+      if not data: break
+      payload = payload + data
+- |
+  for line in file:
+      content = content + line.strip()
+- |
+  for x in range(10):
+      y = (y + x) * 2
+- |
+  x = 10
+  for i in range(5):
+      x -= i
+- |
+  x = 1
+  for i in range(1, 5):
+      x *= i
+- |
+  x = 100.0
+  while x > 1:
+      x /= 2
+- |
+  x = 100
+  for _ in range(5):
+      x //= 2
+- |
+  x = 17
+  for i in range(2, 5):
+      x %= i
+- |
+  x = 2
+  for _ in range(3):
+      x **= 2
+- |
+  mask = 0xFF
+  for shift in range(4):
+      mask >>= shift
+- |
+  val = 1
+  for shift in range(4):
+      val <<= shift
+- |
+  flags = 0
+  for f in [1, 2, 4]:
+      flags |= f
+- |
+  mask = 0b1111
+  for f in [1, 2]:
+      mask &= ~f
+- |
+  for i in range(10):
+      print(f"Iteration {i}")
+- |
+  while len(queue) > 0:
+      item = queue.pop(0)
+      process(item)
+- |
+  for x in [1, 2, 3]:
+      assert x > 0
+- |
+  for key in my_dict:
+      del my_dict[key]
+- |
+  while True:
+      do_something()
+      if should_stop():
+          break
+- |
+  for item in items:
+      if item.is_valid():
+          item.save()
+- |
+  def gen():
+      for x in range(10):
+          yield x
+- |
+  for x in y:
+      pass
+- |
+  while False:
+      pass
+- |
+  for i, x in enumerate(lst):
+      lst[i] = x * 2
+- |
+  words = [w.upper() for w in ["a", "b", "c"]]
+- |
+  squares = {x: x**2 for x in range(10)}
+- |
+  even_numbers = list(filter(lambda x: x % 2 == 0, range(20)))
+- |
+  mapped = list(map(str, range(10)))
+- |
+  def generator():
+      for i in range(10):
+          yield f"val_{i}"
+- |
+  with open("out.txt", "w") as f:
+      for line in lines:
+          f.write(line)
+- |
+  for x in range(10):
+      logger.info("Processing %d", x)
+- |
+  for x in range(10):
+      import math
+      y = math.sin(x)
+- |
+  for item in items:
+      result = compute(item)
+      store(result)
+- |
+  while condition:
+      item = get_item()
+      if item:
+          process_item(item)
+- |
+  for i in range(5):
+      total += i
+- |
+  while count < 10:
+      count += 1
+- |
+  for char in "hello":
+      result += char
+- |
+  for item in items:
+      lst += [item]
+- |
+  while cond:
+      msg += get_log()
+- |
+  for x in lst:
+      val += 1.5
+- |
+  while active:
+      buffer += stream.read()
+- |
+  for x in y:
+      if x > 0:
+          s += x
+- |
+  for x in y:
+      if x > 0:
+          pass
+      else:
+          s += x
+- |
+  while True:
+      try:
+          s += get_next()
+      except Exception:
+          break
+- |
+  for i in range(3):
+      s += str(i)
+      for j in range(3):
+          pass
+- |
+  for x in data:
+      with open("file.txt") as f:
+          content += f.read()
+- |
+  def process(items):
+      res = ""
+      for x in items:
+          res += x
+      return res
+- |
+  def update_count():
+      i = 0
+      while i < 10:
+          i += 1
+- |
+  class Builder:
+      def build(self, parts):
+          out = ""
+          for p in parts:
+              out += p
+          return out
+- |
+  def run():
+      for x in range(10):
+          global_var += x
+- |
+  def outer():
+      x = 0
+      def inner():
+          nonlocal x
+          for i in range(5):
+              x += i
+- |
+  for x in range(10):
+      s += (lambda y: y + 1)(x)
+- |
+  for key in dict_data:
+      accum += dict_data[key]
+- |
+  while x > 0:
+      x -= 1
+      y += 2
+- |
+  for item in array:
+      result_string += item.name + " "
+- |
+  for chunk in response.iter_content():
+      body += chunk.decode('utf-8')
+- |
+  for line in file_handle:
+      processed += line.strip() + ","
+- |
+  for num in numbers:
+      total_sum += num * 2
+- |
+  while True:
+      data = socket.recv(1024)
+      if not data: break
+      payload += data
+- |
+  for element in matrix:
+      for item in element:
+          flat_list += [item]
+- |
+  for word in words:
+      sentence += word if sentence == "" else " " + word
+- |
+  while index < len(data):
+      char_accumulator += data[index]
+      index += 1
+- |
+  for x in range(5):
+      if cond1:
+          if cond2:
+              val += 1
+- |
+  for x in range(5):
+      for y in range(5):
+          for z in range(5):
+              counter += 1
+- |
+  while cond:
+      if True:
+          try:
+              res += get_val()
+          except Exception:
+              pass
+- |
+  for k in my_dict:
+      val += my_dict[k]
+- |
+  for i in range(10):
+      # some comment
+      x += 1
+- |
+  while True:
+      x += 1
+      # inline comment
+- |
+  for x in [1, 2, 3]:
+      y += (x * 2)
+- |
+  for x in generator():
+      out += str(x)
+- |
+  for item in list_of_items:
+      accumulator_variable_name_long += item
+- |
+  while condition_is_met:
+      string_builder_var += get_next_char()
+- |
+  for x in range(10):
+      _private_var += x
+- |
+  for x in range(10):
+      __double_leading_underscore_var += x
+- |
+  while True:
+      ans += input("Enter: ")
+- |
+  for line in lines:
+      csv_data += line + "\n"
+- |
+  for item in items:
+      output_buffer += bytes([item])
+- |
+  while ptr < end:
+      token_stream += tokens[ptr]
+      ptr += 1
+- |
+  for i in range(10):
+      result_str += chr(97 + i)
+- |
+  for item in iterable:
+      result_set += item
+"invalid":
+- |
+  for x in range(10):
+      s += "a"
+- |
+  while True:
+      s += "b"
+      break
+- |
+  for k, v in d.items():
+      s += f"{k}={v}"
+- |
+  for x in y:
+      try:
+          do_something()
+      except Exception:
+          errs += "error"
+- |
+  for x in y:
+      try:
+          do_something()
+      finally:
+          cleanup_log += "done"
+- |
+  for i in range(3):
+      for j in range(3):
+          s += f"{i},{j}"
+- |
+  while cond:
+      while nested:
+          s += "nested"
+- |
+  for item in collection:
+      match item:
+          case 1:
+              s += "one"
+- |
+  for val in values:
+      summary += f"Value: {val}\n"
+- |
+  while queue:
+      node = queue.pop()
+      path_str += " -> " + node.val
+- |
+  for x in y:
+      s += """
+      multiline
+      string
+      """
+- |
+  while i < 100:
+      s += "a" * i
+      i += 1
+- |
+  for key, val in mapping.items():
+      serialized += f"{key}:{val};"
+- |
+  while count > 0:
+      count -= 1
+      acc += "xyz"

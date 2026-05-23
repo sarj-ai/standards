@@ -47,26 +47,26 @@ Diagnostic format is `path:line:col: CODE message` — Ruff-compatible for edito
 
 ## Rules
 
-Each rule links to its own docs page with bad/good examples, rationale, and suppression syntax.
+Each rule's source carries its own description + diagnostic message — read the file for full rationale.
 
 ### Python (AST)
 
 | Code | Rule | Description |
 |---|---|---|
-| `SARJ001` | [`no-sequential-await`](docs/rules/no-sequential-await.md) | `for x in xs: await f(x)` — prefer `asyncio.gather`. |
-| `SARJ002` | [`inefficient-string-concat-in-loop`](docs/rules/inefficient-string-concat-in-loop.md) | `s += "..."` in a loop is O(n²); append to list + join. |
-| `SARJ005` | [`prefer-discriminated-union`](docs/rules/prefer-discriminated-union.md) | `BaseModel` with `success: bool` + Optionals → `Union[Success, Failure]`. |
-| `SARJ006` | [`prefer-str-enum`](docs/rules/prefer-str-enum.md) | Pydantic str field that looks like a closed set → `StrEnum` (`Literal[...]` also accepted). |
+| `SARJ001` | [`no-sequential-await`](src/sarj_python_lint/rules/no_sequential_await.py) | `for x in xs: await f(x)` — prefer `asyncio.gather`. |
+| `SARJ002` | [`inefficient-string-concat-in-loop`](src/sarj_python_lint/rules/inefficient_string_concat_in_loop.py) | `s += "..."` in a loop is O(n²); append to list + join. |
+| `SARJ005` | [`prefer-discriminated-union`](src/sarj_python_lint/rules/prefer_discriminated_union.py) | `BaseModel` with `success: bool` + Optionals → `Union[Success, Failure]`. |
+| `SARJ006` | [`prefer-str-enum`](src/sarj_python_lint/rules/prefer_str_enum.py) | Pydantic str field that looks like a closed set → `StrEnum` (`Literal[...]` also accepted). |
 
 ### SQL (Postgres migrations)
 
 | Code / Hook | Rule | Description |
 |---|---|---|
-| `SARJ101` | [`sarj-enforce-timestamptz`](docs/rules/enforce-timestamptz.md) | `TIMESTAMP` columns missing `WITH TIME ZONE`. |
-| (pygrep) | [`sarj-ban-postgres-enums`](docs/rules/ban-postgres-enums.md) | `CREATE TYPE … AS ENUM` — use TEXT + CHECK. |
-| (pygrep) | [`sarj-ban-create-trigger`](docs/rules/ban-create-trigger.md) | `CREATE TRIGGER` — encode rules in application code. |
-| (pygrep) | [`sarj-require-if-not-exists-on-create`](docs/rules/require-if-not-exists-on-create.md) | `CREATE TABLE` must use `IF NOT EXISTS`. |
-| (pygrep) | [`sarj-prefer-text-over-varchar`](docs/rules/prefer-text-over-varchar.md) | `VARCHAR(n)` → `TEXT`. |
+| `SARJ101` | [`sarj-enforce-timestamptz`](src/sarj_python_lint/rules/enforce_timestamptz.py) | `TIMESTAMP` columns missing `WITH TIME ZONE`. |
+| (pygrep) | `sarj-ban-postgres-enums` | `CREATE TYPE … AS ENUM` — use TEXT + CHECK. |
+| (pygrep) | `sarj-ban-create-trigger` | `CREATE TRIGGER` — encode rules in application code. |
+| (pygrep) | `sarj-require-if-not-exists-on-create` | `CREATE TABLE` must use `IF NOT EXISTS`. |
+| (pygrep) | `sarj-prefer-text-over-varchar` | `VARCHAR(n)` → `TEXT`. |
 
 ## Suppression syntax
 
@@ -93,7 +93,7 @@ For SQL rules (no inline comment support — SQL doesn't have a meaningful equiv
 
 ## Adding rules
 
-Subclass `sarj_python_lint.rule_base.Rule`. Implement `check(path, source) -> list[Diagnostic]`. Register in `sarj_python_lint.rules.REGISTRY`. Add an entry to the root `.pre-commit-hooks.yaml`. Write a docs page in `docs/rules/<rule-name>.md` following the Bad / Good / More examples / When to suppress / References template. Add tests in `tests/rules/test_<rule>.py`.
+Subclass `sarj_python_lint.rule_base.Rule`. Implement `check(path, source) -> list[Diagnostic]`. Register in `sarj_python_lint.rules.REGISTRY`. Add an entry to the root `.pre-commit-hooks.yaml`. Add tests in `tests/rules/test_<rule>.py`. The rule class's `description` attribute + diagnostic message are the documentation.
 
 ## License
 

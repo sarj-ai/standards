@@ -1,0 +1,1318 @@
+id: no-client-side-data-fetching
+snapshots:
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => axios.get('/api/users'), []);
+    }
+  : labels:
+    - source: axios.get('/api/users')
+      style: primary
+      start: 97
+      end: 120
+    - source: useEffect(() => axios.get('/api/users'), [])
+      style: secondary
+      start: 81
+      end: 125
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        (async () => {
+          await axios.post('/api/users');
+        })();
+      }, []);
+    }
+  : labels:
+    - source: axios.post('/api/users')
+      style: primary
+      start: 130
+      end: 154
+    - source: |-
+        useEffect(() => {
+            (async () => {
+              await axios.post('/api/users');
+            })();
+          }, [])
+      style: secondary
+      start: 81
+      end: 174
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        [1, 2].forEach(id => axios.get(`/api/${id}`));
+      }, []);
+    }
+  : labels:
+    - source: axios.get(`/api/${id}`)
+      style: primary
+      start: 124
+      end: 147
+    - source: |-
+        useEffect(() => {
+            [1, 2].forEach(id => axios.get(`/api/${id}`));
+          }, [])
+      style: secondary
+      start: 81
+      end: 158
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        axios('/api');
+      });
+    }
+  : labels:
+    - source: axios('/api')
+      style: primary
+      start: 103
+      end: 116
+    - source: |-
+        useEffect(() => {
+            axios('/api');
+          })
+      style: secondary
+      start: 81
+      end: 122
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        axios('/api/users');
+      }, []);
+    }
+  : labels:
+    - source: axios('/api/users')
+      style: primary
+      start: 103
+      end: 122
+    - source: |-
+        useEffect(() => {
+            axios('/api/users');
+          }, [])
+      style: secondary
+      start: 81
+      end: 132
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        axios.delete('/api/1');
+      }, []);
+    }
+  : labels:
+    - source: axios.delete('/api/1')
+      style: primary
+      start: 103
+      end: 125
+    - source: |-
+        useEffect(() => {
+            axios.delete('/api/1');
+          }, [])
+      style: secondary
+      start: 81
+      end: 135
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        axios.get('/api').then(res => res.data);
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api')
+      style: primary
+      start: 103
+      end: 120
+    - source: |-
+        useEffect(() => {
+            axios.get('/api').then(res => res.data);
+          }, [])
+      style: secondary
+      start: 81
+      end: 152
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        axios.get('/api/users');
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api/users')
+      style: primary
+      start: 103
+      end: 126
+    - source: |-
+        useEffect(() => {
+            axios.get('/api/users');
+          }, [])
+      style: secondary
+      start: 81
+      end: 136
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        axios.head('/api/status');
+      }, []);
+    }
+  : labels:
+    - source: axios.head('/api/status')
+      style: primary
+      start: 103
+      end: 128
+    - source: |-
+        useEffect(() => {
+            axios.head('/api/status');
+          }, [])
+      style: secondary
+      start: 81
+      end: 138
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        axios.options('/api');
+      }, []);
+    }
+  : labels:
+    - source: axios.options('/api')
+      style: primary
+      start: 103
+      end: 124
+    - source: |-
+        useEffect(() => {
+            axios.options('/api');
+          }, [])
+      style: secondary
+      start: 81
+      end: 134
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        axios.patch('/api/1', { name: 'test' });
+      }, []);
+    }
+  : labels:
+    - source: 'axios.patch(''/api/1'', { name: ''test'' })'
+      style: primary
+      start: 103
+      end: 142
+    - source: |-
+        useEffect(() => {
+            axios.patch('/api/1', { name: 'test' });
+          }, [])
+      style: secondary
+      start: 81
+      end: 152
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        axios.post('/api/users', { name: 'John' });
+      }, []);
+    }
+  : labels:
+    - source: 'axios.post(''/api/users'', { name: ''John'' })'
+      style: primary
+      start: 103
+      end: 145
+    - source: |-
+        useEffect(() => {
+            axios.post('/api/users', { name: 'John' });
+          }, [])
+      style: secondary
+      start: 81
+      end: 155
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        axios.put('/api/1', { active: true });
+      }, []);
+    }
+  : labels:
+    - source: 'axios.put(''/api/1'', { active: true })'
+      style: primary
+      start: 103
+      end: 140
+    - source: |-
+        useEffect(() => {
+            axios.put('/api/1', { active: true });
+          }, [])
+      style: secondary
+      start: 81
+      end: 150
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        const arr = [() => axios.get('/api')];
+        arr[0]();
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api')
+      style: primary
+      start: 122
+      end: 139
+    - source: |-
+        useEffect(() => {
+            const arr = [() => axios.get('/api')];
+            arr[0]();
+          }, [])
+      style: secondary
+      start: 81
+      end: 164
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        const dispatch = (p: any) => {};
+        dispatch(axios.get('/api'));
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api')
+      style: primary
+      start: 149
+      end: 166
+    - source: |-
+        useEffect(() => {
+            const dispatch = (p: any) => {};
+            dispatch(axios.get('/api'));
+          }, [])
+      style: secondary
+      start: 81
+      end: 177
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        const load = async () => {
+          await axios.get('/api/users');
+        };
+        load();
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api/users')
+      style: primary
+      start: 142
+      end: 165
+    - source: |-
+        useEffect(() => {
+            const load = async () => {
+              await axios.get('/api/users');
+            };
+            load();
+          }, [])
+      style: secondary
+      start: 81
+      end: 194
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        const obj = {
+          run: () => axios.get('/api')
+        };
+        obj.run();
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api')
+      style: primary
+      start: 134
+      end: 151
+    - source: |-
+        useEffect(() => {
+            const obj = {
+              run: () => axios.get('/api')
+            };
+            obj.run();
+          }, [])
+      style: secondary
+      start: 81
+      end: 182
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        const p = axios.get('/api');
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api')
+      style: primary
+      start: 113
+      end: 130
+    - source: |-
+        useEffect(() => {
+            const p = axios.get('/api');
+          }, [])
+      style: secondary
+      start: 81
+      end: 140
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        const url = new URL('/api', window.location.origin);
+        axios.get(url.toString());
+      }, []);
+    }
+  : labels:
+    - source: axios.get(url.toString())
+      style: primary
+      start: 160
+      end: 185
+    - source: |-
+        useEffect(() => {
+            const url = new URL('/api', window.location.origin);
+            axios.get(url.toString());
+          }, [])
+      style: secondary
+      start: 81
+      end: 195
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        for (let i = 0; i < 5; i++) {
+          axios.get('/api');
+        }
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api')
+      style: primary
+      start: 139
+      end: 156
+    - source: |-
+        useEffect(() => {
+            for (let i = 0; i < 5; i++) {
+              axios.get('/api');
+            }
+          }, [])
+      style: secondary
+      start: 81
+      end: 172
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        return () => {
+          axios.post('/api/cleanup');
+        };
+      }, []);
+    }
+  : labels:
+    - source: axios.post('/api/cleanup')
+      style: primary
+      start: 124
+      end: 150
+    - source: |-
+        useEffect(() => {
+            return () => {
+              axios.post('/api/cleanup');
+            };
+          }, [])
+      style: secondary
+      start: 81
+      end: 167
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        setTimeout(() => {
+          axios.get('/api/users');
+        }, 1000);
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api/users')
+      style: primary
+      start: 128
+      end: 151
+    - source: |-
+        useEffect(() => {
+            setTimeout(() => {
+              axios.get('/api/users');
+            }, 1000);
+          }, [])
+      style: secondary
+      start: 81
+      end: 175
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        switch('test') {
+          case 'test':
+            axios.get('/api');
+        }
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api')
+      style: primary
+      start: 147
+      end: 164
+    - source: |-
+        useEffect(() => {
+            switch('test') {
+              case 'test':
+                axios.get('/api');
+            }
+          }, [])
+      style: secondary
+      start: 81
+      end: 180
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        try {
+          axios.get('/api/users');
+        } catch (e) {}
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api/users')
+      style: primary
+      start: 115
+      end: 138
+    - source: |-
+        useEffect(() => {
+            try {
+              axios.get('/api/users');
+            } catch (e) {}
+          }, [])
+      style: secondary
+      start: 81
+      end: 167
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        window.addEventListener('scroll', () => {
+          axios.post('/api/log');
+        });
+      }, []);
+    }
+  : labels:
+    - source: axios.post('/api/log')
+      style: primary
+      start: 151
+      end: 173
+    - source: |-
+        useEffect(() => {
+            window.addEventListener('scroll', () => {
+              axios.post('/api/log');
+            });
+          }, [])
+      style: secondary
+      start: 81
+      end: 191
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(() => {
+        {
+          axios.get('/api');
+        }
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api')
+      style: primary
+      start: 111
+      end: 128
+    - source: |-
+        useEffect(() => {
+            {
+              axios.get('/api');
+            }
+          }, [])
+      style: secondary
+      start: 81
+      end: 144
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(async () => {
+        await axios.get('/api');
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api')
+      style: primary
+      start: 115
+      end: 132
+    - source: |-
+        useEffect(async () => {
+            await axios.get('/api');
+          }, [])
+      style: secondary
+      start: 81
+      end: 142
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useEffect(function() {
+        axios.get('/api/users');
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api/users')
+      style: primary
+      start: 108
+      end: 131
+    - source: |-
+        useEffect(function() {
+            axios.get('/api/users');
+          }, [])
+      style: secondary
+      start: 81
+      end: 141
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp({ a, b }: { a: any, b: any }) {
+      useEffect(() => {
+        axios.get('/api');
+      }, [a, b]);
+    }
+  : labels:
+    - source: axios.get('/api')
+      style: primary
+      start: 131
+      end: 148
+    - source: |-
+        useEffect(() => {
+            axios.get('/api');
+          }, [a, b])
+      style: secondary
+      start: 109
+      end: 162
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp({ active }: { active: boolean }) {
+      useEffect(() => {
+        active && axios.get('/api/active');
+      }, [active]);
+    }
+  : labels:
+    - source: axios.get('/api/active')
+      style: primary
+      start: 144
+      end: 168
+    - source: |-
+        useEffect(() => {
+            active && axios.get('/api/active');
+          }, [active])
+      style: secondary
+      start: 112
+      end: 184
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp({ active }: { active: boolean }) {
+      useEffect(() => {
+        active ? axios.get('/api/a') : axios.get('/api/b');
+      }, [active]);
+    }
+  : labels:
+    - source: axios.get('/api/a')
+      style: primary
+      start: 143
+      end: 162
+    - source: |-
+        useEffect(() => {
+            active ? axios.get('/api/a') : axios.get('/api/b');
+          }, [active])
+      style: secondary
+      start: 112
+      end: 200
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function Comp({ userId }: { userId: string }) {
+      useEffect(() => {
+        if (userId) {
+          axios.get(`/api/users/${userId}`);
+        }
+      }, [userId]);
+    }
+  : labels:
+    - source: axios.get(`/api/users/${userId}`)
+      style: primary
+      start: 153
+      end: 186
+    - source: |-
+        useEffect(() => {
+            if (userId) {
+              axios.get(`/api/users/${userId}`);
+            }
+          }, [userId])
+      style: secondary
+      start: 111
+      end: 208
+  ? |
+    import { useEffect } from 'react';
+    declare const axios: any;
+    function useMyHook() {
+      useEffect(() => {
+        axios.get('/api');
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api')
+      style: primary
+      start: 108
+      end: 125
+    - source: |-
+        useEffect(() => {
+            axios.get('/api');
+          }, [])
+      style: secondary
+      start: 86
+      end: 135
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => fetch('/api/users'), []);
+    }
+  : labels:
+    - source: fetch('/api/users')
+      style: primary
+      start: 71
+      end: 90
+    - source: useEffect(() => fetch('/api/users'), [])
+      style: secondary
+      start: 55
+      end: 95
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        (async () => {
+          await fetch('/api/users');
+        })();
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api/users')
+      style: primary
+      start: 104
+      end: 123
+    - source: |-
+        useEffect(() => {
+            (async () => {
+              await fetch('/api/users');
+            })();
+          }, [])
+      style: secondary
+      start: 55
+      end: 143
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        [1, 2].forEach(id => fetch(`/api/${id}`));
+      }, []);
+    }
+  : labels:
+    - source: fetch(`/api/${id}`)
+      style: primary
+      start: 98
+      end: 117
+    - source: |-
+        useEffect(() => {
+            [1, 2].forEach(id => fetch(`/api/${id}`));
+          }, [])
+      style: secondary
+      start: 55
+      end: 128
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        const arr = [() => fetch('/api')];
+        arr[0]();
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 96
+      end: 109
+    - source: |-
+        useEffect(() => {
+            const arr = [() => fetch('/api')];
+            arr[0]();
+          }, [])
+      style: secondary
+      start: 55
+      end: 134
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        const dispatch = (p: any) => {};
+        dispatch(fetch('/api'));
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 123
+      end: 136
+    - source: |-
+        useEffect(() => {
+            const dispatch = (p: any) => {};
+            dispatch(fetch('/api'));
+          }, [])
+      style: secondary
+      start: 55
+      end: 147
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        const load = async () => {
+          await fetch('/api/users');
+        };
+        load();
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api/users')
+      style: primary
+      start: 116
+      end: 135
+    - source: |-
+        useEffect(() => {
+            const load = async () => {
+              await fetch('/api/users');
+            };
+            load();
+          }, [])
+      style: secondary
+      start: 55
+      end: 164
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        const obj = {
+          run: () => fetch('/api')
+        };
+        obj.run();
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 108
+      end: 121
+    - source: |-
+        useEffect(() => {
+            const obj = {
+              run: () => fetch('/api')
+            };
+            obj.run();
+          }, [])
+      style: secondary
+      start: 55
+      end: 152
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        const p = fetch('/api');
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 87
+      end: 100
+    - source: |-
+        useEffect(() => {
+            const p = fetch('/api');
+          }, [])
+      style: secondary
+      start: 55
+      end: 110
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        const req = new Request('/api');
+        fetch(req);
+      }, []);
+    }
+  : labels:
+    - source: fetch(req)
+      style: primary
+      start: 114
+      end: 124
+    - source: |-
+        useEffect(() => {
+            const req = new Request('/api');
+            fetch(req);
+          }, [])
+      style: secondary
+      start: 55
+      end: 134
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        const url = new URL('/api', window.location.origin);
+        fetch(url.toString());
+      }, []);
+    }
+  : labels:
+    - source: fetch(url.toString())
+      style: primary
+      start: 134
+      end: 155
+    - source: |-
+        useEffect(() => {
+            const url = new URL('/api', window.location.origin);
+            fetch(url.toString());
+          }, [])
+      style: secondary
+      start: 55
+      end: 165
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        fetch('/api').then(res => res.json());
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 77
+      end: 90
+    - source: |-
+        useEffect(() => {
+            fetch('/api').then(res => res.json());
+          }, [])
+      style: secondary
+      start: 55
+      end: 124
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        fetch('/api');
+      });
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 77
+      end: 90
+    - source: |-
+        useEffect(() => {
+            fetch('/api');
+          })
+      style: secondary
+      start: 55
+      end: 96
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        fetch('/api/users');
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api/users')
+      style: primary
+      start: 77
+      end: 96
+    - source: |-
+        useEffect(() => {
+            fetch('/api/users');
+          }, [])
+      style: secondary
+      start: 55
+      end: 106
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        for (let i = 0; i < 5; i++) {
+          fetch('/api');
+        }
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 113
+      end: 126
+    - source: |-
+        useEffect(() => {
+            for (let i = 0; i < 5; i++) {
+              fetch('/api');
+            }
+          }, [])
+      style: secondary
+      start: 55
+      end: 142
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        return () => {
+          fetch('/api/cleanup');
+        };
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api/cleanup')
+      style: primary
+      start: 98
+      end: 119
+    - source: |-
+        useEffect(() => {
+            return () => {
+              fetch('/api/cleanup');
+            };
+          }, [])
+      style: secondary
+      start: 55
+      end: 136
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        setTimeout(() => {
+          fetch('/api/users');
+        }, 1000);
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api/users')
+      style: primary
+      start: 102
+      end: 121
+    - source: |-
+        useEffect(() => {
+            setTimeout(() => {
+              fetch('/api/users');
+            }, 1000);
+          }, [])
+      style: secondary
+      start: 55
+      end: 145
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        switch('test') {
+          case 'test':
+            fetch('/api');
+        }
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 121
+      end: 134
+    - source: |-
+        useEffect(() => {
+            switch('test') {
+              case 'test':
+                fetch('/api');
+            }
+          }, [])
+      style: secondary
+      start: 55
+      end: 150
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        try {
+          fetch('/api/users');
+        } catch (e) {}
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api/users')
+      style: primary
+      start: 89
+      end: 108
+    - source: |-
+        useEffect(() => {
+            try {
+              fetch('/api/users');
+            } catch (e) {}
+          }, [])
+      style: secondary
+      start: 55
+      end: 137
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        window.addEventListener('scroll', () => {
+          fetch('/api/log');
+        });
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api/log')
+      style: primary
+      start: 125
+      end: 142
+    - source: |-
+        useEffect(() => {
+            window.addEventListener('scroll', () => {
+              fetch('/api/log');
+            });
+          }, [])
+      style: secondary
+      start: 55
+      end: 160
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(() => {
+        {
+          fetch('/api');
+        }
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 85
+      end: 98
+    - source: |-
+        useEffect(() => {
+            {
+              fetch('/api');
+            }
+          }, [])
+      style: secondary
+      start: 55
+      end: 114
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(async () => {
+        await fetch('/api');
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 89
+      end: 102
+    - source: |-
+        useEffect(async () => {
+            await fetch('/api');
+          }, [])
+      style: secondary
+      start: 55
+      end: 112
+  ? |
+    import { useEffect } from 'react';
+    function Comp() {
+      useEffect(function() {
+        fetch('/api/users');
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api/users')
+      style: primary
+      start: 82
+      end: 101
+    - source: |-
+        useEffect(function() {
+            fetch('/api/users');
+          }, [])
+      style: secondary
+      start: 55
+      end: 111
+  ? |
+    import { useEffect } from 'react';
+    function Comp({ a, b }: { a: any, b: any }) {
+      useEffect(() => {
+        fetch('/api');
+      }, [a, b]);
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 105
+      end: 118
+    - source: |-
+        useEffect(() => {
+            fetch('/api');
+          }, [a, b])
+      style: secondary
+      start: 83
+      end: 132
+  ? |
+    import { useEffect } from 'react';
+    function Comp({ active }: { active: boolean }) {
+      useEffect(() => {
+        active && fetch('/api/active');
+      }, [active]);
+    }
+  : labels:
+    - source: fetch('/api/active')
+      style: primary
+      start: 118
+      end: 138
+    - source: |-
+        useEffect(() => {
+            active && fetch('/api/active');
+          }, [active])
+      style: secondary
+      start: 86
+      end: 154
+  ? |
+    import { useEffect } from 'react';
+    function Comp({ active }: { active: boolean }) {
+      useEffect(() => {
+        active ? fetch('/api/a') : fetch('/api/b');
+      }, [active]);
+    }
+  : labels:
+    - source: fetch('/api/a')
+      style: primary
+      start: 117
+      end: 132
+    - source: |-
+        useEffect(() => {
+            active ? fetch('/api/a') : fetch('/api/b');
+          }, [active])
+      style: secondary
+      start: 86
+      end: 166
+  ? |
+    import { useEffect } from 'react';
+    function Comp({ userId }: { userId: string }) {
+      useEffect(() => {
+        if (userId) {
+          fetch(`/api/users/${userId}`);
+        }
+      }, [userId]);
+    }
+  : labels:
+    - source: fetch(`/api/users/${userId}`)
+      style: primary
+      start: 127
+      end: 156
+    - source: |-
+        useEffect(() => {
+            if (userId) {
+              fetch(`/api/users/${userId}`);
+            }
+          }, [userId])
+      style: secondary
+      start: 85
+      end: 178
+  ? |
+    import { useEffect } from 'react';
+    function useMyHook() {
+      useEffect(() => {
+        fetch('/api');
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api')
+      style: primary
+      start: 82
+      end: 95
+    - source: |-
+        useEffect(() => {
+            fetch('/api');
+          }, [])
+      style: secondary
+      start: 60
+      end: 105
+  ? |
+    import { useLayoutEffect } from 'react';
+    declare const axios: any;
+    function Comp() {
+      useLayoutEffect(() => {
+        axios.get('/api/data');
+      }, []);
+    }
+  : labels:
+    - source: axios.get('/api/data')
+      style: primary
+      start: 115
+      end: 137
+    - source: |-
+        useLayoutEffect(() => {
+            axios.get('/api/data');
+          }, [])
+      style: secondary
+      start: 87
+      end: 147
+  ? |
+    import { useLayoutEffect } from 'react';
+    function Comp() {
+      useLayoutEffect(() => {
+        fetch('/api/data');
+      }, []);
+    }
+  : labels:
+    - source: fetch('/api/data')
+      style: primary
+      start: 89
+      end: 107
+    - source: |-
+        useLayoutEffect(() => {
+            fetch('/api/data');
+          }, [])
+      style: secondary
+      start: 61
+      end: 117

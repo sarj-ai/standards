@@ -1,0 +1,928 @@
+"id": |-
+  no-client-side-data-fetching
+"valid":
+- |
+  function Comp() {
+    const handleClick = () => {
+      fetch('/api/users');
+    };
+    return null;
+  }
+- |
+  declare const axios: any;
+  function Comp() {
+    const handleClick = () => {
+      axios.get('/api/users');
+    };
+    return null;
+  }
+- |
+  import { useCallback } from 'react';
+  function Comp() {
+    const load = useCallback(() => {
+      fetch('/api/users');
+    }, []);
+  }
+- |
+  import { useCallback } from 'react';
+  declare const axios: any;
+  function Comp() {
+    const load = useCallback(() => {
+      axios.get('/api/users');
+    }, []);
+  }
+- |
+  async function loadData() {
+    const res = await fetch('/api/data');
+    return res.json();
+  }
+- |
+  declare const axios: any;
+  async function loadData() {
+    const res = await axios.get('/api/data');
+    return res.data;
+  }
+- |
+  async function ServerComponent() {
+    const res = await fetch('/api/data');
+    return res.json();
+  }
+- |
+  declare const axios: any;
+  async function ServerComponent() {
+    const res = await axios.get('/api/data');
+    return res.data;
+  }
+- |
+  import useSWR from 'swr';
+  function Comp() {
+    const { data } = useSWR('/api/user', (url) => fetch(url).then(r => r.json()));
+  }
+- |
+  import { useQuery } from 'react-query';
+  declare const axios: any;
+  function Comp() {
+    const { data } = useQuery('user', () => axios.get('/api/user'));
+  }
+- |
+  import { useEffect, useState } from 'react';
+  function Comp() {
+    const [count, setCount] = useState(0);
+    useEffect(() => {
+      setCount(c => c + 1);
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      document.title = 'New Title';
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const id = setInterval(() => {}, 1000);
+      return () => clearInterval(id);
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const handler = () => {};
+      window.addEventListener('resize', handler);
+      return () => window.removeEventListener('resize', handler);
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const customFetch: any;
+  function Comp() {
+    useEffect(() => {
+      customFetch('/api/data');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const apiClient: any;
+  function Comp() {
+    useEffect(() => {
+      apiClient.get('/api/data');
+    }, []);
+  }
+- |
+  export async function getStaticProps() {
+    const res = await fetch('https://api.example.com/data');
+    return { props: { data: await res.json() } };
+  }
+- |
+  declare const axios: any;
+  export async function getStaticProps() {
+    const res = await axios.get('https://api.example.com/data');
+    return { props: { data: res.data } };
+  }
+- |
+  export async function getServerSideProps() {
+    const res = await fetch('https://api.example.com/data');
+    return { props: { data: await res.json() } };
+  }
+- |
+  declare const axios: any;
+  export async function getServerSideProps() {
+    const res = await axios.get('https://api.example.com/data');
+    return { props: { data: res.data } };
+  }
+- |
+  import { createAsyncThunk } from '@reduxjs/toolkit';
+  const fetchUser = createAsyncThunk('users/fetch', async () => {
+    const res = await fetch('/api/user');
+    return res.json();
+  });
+- |
+  import { createAsyncThunk } from '@reduxjs/toolkit';
+  declare const axios: any;
+  const fetchUser = createAsyncThunk('users/fetch', async () => {
+    const res = await axios.get('/api/user');
+    return res.data;
+  });
+- |
+  class ApiService {
+    async load() {
+      return fetch('/api/data');
+    }
+  }
+- |
+  declare const axios: any;
+  class ApiService {
+    async load() {
+      return axios.get('/api/data');
+    }
+  }
+- |
+  'use server';
+  export async function loadUserData() {
+    const res = await fetch('/api/user');
+    return res.json();
+  }
+- |
+  'use server';
+  declare const axios: any;
+  export async function loadUserData() {
+    const res = await axios.get('/api/user');
+    return res.data;
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp({ onLoad }: { onLoad: () => void }) {
+    useEffect(() => {
+      onLoad();
+    }, [onLoad]);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp({ refetch }: { refetch: () => void }) {
+    useEffect(() => {
+      refetch();
+    }, [refetch]);
+  }
+- |
+  function Comp() {
+    const handleSubmit = (e: any) => {
+      e.preventDefault();
+      fetch('/api/submit', { method: 'POST' });
+    };
+    return null;
+  }
+- |
+  declare const axios: any;
+  function Comp() {
+    const handleSubmit = (e: any) => {
+      e.preventDefault();
+      axios.post('/api/submit');
+    };
+    return null;
+  }
+- |
+  function setupObserver() {
+    return new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        fetch('/api/next-page');
+      }
+    });
+  }
+- |
+  declare const axios: any;
+  function setupObserver() {
+    return new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        axios.get('/api/next-page');
+      }
+    });
+  }
+- |
+  import { useInsertionEffect } from 'react';
+  function Comp() {
+    useInsertionEffect(() => {
+      fetch('/api/data');
+    }, []);
+  }
+- |
+  import { useInsertionEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useInsertionEffect(() => {
+      axios.get('/api/data');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const myFetch: typeof fetch | null = null;
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  import { AxiosInstance } from 'axios';
+  function Comp() {
+    useEffect(() => {
+      const client: AxiosInstance | null = null;
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const config = { fetch: true };
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const config = { axios: 'enabled' };
+    }, []);
+  }
+- |
+  self.onmessage = (e) => {
+    fetch('/api/worker-task');
+  };
+- |
+  declare const axios: any;
+  self.onmessage = (e) => {
+    axios.post('/api/worker-task');
+  };
+- |
+  const guard = (to: any, from: any, next: any) => {
+    fetch('/api/auth').then(() => next());
+  };
+- |
+  declare const axios: any;
+  const guard = (to: any, from: any, next: any) => {
+    axios.get('/api/auth').then(() => next());
+  };
+- |
+  declare const jest: any;
+  declare const describe: any;
+  declare const it: any;
+  describe('test', () => {
+    it('mocks fetch', () => {
+      (global as any).fetch = jest.fn();
+    });
+  });
+- |
+  declare const jest: any;
+  declare const describe: any;
+  declare const it: any;
+  describe('test', () => {
+    it('mocks axios', () => {
+      const mockAxios = jest.fn();
+    });
+  });
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const api = { fetch: (url: string) => {} };
+      api.fetch('/api');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const myClient = { axios: () => {} };
+      myClient.axios();
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      const headers = axios.defaults.headers;
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const useEffectEvent: any;
+  function Comp() {
+    const onSomeEvent = useEffectEvent(() => {
+      fetch('/api/data');
+    });
+  }
+- |
+  import { useEffect } from 'react';
+  declare const useEffectEvent: any;
+  declare const axios: any;
+  function Comp() {
+    const onSomeEvent = useEffectEvent(() => {
+      axios.get('/api/data');
+    });
+  }
+- |
+  function useMyHook() {
+    const load = () => fetch('/api/data');
+    return { load };
+  }
+- |
+  declare const axios: any;
+  function useMyHook() {
+    const load = () => axios.get('/api/data');
+    return { load };
+  }
+- |
+  import { useMemo } from 'react';
+  function Comp() {
+    const promise = useMemo(() => {
+      return fetch('/api/data');
+    }, []);
+  }
+- |
+  import { useMemo } from 'react';
+  declare const axios: any;
+  function Comp() {
+    const promise = useMemo(() => {
+      return axios.get('/api/data');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      localStorage.setItem('key', 'value');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      return () => {
+        console.log('cleaned up');
+      };
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      window.dispatchEvent(new Event('custom'));
+    }, []);
+  }
+- |
+  class ApiLoader {
+    constructor() {
+      fetch('/api/init');
+    }
+  }
+- |
+  declare const axios: any;
+  class ApiLoader {
+    constructor() {
+      axios.get('/api/init');
+    }
+  }
+"invalid":
+- |
+  import { useLayoutEffect } from 'react';
+  function Comp() {
+    useLayoutEffect(() => {
+      fetch('/api/data');
+    }, []);
+  }
+- |
+  import { useLayoutEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useLayoutEffect(() => {
+      axios.get('/api/data');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      fetch('/api/users');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      axios('/api/users');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      axios.get('/api/users');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      axios.post('/api/users', { name: 'John' });
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const load = async () => {
+        await fetch('/api/users');
+      };
+      load();
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      const load = async () => {
+        await axios.get('/api/users');
+      };
+      load();
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      (async () => {
+        await fetch('/api/users');
+      })();
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      (async () => {
+        await axios.post('/api/users');
+      })();
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => fetch('/api/users'), []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => axios.get('/api/users'), []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(function() {
+      fetch('/api/users');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(function() {
+      axios.get('/api/users');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp({ userId }: { userId: string }) {
+    useEffect(() => {
+      if (userId) {
+        fetch(`/api/users/${userId}`);
+      }
+    }, [userId]);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp({ userId }: { userId: string }) {
+    useEffect(() => {
+      if (userId) {
+        axios.get(`/api/users/${userId}`);
+      }
+    }, [userId]);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      try {
+        fetch('/api/users');
+      } catch (e) {}
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      try {
+        axios.get('/api/users');
+      } catch (e) {}
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      setTimeout(() => {
+        fetch('/api/users');
+      }, 1000);
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      setTimeout(() => {
+        axios.get('/api/users');
+      }, 1000);
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      return () => {
+        fetch('/api/cleanup');
+      };
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      return () => {
+        axios.post('/api/cleanup');
+      };
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      fetch('/api').then(res => res.json());
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      axios.get('/api').then(res => res.data);
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      axios.put('/api/1', { active: true });
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      axios.delete('/api/1');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      axios.patch('/api/1', { name: 'test' });
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      axios.head('/api/status');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      axios.options('/api');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const req = new Request('/api');
+      fetch(req);
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const p = fetch('/api');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      const p = axios.get('/api');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp({ active }: { active: boolean }) {
+    useEffect(() => {
+      active && fetch('/api/active');
+    }, [active]);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp({ active }: { active: boolean }) {
+    useEffect(() => {
+      active && axios.get('/api/active');
+    }, [active]);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp({ active }: { active: boolean }) {
+    useEffect(() => {
+      active ? fetch('/api/a') : fetch('/api/b');
+    }, [active]);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp({ active }: { active: boolean }) {
+    useEffect(() => {
+      active ? axios.get('/api/a') : axios.get('/api/b');
+    }, [active]);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      [1, 2].forEach(id => fetch(`/api/${id}`));
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      [1, 2].forEach(id => axios.get(`/api/${id}`));
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      for (let i = 0; i < 5; i++) {
+        fetch('/api');
+      }
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      for (let i = 0; i < 5; i++) {
+        axios.get('/api');
+      }
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      window.addEventListener('scroll', () => {
+        fetch('/api/log');
+      });
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      window.addEventListener('scroll', () => {
+        axios.post('/api/log');
+      });
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function useMyHook() {
+    useEffect(() => {
+      fetch('/api');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function useMyHook() {
+    useEffect(() => {
+      axios.get('/api');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      fetch('/api');
+    });
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      axios('/api');
+    });
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp({ a, b }: { a: any, b: any }) {
+    useEffect(() => {
+      fetch('/api');
+    }, [a, b]);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp({ a, b }: { a: any, b: any }) {
+    useEffect(() => {
+      axios.get('/api');
+    }, [a, b]);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(async () => {
+      await fetch('/api');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(async () => {
+      await axios.get('/api');
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      {
+        fetch('/api');
+      }
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      {
+        axios.get('/api');
+      }
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const obj = {
+        run: () => fetch('/api')
+      };
+      obj.run();
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      const obj = {
+        run: () => axios.get('/api')
+      };
+      obj.run();
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const url = new URL('/api', window.location.origin);
+      fetch(url.toString());
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      const url = new URL('/api', window.location.origin);
+      axios.get(url.toString());
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const dispatch = (p: any) => {};
+      dispatch(fetch('/api'));
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      const dispatch = (p: any) => {};
+      dispatch(axios.get('/api'));
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      switch('test') {
+        case 'test':
+          fetch('/api');
+      }
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      switch('test') {
+        case 'test':
+          axios.get('/api');
+      }
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  function Comp() {
+    useEffect(() => {
+      const arr = [() => fetch('/api')];
+      arr[0]();
+    }, []);
+  }
+- |
+  import { useEffect } from 'react';
+  declare const axios: any;
+  function Comp() {
+    useEffect(() => {
+      const arr = [() => axios.get('/api')];
+      arr[0]();
+    }, []);
+  }

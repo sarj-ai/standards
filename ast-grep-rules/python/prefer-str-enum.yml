@@ -1,0 +1,17 @@
+id: prefer-str-enum
+language: python
+severity: warning
+message: |
+  `<name>: str = "<literal>"` looks like a closed set — prefer `StrEnum` or `Literal[...]`.
+note: |
+  Requires (a) a string default value, (b) the field name ends in `_status`/`_state`/`_kind`/`_level`, and (c) the default isn't a MIME-type / URL / path / version (contains `/`, `;`, `:`, or whitespace). Free-text fields like `content_type` are excluded.
+rule:
+  pattern: '$NAME: str = $DEFAULT'
+constraints:
+  NAME:
+    regex: "_(status|state|kind|level|type)$"
+  DEFAULT:
+    all:
+      - regex: '^[fbruFBRU]{0,2}["\x27]'
+      - not:
+          regex: '[/;:\s]'

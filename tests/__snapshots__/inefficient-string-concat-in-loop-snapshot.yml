@@ -1,0 +1,941 @@
+id: inefficient-string-concat-in-loop
+snapshots:
+  ? |
+    class Builder:
+        def build(self, parts):
+            out = ""
+            for p in parts:
+                out += p
+            return out
+  : labels:
+    - source: out += p
+      style: primary
+      start: 96
+      end: 104
+    - source: |-
+        for p in parts:
+                    out += p
+      style: secondary
+      start: 68
+      end: 104
+  ? |
+    def outer():
+        x = 0
+        def inner():
+            nonlocal x
+            for i in range(5):
+                x += i
+  : labels:
+    - source: x += i
+      style: primary
+      start: 98
+      end: 104
+    - source: |-
+        for i in range(5):
+                    x += i
+      style: secondary
+      start: 67
+      end: 104
+  ? |
+    def process(items):
+        res = ""
+        for x in items:
+            res += x
+        return res
+  : labels:
+    - source: res += x
+      style: primary
+      start: 61
+      end: 69
+    - source: |-
+        for x in items:
+                res += x
+      style: secondary
+      start: 37
+      end: 69
+  ? |
+    def run():
+        for x in range(10):
+            global_var += x
+  : labels:
+    - source: global_var += x
+      style: primary
+      start: 43
+      end: 58
+    - source: |-
+        for x in range(10):
+                global_var += x
+      style: secondary
+      start: 15
+      end: 58
+  ? |
+    def update_count():
+        i = 0
+        while i < 10:
+            i += 1
+  : labels:
+    - source: i += 1
+      style: primary
+      start: 56
+      end: 62
+    - source: |-
+        while i < 10:
+                i += 1
+      style: secondary
+      start: 34
+      end: 62
+  ? |
+    for char in "hello":
+        result += char
+  : labels:
+    - source: result += char
+      style: primary
+      start: 25
+      end: 39
+    - source: |-
+        for char in "hello":
+            result += char
+      style: secondary
+      start: 0
+      end: 39
+  ? |
+    for chunk in response.iter_content():
+        body += chunk.decode('utf-8')
+  : labels:
+    - source: body += chunk.decode('utf-8')
+      style: primary
+      start: 42
+      end: 71
+    - source: |-
+        for chunk in response.iter_content():
+            body += chunk.decode('utf-8')
+      style: secondary
+      start: 0
+      end: 71
+  ? |
+    for element in matrix:
+        for item in element:
+            flat_list += [item]
+  : labels:
+    - source: flat_list += [item]
+      style: primary
+      start: 56
+      end: 75
+    - source: |-
+        for item in element:
+                flat_list += [item]
+      style: secondary
+      start: 27
+      end: 75
+  ? |
+    for i in range(10):
+        # some comment
+        x += 1
+  : labels:
+    - source: x += 1
+      style: primary
+      start: 43
+      end: 49
+    - source: |-
+        for i in range(10):
+            # some comment
+            x += 1
+      style: secondary
+      start: 0
+      end: 49
+  ? |
+    for i in range(10):
+        result_str += chr(97 + i)
+  : labels:
+    - source: result_str += chr(97 + i)
+      style: primary
+      start: 24
+      end: 49
+    - source: |-
+        for i in range(10):
+            result_str += chr(97 + i)
+      style: secondary
+      start: 0
+      end: 49
+  ? |
+    for i in range(3):
+        for j in range(3):
+            s += f"{i},{j}"
+  : labels:
+    - source: s += f"{i},{j}"
+      style: primary
+      start: 50
+      end: 65
+    - source: |-
+        for j in range(3):
+                s += f"{i},{j}"
+      style: secondary
+      start: 23
+      end: 65
+  ? |
+    for i in range(3):
+        s += str(i)
+        for j in range(3):
+            pass
+  : labels:
+    - source: s += str(i)
+      style: primary
+      start: 23
+      end: 34
+    - source: |-
+        for i in range(3):
+            s += str(i)
+            for j in range(3):
+                pass
+      style: secondary
+      start: 0
+      end: 70
+  ? |
+    for i in range(5):
+        total += i
+  : labels:
+    - source: total += i
+      style: primary
+      start: 23
+      end: 33
+    - source: |-
+        for i in range(5):
+            total += i
+      style: secondary
+      start: 0
+      end: 33
+  ? |
+    for item in array:
+        result_string += item.name + " "
+  : labels:
+    - source: result_string += item.name + " "
+      style: primary
+      start: 23
+      end: 55
+    - source: |-
+        for item in array:
+            result_string += item.name + " "
+      style: secondary
+      start: 0
+      end: 55
+  ? |
+    for item in collection:
+        match item:
+            case 1:
+                s += "one"
+  : labels:
+    - source: s += "one"
+      style: primary
+      start: 68
+      end: 78
+    - source: |-
+        for item in collection:
+            match item:
+                case 1:
+                    s += "one"
+      style: secondary
+      start: 0
+      end: 78
+  ? |
+    for item in items:
+        lst += [item]
+  : labels:
+    - source: lst += [item]
+      style: primary
+      start: 23
+      end: 36
+    - source: |-
+        for item in items:
+            lst += [item]
+      style: secondary
+      start: 0
+      end: 36
+  ? |
+    for item in items:
+        output_buffer += bytes([item])
+  : labels:
+    - source: output_buffer += bytes([item])
+      style: primary
+      start: 23
+      end: 53
+    - source: |-
+        for item in items:
+            output_buffer += bytes([item])
+      style: secondary
+      start: 0
+      end: 53
+  ? |
+    for item in iterable:
+        result_set += item
+  : labels:
+    - source: result_set += item
+      style: primary
+      start: 26
+      end: 44
+    - source: |-
+        for item in iterable:
+            result_set += item
+      style: secondary
+      start: 0
+      end: 44
+  ? |
+    for item in list_of_items:
+        accumulator_variable_name_long += item
+  : labels:
+    - source: accumulator_variable_name_long += item
+      style: primary
+      start: 31
+      end: 69
+    - source: |-
+        for item in list_of_items:
+            accumulator_variable_name_long += item
+      style: secondary
+      start: 0
+      end: 69
+  ? |
+    for k in my_dict:
+        val += my_dict[k]
+  : labels:
+    - source: val += my_dict[k]
+      style: primary
+      start: 22
+      end: 39
+    - source: |-
+        for k in my_dict:
+            val += my_dict[k]
+      style: secondary
+      start: 0
+      end: 39
+  ? |
+    for k, v in d.items():
+        s += f"{k}={v}"
+  : labels:
+    - source: s += f"{k}={v}"
+      style: primary
+      start: 27
+      end: 42
+    - source: |-
+        for k, v in d.items():
+            s += f"{k}={v}"
+      style: secondary
+      start: 0
+      end: 42
+  ? |
+    for key in dict_data:
+        accum += dict_data[key]
+  : labels:
+    - source: accum += dict_data[key]
+      style: primary
+      start: 26
+      end: 49
+    - source: |-
+        for key in dict_data:
+            accum += dict_data[key]
+      style: secondary
+      start: 0
+      end: 49
+  ? |
+    for key, val in mapping.items():
+        serialized += f"{key}:{val};"
+  : labels:
+    - source: serialized += f"{key}:{val};"
+      style: primary
+      start: 37
+      end: 66
+    - source: |-
+        for key, val in mapping.items():
+            serialized += f"{key}:{val};"
+      style: secondary
+      start: 0
+      end: 66
+  ? |
+    for line in file_handle:
+        processed += line.strip() + ","
+  : labels:
+    - source: processed += line.strip() + ","
+      style: primary
+      start: 29
+      end: 60
+    - source: |-
+        for line in file_handle:
+            processed += line.strip() + ","
+      style: secondary
+      start: 0
+      end: 60
+  ? |
+    for line in lines:
+        csv_data += line + "\n"
+  : labels:
+    - source: csv_data += line + "\n"
+      style: primary
+      start: 23
+      end: 46
+    - source: |-
+        for line in lines:
+            csv_data += line + "\n"
+      style: secondary
+      start: 0
+      end: 46
+  ? |
+    for num in numbers:
+        total_sum += num * 2
+  : labels:
+    - source: total_sum += num * 2
+      style: primary
+      start: 24
+      end: 44
+    - source: |-
+        for num in numbers:
+            total_sum += num * 2
+      style: secondary
+      start: 0
+      end: 44
+  ? |
+    for val in values:
+        summary += f"Value: {val}\n"
+  : labels:
+    - source: 'summary += f"Value: {val}\n"'
+      style: primary
+      start: 23
+      end: 51
+    - source: |-
+        for val in values:
+            summary += f"Value: {val}\n"
+      style: secondary
+      start: 0
+      end: 51
+  ? |
+    for word in words:
+        sentence += word if sentence == "" else " " + word
+  : labels:
+    - source: sentence += word if sentence == "" else " " + word
+      style: primary
+      start: 23
+      end: 73
+    - source: |-
+        for word in words:
+            sentence += word if sentence == "" else " " + word
+      style: secondary
+      start: 0
+      end: 73
+  ? |
+    for x in [1, 2, 3]:
+        y += (x * 2)
+  : labels:
+    - source: y += (x * 2)
+      style: primary
+      start: 24
+      end: 36
+    - source: |-
+        for x in [1, 2, 3]:
+            y += (x * 2)
+      style: secondary
+      start: 0
+      end: 36
+  ? |
+    for x in data:
+        with open("file.txt") as f:
+            content += f.read()
+  : labels:
+    - source: content += f.read()
+      style: primary
+      start: 55
+      end: 74
+    - source: |-
+        for x in data:
+            with open("file.txt") as f:
+                content += f.read()
+      style: secondary
+      start: 0
+      end: 74
+  ? |
+    for x in generator():
+        out += str(x)
+  : labels:
+    - source: out += str(x)
+      style: primary
+      start: 26
+      end: 39
+    - source: |-
+        for x in generator():
+            out += str(x)
+      style: secondary
+      start: 0
+      end: 39
+  ? |
+    for x in lst:
+        val += 1.5
+  : labels:
+    - source: val += 1.5
+      style: primary
+      start: 18
+      end: 28
+    - source: |-
+        for x in lst:
+            val += 1.5
+      style: secondary
+      start: 0
+      end: 28
+  ? |
+    for x in range(10):
+        __double_leading_underscore_var += x
+  : labels:
+    - source: __double_leading_underscore_var += x
+      style: primary
+      start: 24
+      end: 60
+    - source: |-
+        for x in range(10):
+            __double_leading_underscore_var += x
+      style: secondary
+      start: 0
+      end: 60
+  ? |
+    for x in range(10):
+        _private_var += x
+  : labels:
+    - source: _private_var += x
+      style: primary
+      start: 24
+      end: 41
+    - source: |-
+        for x in range(10):
+            _private_var += x
+      style: secondary
+      start: 0
+      end: 41
+  ? |
+    for x in range(10):
+        s += "a"
+  : labels:
+    - source: s += "a"
+      style: primary
+      start: 24
+      end: 32
+    - source: |-
+        for x in range(10):
+            s += "a"
+      style: secondary
+      start: 0
+      end: 32
+  ? |
+    for x in range(10):
+        s += (lambda y: y + 1)(x)
+  : labels:
+    - source: 's += (lambda y: y + 1)(x)'
+      style: primary
+      start: 24
+      end: 49
+    - source: |-
+        for x in range(10):
+            s += (lambda y: y + 1)(x)
+      style: secondary
+      start: 0
+      end: 49
+  ? |
+    for x in range(5):
+        for y in range(5):
+            for z in range(5):
+                counter += 1
+  : labels:
+    - source: counter += 1
+      style: primary
+      start: 81
+      end: 93
+    - source: |-
+        for z in range(5):
+                    counter += 1
+      style: secondary
+      start: 50
+      end: 93
+  ? |
+    for x in range(5):
+        if cond1:
+            if cond2:
+                val += 1
+  : labels:
+    - source: val += 1
+      style: primary
+      start: 63
+      end: 71
+    - source: |-
+        for x in range(5):
+            if cond1:
+                if cond2:
+                    val += 1
+      style: secondary
+      start: 0
+      end: 71
+  ? |
+    for x in y:
+        if x > 0:
+            pass
+        else:
+            s += x
+  : labels:
+    - source: s += x
+      style: primary
+      start: 57
+      end: 63
+    - source: |-
+        for x in y:
+            if x > 0:
+                pass
+            else:
+                s += x
+      style: secondary
+      start: 0
+      end: 63
+  ? |
+    for x in y:
+        if x > 0:
+            s += x
+  : labels:
+    - source: s += x
+      style: primary
+      start: 34
+      end: 40
+    - source: |-
+        for x in y:
+            if x > 0:
+                s += x
+      style: secondary
+      start: 0
+      end: 40
+  ? |
+    for x in y:
+        s += """
+        multiline
+        string
+        """
+  : labels:
+    - source: |-
+        s += """
+            multiline
+            string
+            """
+      style: primary
+      start: 16
+      end: 57
+    - source: |-
+        for x in y:
+            s += """
+            multiline
+            string
+            """
+      style: secondary
+      start: 0
+      end: 57
+  ? |
+    for x in y:
+        try:
+            do_something()
+        except Exception:
+            errs += "error"
+  : labels:
+    - source: errs += "error"
+      style: primary
+      start: 74
+      end: 89
+    - source: |-
+        for x in y:
+            try:
+                do_something()
+            except Exception:
+                errs += "error"
+      style: secondary
+      start: 0
+      end: 89
+  ? |
+    for x in y:
+        try:
+            do_something()
+        finally:
+            cleanup_log += "done"
+  : labels:
+    - source: cleanup_log += "done"
+      style: primary
+      start: 65
+      end: 86
+    - source: |-
+        for x in y:
+            try:
+                do_something()
+            finally:
+                cleanup_log += "done"
+      style: secondary
+      start: 0
+      end: 86
+  ? |
+    while True:
+        ans += input("Enter: ")
+  : labels:
+    - source: 'ans += input("Enter: ")'
+      style: primary
+      start: 16
+      end: 39
+    - source: |-
+        while True:
+            ans += input("Enter: ")
+      style: secondary
+      start: 0
+      end: 39
+  ? |
+    while True:
+        data = socket.recv(1024)
+        if not data: break
+        payload += data
+  : labels:
+    - source: payload += data
+      style: primary
+      start: 68
+      end: 83
+    - source: |-
+        while True:
+            data = socket.recv(1024)
+            if not data: break
+            payload += data
+      style: secondary
+      start: 0
+      end: 83
+  ? |
+    while True:
+        s += "b"
+        break
+  : labels:
+    - source: s += "b"
+      style: primary
+      start: 16
+      end: 24
+    - source: |-
+        while True:
+            s += "b"
+            break
+      style: secondary
+      start: 0
+      end: 34
+  ? |
+    while True:
+        try:
+            s += get_next()
+        except Exception:
+            break
+  : labels:
+    - source: s += get_next()
+      style: primary
+      start: 29
+      end: 44
+    - source: |-
+        while True:
+            try:
+                s += get_next()
+            except Exception:
+                break
+      style: secondary
+      start: 0
+      end: 80
+  ? |
+    while True:
+        x += 1
+        # inline comment
+  : labels:
+    - source: x += 1
+      style: primary
+      start: 16
+      end: 22
+    - source: |-
+        while True:
+            x += 1
+            # inline comment
+      style: secondary
+      start: 0
+      end: 43
+  ? |
+    while active:
+        buffer += stream.read()
+  : labels:
+    - source: buffer += stream.read()
+      style: primary
+      start: 18
+      end: 41
+    - source: |-
+        while active:
+            buffer += stream.read()
+      style: secondary
+      start: 0
+      end: 41
+  ? |
+    while cond:
+        if True:
+            try:
+                res += get_val()
+            except Exception:
+                pass
+  : labels:
+    - source: res += get_val()
+      style: primary
+      start: 50
+      end: 66
+    - source: |-
+        while cond:
+            if True:
+                try:
+                    res += get_val()
+                except Exception:
+                    pass
+      style: secondary
+      start: 0
+      end: 109
+  ? |
+    while cond:
+        msg += get_log()
+  : labels:
+    - source: msg += get_log()
+      style: primary
+      start: 16
+      end: 32
+    - source: |-
+        while cond:
+            msg += get_log()
+      style: secondary
+      start: 0
+      end: 32
+  ? |
+    while cond:
+        while nested:
+            s += "nested"
+  : labels:
+    - source: s += "nested"
+      style: primary
+      start: 38
+      end: 51
+    - source: |-
+        while nested:
+                s += "nested"
+      style: secondary
+      start: 16
+      end: 51
+  ? |
+    while condition_is_met:
+        string_builder_var += get_next_char()
+  : labels:
+    - source: string_builder_var += get_next_char()
+      style: primary
+      start: 28
+      end: 65
+    - source: |-
+        while condition_is_met:
+            string_builder_var += get_next_char()
+      style: secondary
+      start: 0
+      end: 65
+  ? |
+    while count < 10:
+        count += 1
+  : labels:
+    - source: count += 1
+      style: primary
+      start: 22
+      end: 32
+    - source: |-
+        while count < 10:
+            count += 1
+      style: secondary
+      start: 0
+      end: 32
+  ? |
+    while count > 0:
+        count -= 1
+        acc += "xyz"
+  : labels:
+    - source: acc += "xyz"
+      style: primary
+      start: 36
+      end: 48
+    - source: |-
+        while count > 0:
+            count -= 1
+            acc += "xyz"
+      style: secondary
+      start: 0
+      end: 48
+  ? |
+    while i < 100:
+        s += "a" * i
+        i += 1
+  : labels:
+    - source: s += "a" * i
+      style: primary
+      start: 19
+      end: 31
+    - source: |-
+        while i < 100:
+            s += "a" * i
+            i += 1
+      style: secondary
+      start: 0
+      end: 42
+  ? |
+    while index < len(data):
+        char_accumulator += data[index]
+        index += 1
+  : labels:
+    - source: char_accumulator += data[index]
+      style: primary
+      start: 29
+      end: 60
+    - source: |-
+        while index < len(data):
+            char_accumulator += data[index]
+            index += 1
+      style: secondary
+      start: 0
+      end: 75
+  ? |
+    while ptr < end:
+        token_stream += tokens[ptr]
+        ptr += 1
+  : labels:
+    - source: token_stream += tokens[ptr]
+      style: primary
+      start: 21
+      end: 48
+    - source: |-
+        while ptr < end:
+            token_stream += tokens[ptr]
+            ptr += 1
+      style: secondary
+      start: 0
+      end: 61
+  ? |
+    while queue:
+        node = queue.pop()
+        path_str += " -> " + node.val
+  : labels:
+    - source: path_str += " -> " + node.val
+      style: primary
+      start: 40
+      end: 69
+    - source: |-
+        while queue:
+            node = queue.pop()
+            path_str += " -> " + node.val
+      style: secondary
+      start: 0
+      end: 69
+  ? |
+    while x > 0:
+        x -= 1
+        y += 2
+  : labels:
+    - source: y += 2
+      style: primary
+      start: 28
+      end: 34
+    - source: |-
+        while x > 0:
+            x -= 1
+            y += 2
+      style: secondary
+      start: 0
+      end: 34

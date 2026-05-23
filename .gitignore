@@ -23,3 +23,18 @@ analysis/cross-repo/
 analysis/patches/
 analysis/RULE_REVIEW.json
 analysis/RULE_REFINEMENT.json
+
+# Mining v2 intermediate batches (173 raw JSON files; final report kept)
+analysis/mining-v2/
+analysis/cross-repo/
+analysis/patches/
+
+# Provisional reduce JSON; the .md report is what we ship
+analysis/mining-v2-reduce/astgrep-rules-proposed/
+analysis/mining-v2-reduce/RULE_SUGGESTIONS.json
+
+# Pytest cache (per-developer; not part of the published package)
+**/.pytest_cache/
+
+# One-off bootstrap / analysis scripts (kept locally, not shipped)
+scripts/

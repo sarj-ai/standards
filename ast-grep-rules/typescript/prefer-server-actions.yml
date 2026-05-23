@@ -1,0 +1,26 @@
+id: prefer-server-actions
+language: typescript
+severity: warning
+message: |
+  Mutation against /api/* via fetch — prefer a Next.js Server Action.
+note: |
+  Fires only on internal `/api/*` URLs with method POST/PUT/DELETE/PATCH. External APIs, GETs, and read-only fetches are excluded. Tests, scripts, and route handlers themselves are ignored.
+ignores:
+  - "**/tests/**"
+  - "**/test/**"
+  - "**/*.test.{ts,tsx}"
+  - "**/*.spec.{ts,tsx}"
+  - "**/scripts/**"
+  - "**/api/**/route.{ts,tsx}"
+rule:
+  pattern: "fetch($URL, $OPTIONS)"
+constraints:
+  URL:
+    regex: '^[`''"]/api/'
+  OPTIONS:
+    has:
+      pattern:
+        context: "({ method: $METHOD })"
+        selector: pair
+  METHOD:
+    regex: '(?i)^[`''"](POST|PUT|DELETE|PATCH)[`''"]$'

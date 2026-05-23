@@ -1,0 +1,261 @@
+"id": |-
+  prefer-str-enum
+"valid":
+- |
+  status: str = "active"
+- |
+  state: str = "NY"
+- |
+  type: str = "admin"
+- |
+  kind: str = "dog"
+- |
+  superstatus: str = "ok"
+- |
+  interstate: str = "highway"
+- |
+  prototype: str = "alpha"
+- |
+  mankind: str = "human"
+- |
+  def check(status: str): pass
+- |
+  def check(state: str): pass
+- |
+  status_code: str = "200"
+- |
+  state_name: str = "California"
+- |
+  type_id: str = "uuid"
+- |
+  kind_name: str = "mammal"
+- |
+  user_status_label: str = "Active User"
+- |
+  process_state_val: str = "running"
+- |
+  file_type_ext: str = "txt"
+- |
+  item_kind_desc: str = "toy"
+- |
+  def f(status_val: str): pass
+- |
+  def f(state_id: str): pass
+- |
+  user_status: int = 1
+- |
+  process_state: int = 2
+- |
+  device_type: int = 3
+- |
+  animal_kind: int = 4
+- |
+  from typing import Literal
+  user_status: Literal["active", "inactive"] = "active"
+- |
+  from typing import Literal
+  process_state: Literal["running", "stopped"]
+- |
+  from typing import Literal
+  device_type: Literal["ios", "android"]
+- |
+  from typing import Literal
+  animal_kind: Literal["cat", "dog"]
+- |
+  from typing import Optional
+  user_status: Optional[str] = None
+- |
+  from typing import Union
+  process_state: Union[str, int] = "active"
+- |
+  from enum import StrEnum
+  class MyStatus(StrEnum):
+      OK = "ok"
+  user_status: MyStatus = MyStatus.OK
+- |
+  device_type: list[str] = ["usb", "pci"]
+- |
+  animal_kind: dict[str, str] = {"key": "value"}
+- |
+  def update(user_status: bytes): pass
+- |
+  def update(process_state: float): pass
+- |
+  user_status = "active"
+- |
+  process_state = "running"
+- |
+  device_type = "mobile"
+- |
+  animal_kind = "bird"
+- |
+  def update(user_status="active"): pass
+- |
+  def update(process_state="idle"): pass
+- |
+  def update(device_type="web"): pass
+- |
+  def update(animal_kind="fish"): pass
+- |
+  class MyClass:
+      user_status = "active"
+- |
+  class MyClass:
+      process_state = "running"
+- |
+  class MyClass:
+      device_type = "mobile"
+- |
+  class MyClass:
+      animal_kind = "bird"
+- |
+  user_status, process_state = "active", "running"
+- |
+  [user_status] = ["active"]
+- |
+  for user_status in ["active", "inactive"]: pass
+- |
+  user_name: str = "alice"
+- |
+  user_email: str = "alice@example.com"
+- |
+  phone_number: str = "12345"
+- |
+  postal_code: str = "90210"
+- |
+  country_code: str = "US"
+- |
+  ip_address: str = "127.0.0.1"
+- |
+  mac_address: str = "00:00:00:00:00:00"
+- |
+  file_path: str = "/tmp/file"
+- |
+  class_name: str = "MyClass"
+- |
+  variable_name: str = "x"
+- |
+  class User:
+      status_state: str
+- |
+  class Vehicle:
+      engine_type: str
+- |
+  class Pet:
+      breed_kind: str
+- |
+  class Task:
+      execution_status: str
+- |
+  class File:
+      mime_type: str
+- |
+  class Node:
+      connection_state: str
+- |
+  class Product:
+      category_kind: str
+- |
+  class Alert:
+      severity_status: str
+- |
+  class Job:
+      run_state: str
+- |
+  class Token:
+      auth_type: str
+- |
+  class Item:
+      material_kind: str
+- |
+  class Invoice:
+      billing_status: str
+- |
+  class Thread:
+      lifecycle_state: str
+- |
+  global_status: str
+- |
+  global_state: str
+- |
+  global_type: str
+- |
+  global_kind: str
+- |
+  from dataclasses import dataclass
+  @dataclass
+  class Config:
+      env_status: str
+- |
+  from dataclasses import dataclass
+  @dataclass
+  class Config:
+      env_state: str
+- |
+  from dataclasses import dataclass
+  @dataclass
+  class Config:
+      env_type: str
+- |
+  from dataclasses import dataclass
+  @dataclass
+  class Config:
+      env_kind: str
+- |
+  from typing import TypedDict
+  class Info(TypedDict):
+      db_status: str
+- |
+  from typing import TypedDict
+  class Info(TypedDict):
+      db_state: str
+- |
+  from typing import TypedDict
+  class Info(TypedDict):
+      db_type: str
+- |
+  from typing import TypedDict
+  class Info(TypedDict):
+      db_kind: str
+"invalid":
+- |
+  class Order:
+      payment_status: str = "pending"
+- |
+  class Process:
+      current_state: str = "idle"
+- |
+  app_status: str = "starting"
+- |
+  initial_state: str = "init"
+- |
+  media_type: str = "video"
+- |
+  component_kind: str = "button"
+- |
+  def f():
+      local_status: str = "ok"
+- |
+  def f():
+      local_state: str = "active"
+- |
+  def f():
+      local_type: str = "internal"
+- |
+  def f():
+      local_kind: str = "simple"
+- |
+  temp_status: str = "unknown"
+- |
+  temp_state: str = "pending"
+- |
+  temp_type: str = "generic"
+- |
+  def process() -> None:
+      final_status: str = "done"
+- |
+  def process() -> None:
+      final_state: str = "done"
+- |
+  def process() -> None:
+      final_type: str = "done"

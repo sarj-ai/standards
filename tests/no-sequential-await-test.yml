@@ -1,0 +1,551 @@
+"id": |-
+  no-sequential-await
+"valid":
+- |
+  async def main(url):
+      await fetch(url)
+- |
+  async def main(url):
+      res = await fetch(url)
+- |
+  async def main(queue):
+      while not queue.empty():
+          item = await queue.get()
+- |
+  async def main(queue):
+      while cond:
+          res = await fetch_next()
+- |
+  async def main(urls):
+      results = [await fetch(u) for u in urls]
+- |
+  async def main(urls):
+      results = {u: await fetch(u) for u in urls}
+- |
+  async def main(urls):
+      results = {await fetch(u) for u in urls}
+- |
+  async def main(urls):
+      results = (await fetch(u) for u in urls)
+- |
+  async def main(tasks):
+      for task in tasks:
+          await task
+- |
+  async def main(tasks):
+      for task in tasks:
+          res = await task
+- |
+  async def main(futures):
+      for fut in futures:
+          await fut
+- |
+  async def main(devices):
+      for device in devices:
+          await device.coro
+- |
+  async def main(keys, tasks):
+      for k in keys:
+          await tasks[k]
+- |
+  async def main(tasks):
+      for i in range(len(tasks)):
+          await tasks[i]
+- |
+  def main(items):
+      for item in items:
+          print(item)
+- |
+  import time
+  def main(items):
+      for item in items:
+          time.sleep(1)
+- |
+  async def main(urls):
+      tasks = []
+      for u in urls:
+          tasks.append(fetch(u))
+      await asyncio.gather(*tasks)
+- |
+  import asyncio
+  async def main(urls):
+      for u in urls:
+          asyncio.create_task(fetch(u))
+- |
+  import asyncio
+  async def main(urls, loop):
+      for u in urls:
+          loop.run_in_executor(None, sync_fetch, u)
+- |
+  async def main(stream):
+      async for x in stream:
+          print(x)
+- |
+  async def main(items):
+      for item in items:
+          process_sync(item)
+      await notify_done()
+- |
+  async def main(items):
+      await notify_start()
+      for item in items:
+          process_sync(item)
+- |
+  import asyncio
+  async def main():
+      await asyncio.gather(f(1), f(2))
+- |
+  import asyncio
+  async def main(tasks):
+      await asyncio.wait(tasks)
+- |
+  import asyncio
+  async def main(tasks):
+      for future in asyncio.as_completed(tasks):
+          result = await future
+- |
+  async def helper(u):
+      return await fetch(u)
+  async def main(urls):
+      tasks = [helper(u) for u in urls]
+      await asyncio.gather(*tasks)
+- |
+  class Client:
+      async def get(self):
+          return await fetch()
+  async def main(clients):
+      for client in clients:
+          client.queue_request()
+- |
+  async def main(awaitables):
+      for x in awaitables:
+          await x
+- |
+  from concurrent.futures import ThreadPoolExecutor
+  def main(urls):
+      with ThreadPoolExecutor() as executor:
+          for url in urls:
+              executor.submit(fetch_sync, url)
+- |
+  from concurrent.futures import ProcessPoolExecutor
+  def main(urls):
+      with ProcessPoolExecutor() as executor:
+          for url in urls:
+              executor.submit(fetch_sync, url)
+- |
+  import sys
+  async def main():
+      await sys.modules
+- |
+  async def main(task):
+      for _ in range(5):
+          await task
+- |
+  async def main(devices):
+      for d in devices:
+          await d.status_future
+- |
+  async def gen():
+      yield 1
+      yield 2
+- |
+  async def main(items):
+      for item in items:
+          hash(item)
+- |
+  import asyncio
+  async def main(xs):
+      await asyncio.gather(*(fetch(x) for x in xs))
+- |
+  import asyncio
+  async def main(xs):
+      results = await asyncio.gather(*[fetch(x) for x in xs])
+- |
+  import asyncio
+  async def main():
+      await asyncio.gather(f(1), f(2), return_exceptions=True)
+- |
+  import asyncio
+  async def main():
+      await asyncio.wait_for(fetch(), timeout=1.0)
+- |
+  import asyncio
+  async def main():
+      await asyncio.shield(fetch())
+- |
+  async def main(tasks):
+      await gather_all(tasks)
+- |
+  async def main(xs):
+      while cond:
+          results = [await fetch(x) for x in xs]
+- |
+  async def main(xs):
+      while cond:
+          results = list(await fetch(x) for x in xs)
+- |
+  async def main(queue):
+      while not queue.empty():
+          task = queue.get_nowait()
+          await task
+- |
+  def main():
+      for i in range(10):
+          pass
+- |
+  async def main(xs):
+      for x in xs:
+          pass
+      await fetch()
+- |
+  async def main(xs):
+      await fetch()
+      for x in xs:
+          pass
+- |
+  async def main():
+      while cond:
+          async def local():
+              await fetch()
+- |
+  async def main(xs, fut):
+      for x in xs:
+          pass
+      else:
+          await fut
+- |
+  async def main(task):
+      while cond:
+          try:
+              await task
+          except Exception:
+              pass
+- |
+  async def main(loop, cb):
+      loop.call_soon_threadsafe(cb)
+- |
+  async def main(lock):
+      async with lock:
+          await fetch()
+- |
+  import aiofiles
+  async def main():
+      async with aiofiles.open('file.txt') as f:
+          await f.read()
+- |
+  async def main():
+      try:
+          await fetch()
+      finally:
+          await cleanup()
+- |
+  async def main(cond):
+      if cond:
+          await fetch()
+      else:
+          await alternative()
+- |
+  async def main(val):
+      match val:
+          case 1:
+              await fetch()
+- |
+  async def main():
+      async def inner():
+          await fetch()
+      await inner()
+- |
+  class MyClass:
+      async def run(self):
+          await fetch()
+- |
+  import asyncio
+  await asyncio.sleep(1)
+- |
+  async def main(xs):
+      return [await fetch(x) for x in xs]
+- |
+  async def run_tasks(tasks):
+      for task_id in tasks:
+          await asyncio.sleep(1)
+- |
+  async def await_in_yield(items):
+      for item in items:
+          yield await process(item)
+- |
+  async def await_in_for_else(items):
+      for item in items:
+          if item.found:
+              break
+      else:
+          await handle_not_found()
+- |
+  async def await_in_return(items):
+      for item in items:
+          if item.is_terminal:
+              return await process(item)
+- |
+  async def process_async_for(stream):
+      async for item in stream:
+          await process(item)
+"invalid":
+- |
+  async def process_urls(urls):
+      for url in urls:
+          await fetch(url)
+- |
+  async def save_users(users):
+      for user in users:
+          res = await db.save(user)
+- |
+  async def query_db(ids):
+      for uid in ids:
+          await connection.execute("SELECT * FROM users WHERE id = ?", uid)
+- |
+  async def call_apis(endpoints):
+      for ep in endpoints:
+          data = await client.get(ep)
+- |
+  async def generate_responses(prompts):
+      for prompt in prompts:
+          await openai.ChatCompletion.acreate(model="gpt-4", messages=[{"role": "user", "content": prompt}])
+- |
+  async def write_files(files):
+      for name, content in files.items():
+          await write_to_disk(name, content)
+- |
+  async def ping_hosts(hosts):
+      for host in hosts:
+          status = await ping(host, timeout=5)
+- |
+  async def process_batch(items):
+      for item in items:
+          await step_one(item)
+          await step_two(item)
+- |
+  async def upload_images(images):
+      for img in images:
+          await s3.upload(img.name, img.data)
+- |
+  async def clear_cache(keys):
+      for key in keys:
+          await redis.delete(key)
+- |
+  async def fetch_metrics(servers):
+      for server in servers:
+          metrics = await server.get_metrics()
+- |
+  async def send_emails(emails):
+      for email in emails:
+          await mailer.send(to=email.to, subject=email.subj)
+- |
+  async def process_nested(matrix):
+      for row in matrix:
+          for item in row:
+              await process_item(item)
+- |
+  async def process_with_outer_await(matrix):
+      for row in matrix:
+          await process_row_meta(row)
+          for item in row:
+              print(item)
+- |
+  async def check_conditions(items):
+      for item in items:
+          if item.is_active:
+              await activate(item)
+- |
+  async def handle_errors(jobs):
+      for job in jobs:
+          try:
+              await job.run()
+          except Exception:
+              await log_failure(job)
+- |
+  async def process_with_cleanup(items):
+      for item in items:
+          try:
+              await process(item)
+          finally:
+              await cleanup(item)
+- |
+  async def process_with_context(paths):
+      for path in paths:
+          async with aiofiles.open(path) as f:
+              await f.write("done")
+- |
+  async def unpack_results(items):
+      for item in items:
+          a, b = await fetch_pair(item)
+- |
+  async def dict_unpacking(mapping):
+      for key, val in mapping.items():
+          await save_pair(key, val)
+- |
+  async def enumerate_loop(items):
+      for idx, item in enumerate(items):
+          await save_indexed(idx, item)
+- |
+  async def zip_loop(list_a, list_b):
+      for a, b in zip(list_a, list_b):
+          await match_and_save(a, b)
+- |
+  async def range_loop(n):
+      for i in range(n):
+          await tick(i)
+- |
+  async def ternary_await(items):
+      for item in items:
+          res = await f(item) if item.valid else await g(item)
+- |
+  async def await_in_list(items):
+      for item in items:
+          results = [await process(item)]
+- |
+  async def await_in_dict(items):
+      for item in items:
+          data = {"result": await process(item)}
+- |
+  async def await_in_tuple(items):
+      for item in items:
+          tup = (await process(item),)
+- |
+  async def await_in_set(items):
+      for item in items:
+          s = {await process(item)}
+- |
+  async def await_in_print(items):
+      for item in items:
+          print(await process(item))
+- |
+  async def await_in_fstring(items):
+      for item in items:
+          logger.info(f"Value: {await process(item)}")
+- |
+  async def await_nested_def(items):
+      for item in items:
+          async def inner():
+              await process(item)
+          await inner()
+- |
+  async def await_nested_class(items):
+      for item in items:
+          class Runner:
+              async def run(self):
+                  await process(item)
+          await Runner().run()
+- |
+  async def await_in_elif(items):
+      for item in items:
+          if item.type == 1:
+              pass
+          elif item.type == 2:
+              await process(item)
+- |
+  async def await_in_else(items):
+      for item in items:
+          if item.type == 1:
+              pass
+          else:
+              await process(item)
+- |
+  async def await_in_except(items):
+      for item in items:
+          try:
+              process_sync(item)
+          except Exception:
+              await log_error(item)
+- |
+  async def await_in_except_as(items):
+      for item in items:
+          try:
+              process_sync(item)
+          except Exception as e:
+              await log_exception(e, item)
+- |
+  async def await_in_generator_expr(items):
+      for item in items:
+          any(await process(x) for x in item.subitems)
+- |
+  async def deep_nesting(items):
+      for item in items:
+          if item.valid:
+              while item.has_more:
+                  await process(item)
+- |
+  async def await_dict_lookup(items, clients):
+      for item in items:
+          await clients[item.client_id].send(item)
+- |
+  async def await_list_lookup(items, workers):
+      for item in items:
+          await workers[0].process(item)
+- |
+  async def await_returned_fn(items):
+      for item in items:
+          await get_handler(item)(item)
+- |
+  async def await_callable_instance(items, processor):
+      for item in items:
+          await processor(item)
+- |
+  async def await_with_type_hint(items):
+      for item in items:
+          res: dict = await process(item)
+- |
+  async def await_multi_assignment(items):
+      for item in items:
+          x, y = await f(item), await g(item)
+- |
+  async def await_slice_assignment(items):
+      for item in items:
+          items[1:3] = [await process(item), await process(item)]
+- |
+  async def await_augmented_assignment(items):
+      for item in items:
+          total += await get_value(item)
+- |
+  async def await_in_assert(items):
+      for item in items:
+          assert await is_valid(item)
+- |
+  async def await_dns_resolve(domains):
+      for domain in domains:
+          await resolver.query(domain, 'A')
+- |
+  async def await_grpc_call(requests):
+      for req in requests:
+          await stub.SayHello(req)
+- |
+  async def await_subprocess_wait(processes):
+      for proc in processes:
+          await proc.wait()
+- |
+  async def await_queue_put(items, queue):
+      for item in items:
+          await queue.put(item)
+- |
+  async def await_queue_get(n, queue):
+      for _ in range(n):
+          item = await queue.get()
+- |
+  async def await_with_match_case(items):
+      for item in items:
+          match item.status:
+              case "pending":
+                  await start_job(item)
+- |
+  async def await_in_with_statement(items):
+      for item in items:
+          async with lock:
+              await update_db(item)
+- |
+  async def await_in_nested_try(items):
+      for item in items:
+          try:
+              try:
+                  await process(item)
+              except ValueError:
+                  pass
+          except Exception:
+              pass

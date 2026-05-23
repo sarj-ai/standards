@@ -1,0 +1,21 @@
+id: no-client-side-data-fetching
+language: typescript
+severity: warning
+message: |
+  Data fetching inside useEffect / useLayoutEffect. Prefer React Server Component, Server Action, or SWR/React Query.
+note: |
+  Causes waterfall + cache miss + layout shift. Limited to `fetch`/`axios.get|post|put|delete|patch|request` (axios.create/axios.defaults are setup, not fetching).
+rule:
+  all:
+    - any:
+        - pattern: "fetch($$$)"
+        - pattern: "axios($$$)"
+        - pattern: "axios.$METHOD($$$)"
+    - inside:
+        any:
+          - pattern: "useEffect($$$)"
+          - pattern: "useLayoutEffect($$$)"
+        stopBy: end
+constraints:
+  METHOD:
+    regex: "^(get|post|put|delete|patch|request|head|options)$"

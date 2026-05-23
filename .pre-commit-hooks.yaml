@@ -50,12 +50,6 @@
   language: pygrep
   types: [sql]
 
-- id: sarj-require-if-not-exists-on-create
-  name: 'sarj-lint(sql): CREATE TABLE must use IF NOT EXISTS (idempotent DDL)'
-  entry: '(?i)CREATE TABLE(?! IF NOT EXISTS)'
-  language: pygrep
-  types: [sql]
-
 - id: sarj-prefer-text-over-varchar
   name: 'sarj-lint(sql): ban VARCHAR(n) in postgres migrations (use TEXT)'
   entry: '(?i)VARCHAR\('

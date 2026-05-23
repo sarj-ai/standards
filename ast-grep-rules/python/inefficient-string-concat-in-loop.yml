@@ -1,0 +1,21 @@
+id: inefficient-string-concat-in-loop
+language: python
+severity: error
+message: |
+  String `+=` inside a loop is O(n²). Append to a list and `"".join(...)` at the end.
+note: |
+  Fires only when (a) RHS is a string literal (`"..."`, `f"..."`), and (b) the same variable is NOT reassigned (`$VAR = ...`) elsewhere in the loop body — that pattern resets per-iteration so it's not an O(n²) accumulator.
+rule:
+  pattern: $VAR += $STR
+  inside:
+    any:
+      - kind: for_statement
+      - kind: while_statement
+    stopBy: end
+    not:
+      has:
+        pattern: "$VAR = $_"
+        stopBy: end
+constraints:
+  STR:
+    regex: "^[fbruFBRU]{0,2}[\"']"

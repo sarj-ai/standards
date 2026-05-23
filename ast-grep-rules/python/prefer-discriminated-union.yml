@@ -1,0 +1,21 @@
+id: prefer-discriminated-union
+language: python
+severity: warning
+message: |
+  Pydantic BaseModel with `success: bool` field. Consider a discriminated union of distinct variants (Success | Failure) so illegal states are unrepresentable.
+note: |
+  Fires only on classes that directly inherit `BaseModel`. Indirect inheritance via a project-specific base class is excluded (verify those manually).
+ignores:
+  - "**/tests/**"
+  - "**/test_*.py"
+rule:
+  pattern: "success: bool"
+  inside:
+    kind: class_definition
+    has:
+      kind: argument_list
+      has:
+        pattern: BaseModel
+        stopBy: end
+      stopBy: end
+    stopBy: end

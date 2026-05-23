@@ -1,0 +1,42 @@
+id: no-sequential-await
+language: python
+severity: error
+message: |
+  Sequential `await` in a for-loop. Prefer `asyncio.gather(*[f(x) for x in xs])` to parallelize I/O.
+note: |
+  Exclusions: `async for` loops (typically over streaming/cursor iterators that are inherently ordered), loops containing `asyncio.sleep`/`time.sleep` (retry-backoff), `yield` (generator), `break`/`return` (short-circuit / queue-drain), await targets that look like ordered I/O (`ws.*`, `source.*`, `writer.*`, `cursor.*`, `self.*.send_*`/`write_*`). Test files are ignored.
+ignores:
+  - "**/tests/**"
+  - "**/test_*.py"
+  - "**/*_test.py"
+rule:
+  all:
+    - any:
+        - pattern: "$VAR = await $FN($$$)"
+        - pattern: "await $FN($$$)"
+    - inside:
+        kind: for_statement
+        stopBy: end
+        not:
+          any:
+            - pattern: "async for $_ in $_: $$$"
+            - has:
+                any:
+                  - pattern: "await asyncio.sleep($$$)"
+                  - pattern: "asyncio.sleep($$$)"
+                  - pattern: "time.sleep($$$)"
+                  - pattern: "yield $$$"
+                  - pattern: "yield"
+                  - pattern: "break"
+                  - pattern: "return"
+                  - pattern: "return $$$"
+                  - pattern: "await ws.$_($$$)"
+                  - pattern: "await source.$_($$$)"
+                  - pattern: "await writer.$_($$$)"
+                  - pattern: "await cursor.$_($$$)"
+                  - pattern: "await self.$_.send_$_($$$)"
+                  - pattern: "await self.$_.write_$_($$$)"
+                  - pattern: "await self.$_.capture_$_($$$)"
+                  - pattern: "await self.cursor.$_($$$)"
+                  - pattern: "await self._synthesize_$_($$$)"
+                stopBy: end

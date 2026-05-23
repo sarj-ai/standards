@@ -1,0 +1,331 @@
+id: prefer-str-enum
+snapshots:
+  ? |
+    app_status: str = "starting"
+  : labels:
+    - source: 'app_status: str = "starting"'
+      style: primary
+      start: 0
+      end: 28
+  ? |
+    class Alert:
+        severity_status: str
+  : labels:
+    - source: 'severity_status: str'
+      style: primary
+      start: 17
+      end: 37
+  ? |
+    class File:
+        mime_type: str
+  : labels:
+    - source: 'mime_type: str'
+      style: primary
+      start: 16
+      end: 30
+  ? |
+    class Invoice:
+        billing_status: str
+  : labels:
+    - source: 'billing_status: str'
+      style: primary
+      start: 19
+      end: 38
+  ? |
+    class Item:
+        material_kind: str
+  : labels:
+    - source: 'material_kind: str'
+      style: primary
+      start: 16
+      end: 34
+  ? |
+    class Job:
+        run_state: str
+  : labels:
+    - source: 'run_state: str'
+      style: primary
+      start: 15
+      end: 29
+  ? |
+    class Node:
+        connection_state: str
+  : labels:
+    - source: 'connection_state: str'
+      style: primary
+      start: 16
+      end: 37
+  ? |
+    class Order:
+        payment_status: str = "pending"
+  : labels:
+    - source: 'payment_status: str = "pending"'
+      style: primary
+      start: 17
+      end: 48
+  ? |
+    class Pet:
+        breed_kind: str
+  : labels:
+    - source: 'breed_kind: str'
+      style: primary
+      start: 15
+      end: 30
+  ? |
+    class Process:
+        current_state: str = "idle"
+  : labels:
+    - source: 'current_state: str = "idle"'
+      style: primary
+      start: 19
+      end: 46
+  ? |
+    class Product:
+        category_kind: str
+  : labels:
+    - source: 'category_kind: str'
+      style: primary
+      start: 19
+      end: 37
+  ? |
+    class Task:
+        execution_status: str
+  : labels:
+    - source: 'execution_status: str'
+      style: primary
+      start: 16
+      end: 37
+  ? |
+    class Thread:
+        lifecycle_state: str
+  : labels:
+    - source: 'lifecycle_state: str'
+      style: primary
+      start: 18
+      end: 38
+  ? |
+    class Token:
+        auth_type: str
+  : labels:
+    - source: 'auth_type: str'
+      style: primary
+      start: 17
+      end: 31
+  ? |
+    class User:
+        status_state: str
+  : labels:
+    - source: 'status_state: str'
+      style: primary
+      start: 16
+      end: 33
+  ? |
+    class Vehicle:
+        engine_type: str
+  : labels:
+    - source: 'engine_type: str'
+      style: primary
+      start: 19
+      end: 35
+  ? |
+    component_kind: str = "button"
+  : labels:
+    - source: 'component_kind: str = "button"'
+      style: primary
+      start: 0
+      end: 30
+  ? |
+    def f():
+        local_kind: str = "simple"
+  : labels:
+    - source: 'local_kind: str = "simple"'
+      style: primary
+      start: 13
+      end: 39
+  ? |
+    def f():
+        local_state: str = "active"
+  : labels:
+    - source: 'local_state: str = "active"'
+      style: primary
+      start: 13
+      end: 40
+  ? |
+    def f():
+        local_status: str = "ok"
+  : labels:
+    - source: 'local_status: str = "ok"'
+      style: primary
+      start: 13
+      end: 37
+  ? |
+    def f():
+        local_type: str = "internal"
+  : labels:
+    - source: 'local_type: str = "internal"'
+      style: primary
+      start: 13
+      end: 41
+  ? |
+    def process() -> None:
+        final_state: str = "done"
+  : labels:
+    - source: 'final_state: str = "done"'
+      style: primary
+      start: 27
+      end: 52
+  ? |
+    def process() -> None:
+        final_status: str = "done"
+  : labels:
+    - source: 'final_status: str = "done"'
+      style: primary
+      start: 27
+      end: 53
+  ? |
+    def process() -> None:
+        final_type: str = "done"
+  : labels:
+    - source: 'final_type: str = "done"'
+      style: primary
+      start: 27
+      end: 51
+  ? |
+    from dataclasses import dataclass
+    @dataclass
+    class Config:
+        env_kind: str
+  : labels:
+    - source: 'env_kind: str'
+      style: primary
+      start: 63
+      end: 76
+  ? |
+    from dataclasses import dataclass
+    @dataclass
+    class Config:
+        env_state: str
+  : labels:
+    - source: 'env_state: str'
+      style: primary
+      start: 63
+      end: 77
+  ? |
+    from dataclasses import dataclass
+    @dataclass
+    class Config:
+        env_status: str
+  : labels:
+    - source: 'env_status: str'
+      style: primary
+      start: 63
+      end: 78
+  ? |
+    from dataclasses import dataclass
+    @dataclass
+    class Config:
+        env_type: str
+  : labels:
+    - source: 'env_type: str'
+      style: primary
+      start: 63
+      end: 76
+  ? |
+    from typing import TypedDict
+    class Info(TypedDict):
+        db_kind: str
+  : labels:
+    - source: 'db_kind: str'
+      style: primary
+      start: 56
+      end: 68
+  ? |
+    from typing import TypedDict
+    class Info(TypedDict):
+        db_state: str
+  : labels:
+    - source: 'db_state: str'
+      style: primary
+      start: 56
+      end: 69
+  ? |
+    from typing import TypedDict
+    class Info(TypedDict):
+        db_status: str
+  : labels:
+    - source: 'db_status: str'
+      style: primary
+      start: 56
+      end: 70
+  ? |
+    from typing import TypedDict
+    class Info(TypedDict):
+        db_type: str
+  : labels:
+    - source: 'db_type: str'
+      style: primary
+      start: 56
+      end: 68
+  ? |
+    global_kind: str
+  : labels:
+    - source: 'global_kind: str'
+      style: primary
+      start: 0
+      end: 16
+  ? |
+    global_state: str
+  : labels:
+    - source: 'global_state: str'
+      style: primary
+      start: 0
+      end: 17
+  ? |
+    global_status: str
+  : labels:
+    - source: 'global_status: str'
+      style: primary
+      start: 0
+      end: 18
+  ? |
+    global_type: str
+  : labels:
+    - source: 'global_type: str'
+      style: primary
+      start: 0
+      end: 16
+  ? |
+    initial_state: str = "init"
+  : labels:
+    - source: 'initial_state: str = "init"'
+      style: primary
+      start: 0
+      end: 27
+  ? |
+    media_type: str = "video"
+  : labels:
+    - source: 'media_type: str = "video"'
+      style: primary
+      start: 0
+      end: 25
+  ? |
+    temp_state: str = "pending"
+  : labels:
+    - source: 'temp_state: str = "pending"'
+      style: primary
+      start: 0
+      end: 27
+  ? |
+    temp_status: str = "unknown"
+  : labels:
+    - source: 'temp_status: str = "unknown"'
+      style: primary
+      start: 0
+      end: 28
+  ? |
+    temp_type: str = "generic"
+  : labels:
+    - source: 'temp_type: str = "generic"'
+      style: primary
+      start: 0
+      end: 26

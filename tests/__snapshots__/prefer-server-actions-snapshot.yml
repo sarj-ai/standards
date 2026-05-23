@@ -1,0 +1,1341 @@
+id: prefer-server-actions
+snapshots:
+  ? |
+    (() => fetch('/api/iife', { method: 'POST' }))();
+  : labels:
+    - source: 'fetch(''/api/iife'', { method: ''POST'' })'
+      style: primary
+      start: 7
+      end: 45
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 28
+      end: 42
+  ? |
+    (fetch('/api/users', { method: 'POST' }));
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'' })'
+      style: primary
+      start: 1
+      end: 40
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 23
+      end: 37
+  ? |
+    async function mutate() { return await fetch('/api/mutate', { method: 'PUT' }); }
+  : labels:
+    - source: 'fetch(''/api/mutate'', { method: ''PUT'' })'
+      style: primary
+      start: 39
+      end: 78
+    - source: 'method: ''PUT'''
+      style: secondary
+      start: 62
+      end: 75
+  ? |
+    async function save() {
+      await fetch('/api/save', { method: 'POST' });
+    }
+  : labels:
+    - source: 'fetch(''/api/save'', { method: ''POST'' })'
+      style: primary
+      start: 32
+      end: 70
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 53
+      end: 67
+  ? |
+    class ApiClient {
+      destroy() {
+        fetch('/api/destroy', { method: 'DELETE' });
+      }
+    }
+  : labels:
+    - source: 'fetch(''/api/destroy'', { method: ''DELETE'' })'
+      style: primary
+      start: 36
+      end: 79
+    - source: 'method: ''DELETE'''
+      style: secondary
+      start: 60
+      end: 76
+  ? |
+    class Service { create() { fetch('/api/create', { method: 'POST' }); } }
+  : labels:
+    - source: 'fetch(''/api/create'', { method: ''POST'' })'
+      style: primary
+      start: 27
+      end: 67
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 50
+      end: 64
+  ? |
+    const formData = new FormData();
+    fetch("/api/upload", { method: "POST", body: formData });
+  : labels:
+    - source: 'fetch("/api/upload", { method: "POST", body: formData })'
+      style: primary
+      start: 33
+      end: 89
+    - source: 'method: "POST"'
+      style: secondary
+      start: 56
+      end: 70
+  ? |
+    const handler = () => { fetch('/api/handler', { method: 'POST' }).then(r => r.json()); };
+  : labels:
+    - source: 'fetch(''/api/handler'', { method: ''POST'' })'
+      style: primary
+      start: 24
+      end: 65
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 48
+      end: 62
+  ? |
+    const id = 123;
+    fetch(`/api/users/${id}`, { method: 'POST' });
+  : labels:
+    - source: 'fetch(`/api/users/${id}`, { method: ''POST'' })'
+      style: primary
+      start: 16
+      end: 61
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 44
+      end: 58
+  ? |
+    const p: Promise<Response> = fetch('/api/users', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'' })'
+      style: primary
+      start: 29
+      end: 68
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 51
+      end: 65
+  ? |
+    const postId = 456;
+    const body = '{}';
+    fetch(`/api/posts/${postId}/comments`, { method: 'POST', body });
+  : labels:
+    - source: 'fetch(`/api/posts/${postId}/comments`, { method: ''POST'', body })'
+      style: primary
+      start: 39
+      end: 103
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 80
+      end: 94
+  ? |
+    const promise = fetch('/api/data', { method: 'PATCH' });
+  : labels:
+    - source: 'fetch(''/api/data'', { method: ''PATCH'' })'
+      style: primary
+      start: 16
+      end: 55
+    - source: 'method: ''PATCH'''
+      style: secondary
+      start: 37
+      end: 52
+  ? |
+    const promise = fetch('/api/promise', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/promise'', { method: ''POST'' })'
+      style: primary
+      start: 16
+      end: 57
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 40
+      end: 54
+  ? |
+    const query = '';
+    fetch('/api/v2/graphql', { method: 'POST', body: JSON.stringify({ query }) });
+  : labels:
+    - source: 'fetch(''/api/v2/graphql'', { method: ''POST'', body: JSON.stringify({ query }) })'
+      style: primary
+      start: 18
+      end: 95
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 45
+      end: 59
+  ? |
+    const req = () => fetch('/api/action', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/action'', { method: ''POST'' })'
+      style: primary
+      start: 18
+      end: 58
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 41
+      end: 55
+  ? |
+    const res = await fetch('/api/delete-account', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+  : labels:
+    - source: |-
+        fetch('/api/delete-account', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      style: primary
+      start: 18
+      end: 121
+    - source: 'method: ''DELETE'''
+      style: secondary
+      start: 51
+      end: 67
+  ? |
+    const res = fetch('/api/upload', { method: 'POST', body: new FormData() });
+  : labels:
+    - source: 'fetch(''/api/upload'', { method: ''POST'', body: new FormData() })'
+      style: primary
+      start: 12
+      end: 74
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 35
+      end: 49
+  ? |
+    const run = () => fetch('/api/users', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'' })'
+      style: primary
+      start: 18
+      end: 57
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 40
+      end: 54
+  ? |
+    const todo = {};
+    const handler = () => fetch('/api/todo', { method: 'POST', body: JSON.stringify(todo) });
+  : labels:
+    - source: 'fetch(''/api/todo'', { method: ''POST'', body: JSON.stringify(todo) })'
+      style: primary
+      start: 39
+      end: 105
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 60
+      end: 74
+  ? |
+    const update = async () => {
+      await fetch('/api/update', { method: 'PUT' });
+    };
+  : labels:
+    - source: 'fetch(''/api/update'', { method: ''PUT'' })'
+      style: primary
+      start: 37
+      end: 76
+    - source: 'method: ''PUT'''
+      style: secondary
+      start: 60
+      end: 73
+  ? |
+    const x = [
+      fetch('/api/1', { method: 'POST' }),
+      fetch('/api/2', { method: 'POST' })
+    ];
+  : labels:
+    - source: 'fetch(''/api/1'', { method: ''POST'' })'
+      style: primary
+      start: 14
+      end: 49
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 32
+      end: 46
+  ? |
+    export const deleteItem = (id: string) => fetch(`/api/items/${id}`, { method: 'DELETE' });
+  : labels:
+    - source: 'fetch(`/api/items/${id}`, { method: ''DELETE'' })'
+      style: primary
+      start: 42
+      end: 89
+    - source: 'method: ''DELETE'''
+      style: secondary
+      start: 70
+      end: 86
+  ? |
+    export default function Page() {
+      const handle = () => fetch('/api/action', { method: 'POST' });
+      return null;
+    }
+  : labels:
+    - source: 'fetch(''/api/action'', { method: ''POST'' })'
+      style: primary
+      start: 56
+      end: 96
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 79
+      end: 93
+  ? |
+    export default function handler() { fetch('/api/default', { method: 'POST' }); }
+  : labels:
+    - source: 'fetch(''/api/default'', { method: ''POST'' })'
+      style: primary
+      start: 36
+      end: 77
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 60
+      end: 74
+  ? |
+    fetch("/api/posts", { method: "PUT" });
+  : labels:
+    - source: 'fetch("/api/posts", { method: "PUT" })'
+      style: primary
+      start: 0
+      end: 38
+    - source: 'method: "PUT"'
+      style: secondary
+      start: 22
+      end: 35
+  ? |
+    fetch("/api/posts/2", { method: "DELETE" });
+  : labels:
+    - source: 'fetch("/api/posts/2", { method: "DELETE" })'
+      style: primary
+      start: 0
+      end: 43
+    - source: 'method: "DELETE"'
+      style: secondary
+      start: 24
+      end: 40
+  ? |
+    fetch("/api/posts/2", { method: "PATCH" });
+  : labels:
+    - source: 'fetch("/api/posts/2", { method: "PATCH" })'
+      style: primary
+      start: 0
+      end: 42
+    - source: 'method: "PATCH"'
+      style: secondary
+      start: 24
+      end: 39
+  ? |
+    fetch("/api/posts/2", { method: "PUT" });
+  : labels:
+    - source: 'fetch("/api/posts/2", { method: "PUT" })'
+      style: primary
+      start: 0
+      end: 40
+    - source: 'method: "PUT"'
+      style: secondary
+      start: 24
+      end: 37
+  ? |
+    fetch("/api/users", { method: "POST" });
+  : labels:
+    - source: 'fetch("/api/users", { method: "POST" })'
+      style: primary
+      start: 0
+      end: 39
+    - source: 'method: "POST"'
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 34
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 17
+      end: 31
+  ? |
+    fetch('/api/123', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/123'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 37
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 20
+      end: 34
+  ? |
+    fetch('/api/12345', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/12345'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 39
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/a/b/c/d', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/a/b/c/d'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 41
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 24
+      end: 38
+  ? |
+    fetch('/api/a/b/c/d/e/f', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/a/b/c/d/e/f'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 45
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 28
+      end: 42
+  ? |
+    fetch('/api/analytics', { keepalive: true, method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/analytics'', { keepalive: true, method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 60
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 43
+      end: 57
+  ? |
+    fetch('/api/auth/login', { method: 'POST', credentials: 'include' });
+  : labels:
+    - source: 'fetch(''/api/auth/login'', { method: ''POST'', credentials: ''include'' })'
+      style: primary
+      start: 0
+      end: 68
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 27
+      end: 41
+  ? |
+    fetch('/api/auth/logout', { method: 'POST' }).then(r => r.json());
+  : labels:
+    - source: 'fetch(''/api/auth/logout'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 45
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 28
+      end: 42
+  ? |
+    fetch('/api/cache-clear', { cache: 'no-store', method: 'DELETE' });
+  : labels:
+    - source: 'fetch(''/api/cache-clear'', { cache: ''no-store'', method: ''DELETE'' })'
+      style: primary
+      start: 0
+      end: 66
+    - source: 'method: ''DELETE'''
+      style: secondary
+      start: 47
+      end: 63
+  ? |
+    fetch('/api/cache-clear', { method: 'POST', cache: 'no-store' });
+  : labels:
+    - source: 'fetch(''/api/cache-clear'', { method: ''POST'', cache: ''no-store'' })'
+      style: primary
+      start: 0
+      end: 64
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 28
+      end: 42
+  ? |
+    fetch('/api/data', { method: 'DeLeTe' });
+  : labels:
+    - source: 'fetch(''/api/data'', { method: ''DeLeTe'' })'
+      style: primary
+      start: 0
+      end: 40
+    - source: 'method: ''DeLeTe'''
+      style: secondary
+      start: 21
+      end: 37
+  ? |
+    fetch('/api/data', { method: 'Post' });
+  : labels:
+    - source: 'fetch(''/api/data'', { method: ''Post'' })'
+      style: primary
+      start: 0
+      end: 38
+    - source: 'method: ''Post'''
+      style: secondary
+      start: 21
+      end: 35
+  ? |
+    fetch('/api/data', { method: 'delete' });
+  : labels:
+    - source: 'fetch(''/api/data'', { method: ''delete'' })'
+      style: primary
+      start: 0
+      end: 40
+    - source: 'method: ''delete'''
+      style: secondary
+      start: 21
+      end: 37
+  ? |
+    fetch('/api/data', { method: 'pAtCh' });
+  : labels:
+    - source: 'fetch(''/api/data'', { method: ''pAtCh'' })'
+      style: primary
+      start: 0
+      end: 39
+    - source: 'method: ''pAtCh'''
+      style: secondary
+      start: 21
+      end: 36
+  ? |
+    fetch('/api/data', { method: 'pUt' });
+  : labels:
+    - source: 'fetch(''/api/data'', { method: ''pUt'' })'
+      style: primary
+      start: 0
+      end: 37
+    - source: 'method: ''pUt'''
+      style: secondary
+      start: 21
+      end: 34
+  ? |
+    fetch('/api/data', { method: 'patch' });
+  : labels:
+    - source: 'fetch(''/api/data'', { method: ''patch'' })'
+      style: primary
+      start: 0
+      end: 39
+    - source: 'method: ''patch'''
+      style: secondary
+      start: 21
+      end: 36
+  ? |
+    fetch('/api/data', { method: 'post' });
+  : labels:
+    - source: 'fetch(''/api/data'', { method: ''post'' })'
+      style: primary
+      start: 0
+      end: 38
+    - source: 'method: ''post'''
+      style: secondary
+      start: 21
+      end: 35
+  ? |
+    fetch('/api/data', { method: 'put' });
+  : labels:
+    - source: 'fetch(''/api/data'', { method: ''put'' })'
+      style: primary
+      start: 0
+      end: 37
+    - source: 'method: ''put'''
+      style: secondary
+      start: 21
+      end: 34
+  ? |
+    fetch('/api/items', { headers: { 'Content-Type': 'application/json' }, method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/items'', { headers: { ''Content-Type'': ''application/json'' }, method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 88
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 71
+      end: 85
+  ? |
+    fetch('/api/items', { method: 'POST', body: 'test' }) as Promise<Response>;
+  : labels:
+    - source: 'fetch(''/api/items'', { method: ''POST'', body: ''test'' })'
+      style: primary
+      start: 0
+      end: 53
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/items', { method: 'POST', headers: { Authorization: 'Bearer token' } });
+  : labels:
+    - source: 'fetch(''/api/items'', { method: ''POST'', headers: { Authorization: ''Bearer token'' } })'
+      style: primary
+      start: 0
+      end: 83
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/jobs/trigger', { method: 'POST', redirect: 'follow' });
+  : labels:
+    - source: 'fetch(''/api/jobs/trigger'', { method: ''POST'', redirect: ''follow'' })'
+      style: primary
+      start: 0
+      end: 66
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 29
+      end: 43
+  ? |
+    fetch('/api/logout', { method: 'POST', redirect: 'follow' });
+  : labels:
+    - source: 'fetch(''/api/logout'', { method: ''POST'', redirect: ''follow'' })'
+      style: primary
+      start: 0
+      end: 60
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 23
+      end: 37
+  ? |
+    fetch('/api/logs', { method: 'POST', referrerPolicy: 'no-referrer' });
+  : labels:
+    - source: 'fetch(''/api/logs'', { method: ''POST'', referrerPolicy: ''no-referrer'' })'
+      style: primary
+      start: 0
+      end: 69
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 21
+      end: 35
+  ? |
+    fetch('/api/multi', { method: 'POST', headers: {}, body: '' });
+  : labels:
+    - source: 'fetch(''/api/multi'', { method: ''POST'', headers: {}, body: '''' })'
+      style: primary
+      start: 0
+      end: 62
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/nested', { method: 'POST', headers: { Authorization: 'Bearer token' } });
+  : labels:
+    - source: 'fetch(''/api/nested'', { method: ''POST'', headers: { Authorization: ''Bearer token'' } })'
+      style: primary
+      start: 0
+      end: 84
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 23
+      end: 37
+  ? |
+    fetch('/api/nested/route/deep', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/nested/route/deep'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 51
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 34
+      end: 48
+  ? |
+    fetch('/api/patch-data', {
+      headers: {},
+      method: 'PATCH',
+      body: '{}'
+    });
+  : labels:
+    - source: |-
+        fetch('/api/patch-data', {
+          headers: {},
+          method: 'PATCH',
+          body: '{}'
+        })
+      style: primary
+      start: 0
+      end: 76
+    - source: 'method: ''PATCH'''
+      style: secondary
+      start: 44
+      end: 59
+  ? |
+    fetch('/api/posts', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/posts'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 39
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/query?param=1&other=2', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/query?param=1&other=2'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 55
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 38
+      end: 52
+  ? |
+    fetch('/api/query?param=1', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/query?param=1'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 47
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 30
+      end: 44
+  ? |
+    fetch('/api/reset-password', { method: 'POST', credentials: 'omit' });
+  : labels:
+    - source: 'fetch(''/api/reset-password'', { method: ''POST'', credentials: ''omit'' })'
+      style: primary
+      start: 0
+      end: 69
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 31
+      end: 45
+  ? |
+    fetch('/api/session', { method: 'DELETE', keepalive: true });
+  : labels:
+    - source: 'fetch(''/api/session'', { method: ''DELETE'', keepalive: true })'
+      style: primary
+      start: 0
+      end: 60
+    - source: 'method: ''DELETE'''
+      style: secondary
+      start: 24
+      end: 40
+  ? |
+    fetch('/api/settings', { method: 'PUT' }).catch(err => console.error(err));
+  : labels:
+    - source: 'fetch(''/api/settings'', { method: ''PUT'' })'
+      style: primary
+      start: 0
+      end: 41
+    - source: 'method: ''PUT'''
+      style: secondary
+      start: 25
+      end: 38
+  ? |
+    fetch('/api/signal', { signal: new AbortController().signal, method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/signal'', { signal: new AbortController().signal, method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 78
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 61
+      end: 75
+  ? |
+    fetch('/api/special-chars-@#$', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/special-chars-@#$'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 51
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 34
+      end: 48
+  ? |
+    fetch('/api/special-chars_123', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/special-chars_123'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 51
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 34
+      end: 48
+  ? |
+    fetch('/api/sub/route', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/sub/route'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 43
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 26
+      end: 40
+  ? |
+    fetch('/api/sub/route/deep', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/sub/route/deep'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 48
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 31
+      end: 45
+  ? |
+    fetch('/api/test', { referrerPolicy: 'no-referrer', method: 'PUT' });
+  : labels:
+    - source: 'fetch(''/api/test'', { referrerPolicy: ''no-referrer'', method: ''PUT'' })'
+      style: primary
+      start: 0
+      end: 68
+    - source: 'method: ''PUT'''
+      style: secondary
+      start: 52
+      end: 65
+  ? |
+    fetch('/api/todo', { method: 'POST', body: 'todo' });
+  : labels:
+    - source: 'fetch(''/api/todo'', { method: ''POST'', body: ''todo'' })'
+      style: primary
+      start: 0
+      end: 52
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 21
+      end: 35
+  ? |
+    fetch('/api/todo/1', { method: 'DELETE', body: 'todo' });
+  : labels:
+    - source: 'fetch(''/api/todo/1'', { method: ''DELETE'', body: ''todo'' })'
+      style: primary
+      start: 0
+      end: 56
+    - source: 'method: ''DELETE'''
+      style: secondary
+      start: 23
+      end: 39
+  ? |
+    fetch('/api/todo/1', { method: 'PATCH', body: 'todo' });
+  : labels:
+    - source: 'fetch(''/api/todo/1'', { method: ''PATCH'', body: ''todo'' })'
+      style: primary
+      start: 0
+      end: 55
+    - source: 'method: ''PATCH'''
+      style: secondary
+      start: 23
+      end: 38
+  ? |
+    fetch('/api/todo/1', { method: 'PUT', body: 'todo' });
+  : labels:
+    - source: 'fetch(''/api/todo/1'', { method: ''PUT'', body: ''todo'' })'
+      style: primary
+      start: 0
+      end: 53
+    - source: 'method: ''PUT'''
+      style: secondary
+      start: 23
+      end: 36
+  ? |
+    fetch('/api/trailing-slash/', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/trailing-slash/'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 49
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 32
+      end: 46
+  ? |
+    fetch('/api/trailing/', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/trailing/'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 43
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 26
+      end: 40
+  ? |
+    fetch('/api/users', { method: 'Delete' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''Delete'' })'
+      style: primary
+      start: 0
+      end: 41
+    - source: 'method: ''Delete'''
+      style: secondary
+      start: 22
+      end: 38
+  ? |
+    fetch('/api/users', { method: 'POST' }).catch(err => console.error(err));
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 39
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST' }).finally(() => {});
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 39
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 39
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', body: JSON.stringify({ a: 1 }) });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', body: JSON.stringify({ a: 1 }) })'
+      style: primary
+      start: 0
+      end: 71
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', body: new Blob() });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', body: new Blob() })'
+      style: primary
+      start: 0
+      end: 57
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', body: new URLSearchParams() });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', body: new URLSearchParams() })'
+      style: primary
+      start: 0
+      end: 68
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', credentials: 'include' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', credentials: ''include'' })'
+      style: primary
+      start: 0
+      end: 63
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', duplex: 'half' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', duplex: ''half'' })'
+      style: primary
+      start: 0
+      end: 55
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', headers: new Headers() });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', headers: new Headers() })'
+      style: primary
+      start: 0
+      end: 63
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', integrity: 'sha256-...' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', integrity: ''sha256-...'' })'
+      style: primary
+      start: 0
+      end: 64
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', priority: 'high' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', priority: ''high'' })'
+      style: primary
+      start: 0
+      end: 57
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', priority: 'low' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', priority: ''low'' })'
+      style: primary
+      start: 0
+      end: 56
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', referrer: 'about:client' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', referrer: ''about:client'' })'
+      style: primary
+      start: 0
+      end: 65
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', signal: new AbortController().signal });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', signal: new AbortController().signal })'
+      style: primary
+      start: 0
+      end: 77
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'POST', window: null });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''POST'', window: null })'
+      style: primary
+      start: 0
+      end: 53
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'Patch' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''Patch'' })'
+      style: primary
+      start: 0
+      end: 40
+    - source: 'method: ''Patch'''
+      style: secondary
+      start: 22
+      end: 37
+  ? |
+    fetch('/api/users', { method: 'Post' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''Post'' })'
+      style: primary
+      start: 0
+      end: 39
+    - source: 'method: ''Post'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'Put' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''Put'' })'
+      style: primary
+      start: 0
+      end: 38
+    - source: 'method: ''Put'''
+      style: secondary
+      start: 22
+      end: 35
+  ? |
+    fetch('/api/users', { method: 'delete' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''delete'' })'
+      style: primary
+      start: 0
+      end: 41
+    - source: 'method: ''delete'''
+      style: secondary
+      start: 22
+      end: 38
+  ? |
+    fetch('/api/users', { method: 'patch' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''patch'' })'
+      style: primary
+      start: 0
+      end: 40
+    - source: 'method: ''patch'''
+      style: secondary
+      start: 22
+      end: 37
+  ? |
+    fetch('/api/users', { method: 'post' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''post'' })'
+      style: primary
+      start: 0
+      end: 39
+    - source: 'method: ''post'''
+      style: secondary
+      start: 22
+      end: 36
+  ? |
+    fetch('/api/users', { method: 'put' });
+  : labels:
+    - source: 'fetch(''/api/users'', { method: ''put'' })'
+      style: primary
+      start: 0
+      end: 38
+    - source: 'method: ''put'''
+      style: secondary
+      start: 22
+      end: 35
+  ? |
+    fetch('/api/users/1', { method: 'DELETE' });
+  : labels:
+    - source: 'fetch(''/api/users/1'', { method: ''DELETE'' })'
+      style: primary
+      start: 0
+      end: 43
+    - source: 'method: ''DELETE'''
+      style: secondary
+      start: 24
+      end: 40
+  ? |
+    fetch('/api/users/1', { method: 'PATCH' });
+  : labels:
+    - source: 'fetch(''/api/users/1'', { method: ''PATCH'' })'
+      style: primary
+      start: 0
+      end: 42
+    - source: 'method: ''PATCH'''
+      style: secondary
+      start: 24
+      end: 39
+  ? |
+    fetch('/api/users/1', { method: 'PUT' });
+  : labels:
+    - source: 'fetch(''/api/users/1'', { method: ''PUT'' })'
+      style: primary
+      start: 0
+      end: 40
+    - source: 'method: ''PUT'''
+      style: secondary
+      start: 24
+      end: 37
+  ? |
+    fetch('/api/v1/profile', { method: 'PATCH' });
+  : labels:
+    - source: 'fetch(''/api/v1/profile'', { method: ''PATCH'' })'
+      style: primary
+      start: 0
+      end: 45
+    - source: 'method: ''PATCH'''
+      style: secondary
+      start: 27
+      end: 42
+  ? |
+    fetch('/api/v1/resource', { method: 'DELETE', headers: { 'Accept': 'application/json' } });
+  : labels:
+    - source: 'fetch(''/api/v1/resource'', { method: ''DELETE'', headers: { ''Accept'': ''application/json'' } })'
+      style: primary
+      start: 0
+      end: 90
+    - source: 'method: ''DELETE'''
+      style: secondary
+      start: 28
+      end: 44
+  ? |
+    fetch('/api/v1/resource', { method: 'PATCH', body: JSON.stringify({ active: true }) });
+  : labels:
+    - source: 'fetch(''/api/v1/resource'', { method: ''PATCH'', body: JSON.stringify({ active: true }) })'
+      style: primary
+      start: 0
+      end: 86
+    - source: 'method: ''PATCH'''
+      style: secondary
+      start: 28
+      end: 43
+  ? |
+    fetch('/api/v1/resource', { method: 'POST', mode: 'same-origin' });
+  : labels:
+    - source: 'fetch(''/api/v1/resource'', { method: ''POST'', mode: ''same-origin'' })'
+      style: primary
+      start: 0
+      end: 66
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 28
+      end: 42
+  ? |
+    fetch('/api/v1/resource', { method: 'PUT', headers: { 'X-Custom': 'value' } });
+  : labels:
+    - source: 'fetch(''/api/v1/resource'', { method: ''PUT'', headers: { ''X-Custom'': ''value'' } })'
+      style: primary
+      start: 0
+      end: 78
+    - source: 'method: ''PUT'''
+      style: secondary
+      start: 28
+      end: 41
+  ? |
+    fetch('/api/v2/items', { headers: { 'Content-Type': 'application/json' }, method: 'POST' });
+  : labels:
+    - source: 'fetch(''/api/v2/items'', { headers: { ''Content-Type'': ''application/json'' }, method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 91
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 74
+      end: 88
+  ? |
+    fetch('/api/v2/items', { method: 'POST', body: JSON.stringify({ id: 1 }) });
+  : labels:
+    - source: 'fetch(''/api/v2/items'', { method: ''POST'', body: JSON.stringify({ id: 1 }) })'
+      style: primary
+      start: 0
+      end: 75
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 25
+      end: 39
+  ? |
+    fetch('/api/v2/items', { mode: 'cors', method: 'POST', body: '{}' });
+  : labels:
+    - source: 'fetch(''/api/v2/items'', { mode: ''cors'', method: ''POST'', body: ''{}'' })'
+      style: primary
+      start: 0
+      end: 68
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 39
+      end: 53
+  ? |
+    fetch('/api/webhook', { method: 'POST', mode: 'cors' });
+  : labels:
+    - source: 'fetch(''/api/webhook'', { method: ''POST'', mode: ''cors'' })'
+      style: primary
+      start: 0
+      end: 55
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 24
+      end: 38
+  ? |
+    fetch(`/api/comments/3`, { method: 'DELETE' });
+  : labels:
+    - source: 'fetch(`/api/comments/3`, { method: ''DELETE'' })'
+      style: primary
+      start: 0
+      end: 46
+    - source: 'method: ''DELETE'''
+      style: secondary
+      start: 27
+      end: 43
+  ? |
+    fetch(`/api/comments/3`, { method: 'PATCH' });
+  : labels:
+    - source: 'fetch(`/api/comments/3`, { method: ''PATCH'' })'
+      style: primary
+      start: 0
+      end: 45
+    - source: 'method: ''PATCH'''
+      style: secondary
+      start: 27
+      end: 42
+  ? |
+    fetch(`/api/comments/3`, { method: 'PUT' });
+  : labels:
+    - source: 'fetch(`/api/comments/3`, { method: ''PUT'' })'
+      style: primary
+      start: 0
+      end: 43
+    - source: 'method: ''PUT'''
+      style: secondary
+      start: 27
+      end: 40
+  ? |
+    fetch(`/api/comments`, { method: 'POST' });
+  : labels:
+    - source: 'fetch(`/api/comments`, { method: ''POST'' })'
+      style: primary
+      start: 0
+      end: 42
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 25
+      end: 39
+  ? |
+    fetch(`/api/comments`, { method: `DELETE` });
+  : labels:
+    - source: 'fetch(`/api/comments`, { method: `DELETE` })'
+      style: primary
+      start: 0
+      end: 44
+    - source: 'method: `DELETE`'
+      style: secondary
+      start: 25
+      end: 41
+  ? |
+    function onSubmit() {
+      fetch('/api/submit', { method: 'POST' });
+    }
+  : labels:
+    - source: 'fetch(''/api/submit'', { method: ''POST'' })'
+      style: primary
+      start: 24
+      end: 64
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 47
+      end: 61
+  ? |
+    function update(id: number) { fetch(`/api/update/${id}`, { method: 'PATCH' }); }
+  : labels:
+    - source: 'fetch(`/api/update/${id}`, { method: ''PATCH'' })'
+      style: primary
+      start: 30
+      end: 77
+    - source: 'method: ''PATCH'''
+      style: secondary
+      start: 59
+      end: 74
+  ? |
+    import { useEffect } from 'react';
+    useEffect(() => {
+      fetch('/api/analytics', { method: 'POST' });
+    }, []);
+  : labels:
+    - source: 'fetch(''/api/analytics'', { method: ''POST'' })'
+      style: primary
+      start: 55
+      end: 98
+    - source: 'method: ''POST'''
+      style: secondary
+      start: 81
+      end: 95

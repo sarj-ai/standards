@@ -1,0 +1,679 @@
+"id": |-
+  prefer-discriminated-union
+"valid":
+- |
+  from pydantic import BaseModel
+  from typing import Literal
+
+  class SuccessResponse(BaseModel):
+      success: Literal[True]
+      data: dict
+- |
+  from pydantic import BaseModel
+  from typing import Literal
+
+  class FailureResponse(BaseModel):
+      success: Literal[False]
+      error: str
+- |
+  from pydantic import BaseModel
+  from typing import Optional
+
+  class Response(BaseModel):
+      success: Optional[bool] = None
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success: bool | None = None
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      is_success: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      ok: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      status: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_flag: bool
+- |
+  class Response:
+      success: bool
+- |
+  class Response(object):
+      success: bool
+- |
+  class Response(dict):
+      success: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      data: str
+      error: str | None = None
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success: str
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success: int
+- |
+  from pydantic import BaseModel
+  from typing import Any
+
+  class Response(BaseModel):
+      success: Any
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      def success(self) -> bool:
+          return True
+- |
+  from dataclasses import dataclass
+
+  @dataclass
+  class Response:
+      success: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      # success: bool
+      is_active: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success = True
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success: list[bool]
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success: dict[str, bool]
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success: tuple[bool, ...]
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success: set[bool]
+- |
+  from pydantic import BaseModel
+  from typing import Union
+
+  class Response(BaseModel):
+      success: Union[bool, str]
+- |
+  from pydantic import BaseModel
+  from typing import Union
+
+  class Response(BaseModel):
+      success: Union[bool, None]
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success: bool | str
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success: bool | int
+- |
+  from pydantic import BaseModel
+  from typing import Literal
+
+  class Response(BaseModel):
+      success: Literal['yes', 'no']
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success: str = 'bool'
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_code: int
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_msg: str
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_count: int
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_rate: float
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_ratio: float
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_percentage: float
+- |
+  from pydantic import BaseModel
+  from datetime import datetime
+
+  class Response(BaseModel):
+      success_time: datetime
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_at: str
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_by: str
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_type: str
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_id: int
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      has_succeeded: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      succeeded: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      successful: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      was_successful: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      success_or_failure: str
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      is_ok: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      completed: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      done: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      finished: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      passed: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      failed: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      failure: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      error_occurred: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      has_error: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      valid: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      is_valid: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      invalid: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      is_invalid: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      enabled: bool
+- |
+  from pydantic import BaseModel
+
+  class Response(BaseModel):
+      active: bool
+"invalid":
+- |
+  from pydantic import BaseModel
+
+  class ApiResponse(BaseModel):
+      success: bool
+      data: dict | None = None
+- |
+  from pydantic import BaseModel
+
+  class LoginResult(BaseModel):
+      success: bool
+      token: str | None = None
+      error: str | None = None
+- |
+  from pydantic import BaseModel, Field
+
+  class PaymentStatus(BaseModel):
+      success: bool = Field(..., description='Whether the payment succeeded')
+      transaction_id: str | None = None
+- |
+  from pydantic import BaseModel
+
+  class TaskResponse(BaseModel):
+      task_id: str
+      success: bool
+- |
+  from pydantic import BaseModel
+
+  class DeleteResponse(BaseModel):
+      success: bool = False
+      deleted_count: int = 0
+- |
+  from pydantic import BaseModel
+
+  class UpdateResponse(BaseModel):
+      success: bool = True
+      updated_id: int
+- |
+  from pydantic import BaseModel
+  from typing import Generic, TypeVar
+
+  T = TypeVar('T')
+
+  class GenericResponse(BaseModel, Generic[T]):
+      success: bool
+      result: T | None = None
+- |
+  from pydantic import BaseModel
+
+  class VerificationResponse(BaseModel):
+      """Response for verification step."""
+      success: bool
+      code_expired: bool = False
+- |
+  from pydantic import BaseModel
+
+  class AuthResponse(BaseModel, extra='forbid'):
+      success: bool
+      user_id: str | None = None
+- |
+  from pydantic import BaseModel
+
+  class JobStatus(BaseModel, frozen=True):
+      job_id: str
+      success: bool
+- |
+  from pydantic import BaseModel
+
+  class UploadResult(BaseModel):
+      success: bool
+      file_size: int
+      url: str | None = None
+- |
+  from pydantic import BaseModel
+
+  class DownloadResult(BaseModel):
+      success: bool
+      bytes_written: int
+- |
+  from pydantic import BaseModel
+
+  class SyncResult(BaseModel):
+      success: bool
+      synced_records: int
+- |
+  from pydantic import BaseModel
+
+  class BackupStatus(BaseModel):
+      success: bool
+      backup_path: str | None = None
+- |
+  from pydantic import BaseModel
+
+  class RestoreStatus(BaseModel):
+      success: bool
+      error_message: str | None = None
+- |
+  from pydantic import BaseModel
+
+  class SearchResponse(BaseModel):
+      success: bool
+      total_hits: int = 0
+- |
+  from pydantic import BaseModel
+
+  class QueryResponse(BaseModel):
+      success: bool
+      execution_time_ms: float
+- |
+  from pydantic import BaseModel
+
+  class CommandResult(BaseModel):
+      success: bool
+      stdout: str = ''
+      stderr: str = ''
+- |
+  from pydantic import BaseModel
+
+  class EventResponse(BaseModel):
+      success: bool
+      event_id: str
+- |
+  from pydantic import BaseModel
+
+  class ActionStatus(BaseModel):
+      success: bool
+      action_name: str
+- |
+  from pydantic import BaseModel
+
+  class StepResult(BaseModel):
+      success: bool
+      duration: float
+- |
+  from pydantic import BaseModel
+
+  class ValidationResult(BaseModel):
+      success: bool
+      errors: list[str] = []
+- |
+  from pydantic import BaseModel
+
+  class ExecutionResult(BaseModel):
+      success: bool
+      exit_code: int = 0
+- |
+  from pydantic import BaseModel
+
+  class HealthCheck(BaseModel):
+      success: bool
+      uptime: int
+- |
+  from pydantic import BaseModel
+
+  class PingResponse(BaseModel):
+      success: bool
+      round_trip_ms: float
+- |
+  from pydantic import BaseModel
+
+  class ConnectionStatus(BaseModel):
+      success: bool
+      host: str
+- |
+  from pydantic import BaseModel
+
+  class HandshakeResult(BaseModel):
+      success: bool
+      protocol_version: int
+- |
+  from pydantic import BaseModel
+
+  class SessionInit(BaseModel):
+      success: bool
+      session_token: str | None = None
+- |
+  from pydantic import BaseModel
+
+  class LogoutResult(BaseModel):
+      success: bool
+      cleared_cookies: int
+- |
+  from pydantic import BaseModel
+
+  class PasswordReset(BaseModel):
+      success: bool
+      email_sent: bool
+- |
+  from pydantic import BaseModel
+
+  class EmailVerification(BaseModel):
+      success: bool
+      attempts_remaining: int
+- |
+  from pydantic import BaseModel
+
+  class PhoneVerification(BaseModel):
+      success: bool
+      carrier: str | None = None
+- |
+  from pydantic import BaseModel
+
+  class MFAStatus(BaseModel):
+      success: bool
+      backup_codes_left: int
+- |
+  from pydantic import BaseModel
+
+  class RegistrationResult(BaseModel):
+      success: bool
+      profile_completed: bool
+- |
+  from pydantic import BaseModel
+
+  class SubscriptionStatus(BaseModel):
+      success: bool
+      plan_name: str
+- |
+  from pydantic import BaseModel
+
+  class InvoiceGeneration(BaseModel):
+      success: bool
+      invoice_number: str | None = None
+- |
+  from pydantic import BaseModel
+
+  class RefundStatus(BaseModel):
+      success: bool
+      amount_refunded: float
+- |
+  from pydantic import BaseModel
+
+  class PayoutResult(BaseModel):
+      success: bool
+      bank_reference: str
+- |
+  from pydantic import BaseModel
+
+  class TransferStatus(BaseModel):
+      success: bool
+      source_account: str
+- |
+  from pydantic import BaseModel
+
+  class DepositResult(BaseModel):
+      success: bool
+      cleared_balance: float
+- |
+  from pydantic import BaseModel
+
+  class TradeExecution(BaseModel):
+      success: bool
+      filled_qty: float
+- |
+  from pydantic import BaseModel
+
+  class OrderPlacement(BaseModel):
+      success: bool
+      order_id: str
+- |
+  from pydantic import BaseModel
+
+  class CancelOrderResult(BaseModel):
+      success: bool
+      order_id: str
+- |
+  from pydantic import BaseModel
+
+  class CartCheckout(BaseModel):
+      success: bool
+      cart_id: str
+- |
+  from pydantic import BaseModel
+
+  class CouponApplication(BaseModel):
+      success: bool
+      discount_applied: float
+- |
+  from pydantic import BaseModel
+
+  class ShippingCalculation(BaseModel):
+      success: bool
+      shipping_cost: float
+- |
+  from pydantic import BaseModel
+
+  class AddressValidation(BaseModel):
+      success: bool
+      corrected_address: str | None = None
+- |
+  from pydantic import BaseModel
+
+  class TaxCalculation(BaseModel):
+      success: bool
+      tax_amount: float
+- |
+  from pydantic import BaseModel
+
+  class InventoryCheck(BaseModel):
+      success: bool
+      available_stock: int
+- |
+  from pydantic import BaseModel
+
+  class ReservationStatus(BaseModel):
+      success: bool
+      reservation_id: str
+- |
+  from pydantic import BaseModel
+
+  class BookingResult(BaseModel):
+      success: bool
+      booking_reference: str
+- |
+  from pydantic import BaseModel
+
+  class CheckInStatus(BaseModel):
+      success: bool
+      seat_number: str | None = None
+- |
+  from pydantic import BaseModel
+
+  class FlightStatusUpdate(BaseModel):
+      success: bool
+      delay_minutes: int = 0
+- |
+  from pydantic import BaseModel
+
+  class BaggageTracking(BaseModel):
+      success: bool
+      last_seen_location: str
+- |
+  from pydantic import BaseModel
+
+  class HotelBooking(BaseModel):
+      success: bool
+      room_number: int | None = None
+- |
+  from pydantic import BaseModel
+
+  class CarRentalStatus(BaseModel):
+      success: bool
+      rental_agreement_id: str
+- |
+  from pydantic import BaseModel
+
+  class InsuranceClaim(BaseModel):
+      success: bool
+      claim_number: str
+- |
+  from pydantic import BaseModel
+
+  class PolicyRenewal(BaseModel):
+      success: bool
+      new_expiry_date: str
+- |
+  from pydantic import BaseModel
+
+  class DocumentSigning(BaseModel):
+      success: bool
+      signature_id: str
+- |
+  from pydantic import BaseModel
+
+  class ContractExecution(BaseModel):
+      success: bool
+      executed_at: str

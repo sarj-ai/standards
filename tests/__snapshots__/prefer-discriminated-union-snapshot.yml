@@ -1,0 +1,1573 @@
+id: prefer-discriminated-union
+snapshots:
+  ? |
+    from pydantic import BaseModel
+
+    class ActionStatus(BaseModel):
+        success: bool
+        action_name: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 67
+      end: 80
+    - source: BaseModel
+      style: secondary
+      start: 51
+      end: 60
+    - source: (BaseModel)
+      style: secondary
+      start: 50
+      end: 61
+    - source: |-
+        class ActionStatus(BaseModel):
+            success: bool
+            action_name: str
+      style: secondary
+      start: 32
+      end: 101
+  ? |
+    from pydantic import BaseModel
+
+    class AddressValidation(BaseModel):
+        success: bool
+        corrected_address: str | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 72
+      end: 85
+    - source: BaseModel
+      style: secondary
+      start: 56
+      end: 65
+    - source: (BaseModel)
+      style: secondary
+      start: 55
+      end: 66
+    - source: |-
+        class AddressValidation(BaseModel):
+            success: bool
+            corrected_address: str | None = None
+      style: secondary
+      start: 32
+      end: 126
+  ? |
+    from pydantic import BaseModel
+
+    class ApiResponse(BaseModel):
+        success: bool
+        data: dict | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 66
+      end: 79
+    - source: BaseModel
+      style: secondary
+      start: 50
+      end: 59
+    - source: (BaseModel)
+      style: secondary
+      start: 49
+      end: 60
+    - source: |-
+        class ApiResponse(BaseModel):
+            success: bool
+            data: dict | None = None
+      style: secondary
+      start: 32
+      end: 108
+  ? |
+    from pydantic import BaseModel
+
+    class AuthResponse(BaseModel, extra='forbid'):
+        success: bool
+        user_id: str | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 83
+      end: 96
+    - source: BaseModel
+      style: secondary
+      start: 51
+      end: 60
+    - source: (BaseModel, extra='forbid')
+      style: secondary
+      start: 50
+      end: 77
+    - source: |-
+        class AuthResponse(BaseModel, extra='forbid'):
+            success: bool
+            user_id: str | None = None
+      style: secondary
+      start: 32
+      end: 127
+  ? |
+    from pydantic import BaseModel
+
+    class BackupStatus(BaseModel):
+        success: bool
+        backup_path: str | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 67
+      end: 80
+    - source: BaseModel
+      style: secondary
+      start: 51
+      end: 60
+    - source: (BaseModel)
+      style: secondary
+      start: 50
+      end: 61
+    - source: |-
+        class BackupStatus(BaseModel):
+            success: bool
+            backup_path: str | None = None
+      style: secondary
+      start: 32
+      end: 115
+  ? |
+    from pydantic import BaseModel
+
+    class BaggageTracking(BaseModel):
+        success: bool
+        last_seen_location: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 70
+      end: 83
+    - source: BaseModel
+      style: secondary
+      start: 54
+      end: 63
+    - source: (BaseModel)
+      style: secondary
+      start: 53
+      end: 64
+    - source: |-
+        class BaggageTracking(BaseModel):
+            success: bool
+            last_seen_location: str
+      style: secondary
+      start: 32
+      end: 111
+  ? |
+    from pydantic import BaseModel
+
+    class BookingResult(BaseModel):
+        success: bool
+        booking_reference: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 68
+      end: 81
+    - source: BaseModel
+      style: secondary
+      start: 52
+      end: 61
+    - source: (BaseModel)
+      style: secondary
+      start: 51
+      end: 62
+    - source: |-
+        class BookingResult(BaseModel):
+            success: bool
+            booking_reference: str
+      style: secondary
+      start: 32
+      end: 108
+  ? |
+    from pydantic import BaseModel
+
+    class CancelOrderResult(BaseModel):
+        success: bool
+        order_id: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 72
+      end: 85
+    - source: BaseModel
+      style: secondary
+      start: 56
+      end: 65
+    - source: (BaseModel)
+      style: secondary
+      start: 55
+      end: 66
+    - source: |-
+        class CancelOrderResult(BaseModel):
+            success: bool
+            order_id: str
+      style: secondary
+      start: 32
+      end: 103
+  ? |
+    from pydantic import BaseModel
+
+    class CarRentalStatus(BaseModel):
+        success: bool
+        rental_agreement_id: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 70
+      end: 83
+    - source: BaseModel
+      style: secondary
+      start: 54
+      end: 63
+    - source: (BaseModel)
+      style: secondary
+      start: 53
+      end: 64
+    - source: |-
+        class CarRentalStatus(BaseModel):
+            success: bool
+            rental_agreement_id: str
+      style: secondary
+      start: 32
+      end: 112
+  ? |
+    from pydantic import BaseModel
+
+    class CartCheckout(BaseModel):
+        success: bool
+        cart_id: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 67
+      end: 80
+    - source: BaseModel
+      style: secondary
+      start: 51
+      end: 60
+    - source: (BaseModel)
+      style: secondary
+      start: 50
+      end: 61
+    - source: |-
+        class CartCheckout(BaseModel):
+            success: bool
+            cart_id: str
+      style: secondary
+      start: 32
+      end: 97
+  ? |
+    from pydantic import BaseModel
+
+    class CheckInStatus(BaseModel):
+        success: bool
+        seat_number: str | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 68
+      end: 81
+    - source: BaseModel
+      style: secondary
+      start: 52
+      end: 61
+    - source: (BaseModel)
+      style: secondary
+      start: 51
+      end: 62
+    - source: |-
+        class CheckInStatus(BaseModel):
+            success: bool
+            seat_number: str | None = None
+      style: secondary
+      start: 32
+      end: 116
+  ? |
+    from pydantic import BaseModel
+
+    class CommandResult(BaseModel):
+        success: bool
+        stdout: str = ''
+        stderr: str = ''
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 68
+      end: 81
+    - source: BaseModel
+      style: secondary
+      start: 52
+      end: 61
+    - source: (BaseModel)
+      style: secondary
+      start: 51
+      end: 62
+    - source: |-
+        class CommandResult(BaseModel):
+            success: bool
+            stdout: str = ''
+            stderr: str = ''
+      style: secondary
+      start: 32
+      end: 123
+  ? |
+    from pydantic import BaseModel
+
+    class ConnectionStatus(BaseModel):
+        success: bool
+        host: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 71
+      end: 84
+    - source: BaseModel
+      style: secondary
+      start: 55
+      end: 64
+    - source: (BaseModel)
+      style: secondary
+      start: 54
+      end: 65
+    - source: |-
+        class ConnectionStatus(BaseModel):
+            success: bool
+            host: str
+      style: secondary
+      start: 32
+      end: 98
+  ? |
+    from pydantic import BaseModel
+
+    class ContractExecution(BaseModel):
+        success: bool
+        executed_at: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 72
+      end: 85
+    - source: BaseModel
+      style: secondary
+      start: 56
+      end: 65
+    - source: (BaseModel)
+      style: secondary
+      start: 55
+      end: 66
+    - source: |-
+        class ContractExecution(BaseModel):
+            success: bool
+            executed_at: str
+      style: secondary
+      start: 32
+      end: 106
+  ? |
+    from pydantic import BaseModel
+
+    class CouponApplication(BaseModel):
+        success: bool
+        discount_applied: float
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 72
+      end: 85
+    - source: BaseModel
+      style: secondary
+      start: 56
+      end: 65
+    - source: (BaseModel)
+      style: secondary
+      start: 55
+      end: 66
+    - source: |-
+        class CouponApplication(BaseModel):
+            success: bool
+            discount_applied: float
+      style: secondary
+      start: 32
+      end: 113
+  ? |
+    from pydantic import BaseModel
+
+    class DeleteResponse(BaseModel):
+        success: bool = False
+        deleted_count: int = 0
+  : labels:
+    - source: 'success: bool = False'
+      style: primary
+      start: 69
+      end: 90
+    - source: BaseModel
+      style: secondary
+      start: 53
+      end: 62
+    - source: (BaseModel)
+      style: secondary
+      start: 52
+      end: 63
+    - source: |-
+        class DeleteResponse(BaseModel):
+            success: bool = False
+            deleted_count: int = 0
+      style: secondary
+      start: 32
+      end: 117
+  ? |
+    from pydantic import BaseModel
+
+    class DepositResult(BaseModel):
+        success: bool
+        cleared_balance: float
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 68
+      end: 81
+    - source: BaseModel
+      style: secondary
+      start: 52
+      end: 61
+    - source: (BaseModel)
+      style: secondary
+      start: 51
+      end: 62
+    - source: |-
+        class DepositResult(BaseModel):
+            success: bool
+            cleared_balance: float
+      style: secondary
+      start: 32
+      end: 108
+  ? |
+    from pydantic import BaseModel
+
+    class DocumentSigning(BaseModel):
+        success: bool
+        signature_id: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 70
+      end: 83
+    - source: BaseModel
+      style: secondary
+      start: 54
+      end: 63
+    - source: (BaseModel)
+      style: secondary
+      start: 53
+      end: 64
+    - source: |-
+        class DocumentSigning(BaseModel):
+            success: bool
+            signature_id: str
+      style: secondary
+      start: 32
+      end: 105
+  ? |
+    from pydantic import BaseModel
+
+    class DownloadResult(BaseModel):
+        success: bool
+        bytes_written: int
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 69
+      end: 82
+    - source: BaseModel
+      style: secondary
+      start: 53
+      end: 62
+    - source: (BaseModel)
+      style: secondary
+      start: 52
+      end: 63
+    - source: |-
+        class DownloadResult(BaseModel):
+            success: bool
+            bytes_written: int
+      style: secondary
+      start: 32
+      end: 105
+  ? |
+    from pydantic import BaseModel
+
+    class EmailVerification(BaseModel):
+        success: bool
+        attempts_remaining: int
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 72
+      end: 85
+    - source: BaseModel
+      style: secondary
+      start: 56
+      end: 65
+    - source: (BaseModel)
+      style: secondary
+      start: 55
+      end: 66
+    - source: |-
+        class EmailVerification(BaseModel):
+            success: bool
+            attempts_remaining: int
+      style: secondary
+      start: 32
+      end: 113
+  ? |
+    from pydantic import BaseModel
+
+    class EventResponse(BaseModel):
+        success: bool
+        event_id: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 68
+      end: 81
+    - source: BaseModel
+      style: secondary
+      start: 52
+      end: 61
+    - source: (BaseModel)
+      style: secondary
+      start: 51
+      end: 62
+    - source: |-
+        class EventResponse(BaseModel):
+            success: bool
+            event_id: str
+      style: secondary
+      start: 32
+      end: 99
+  ? |
+    from pydantic import BaseModel
+
+    class ExecutionResult(BaseModel):
+        success: bool
+        exit_code: int = 0
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 70
+      end: 83
+    - source: BaseModel
+      style: secondary
+      start: 54
+      end: 63
+    - source: (BaseModel)
+      style: secondary
+      start: 53
+      end: 64
+    - source: |-
+        class ExecutionResult(BaseModel):
+            success: bool
+            exit_code: int = 0
+      style: secondary
+      start: 32
+      end: 106
+  ? |
+    from pydantic import BaseModel
+
+    class FlightStatusUpdate(BaseModel):
+        success: bool
+        delay_minutes: int = 0
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 73
+      end: 86
+    - source: BaseModel
+      style: secondary
+      start: 57
+      end: 66
+    - source: (BaseModel)
+      style: secondary
+      start: 56
+      end: 67
+    - source: |-
+        class FlightStatusUpdate(BaseModel):
+            success: bool
+            delay_minutes: int = 0
+      style: secondary
+      start: 32
+      end: 113
+  ? |
+    from pydantic import BaseModel
+
+    class HandshakeResult(BaseModel):
+        success: bool
+        protocol_version: int
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 70
+      end: 83
+    - source: BaseModel
+      style: secondary
+      start: 54
+      end: 63
+    - source: (BaseModel)
+      style: secondary
+      start: 53
+      end: 64
+    - source: |-
+        class HandshakeResult(BaseModel):
+            success: bool
+            protocol_version: int
+      style: secondary
+      start: 32
+      end: 109
+  ? |
+    from pydantic import BaseModel
+
+    class HealthCheck(BaseModel):
+        success: bool
+        uptime: int
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 66
+      end: 79
+    - source: BaseModel
+      style: secondary
+      start: 50
+      end: 59
+    - source: (BaseModel)
+      style: secondary
+      start: 49
+      end: 60
+    - source: |-
+        class HealthCheck(BaseModel):
+            success: bool
+            uptime: int
+      style: secondary
+      start: 32
+      end: 95
+  ? |
+    from pydantic import BaseModel
+
+    class HotelBooking(BaseModel):
+        success: bool
+        room_number: int | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 67
+      end: 80
+    - source: BaseModel
+      style: secondary
+      start: 51
+      end: 60
+    - source: (BaseModel)
+      style: secondary
+      start: 50
+      end: 61
+    - source: |-
+        class HotelBooking(BaseModel):
+            success: bool
+            room_number: int | None = None
+      style: secondary
+      start: 32
+      end: 115
+  ? |
+    from pydantic import BaseModel
+
+    class InsuranceClaim(BaseModel):
+        success: bool
+        claim_number: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 69
+      end: 82
+    - source: BaseModel
+      style: secondary
+      start: 53
+      end: 62
+    - source: (BaseModel)
+      style: secondary
+      start: 52
+      end: 63
+    - source: |-
+        class InsuranceClaim(BaseModel):
+            success: bool
+            claim_number: str
+      style: secondary
+      start: 32
+      end: 104
+  ? |
+    from pydantic import BaseModel
+
+    class InventoryCheck(BaseModel):
+        success: bool
+        available_stock: int
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 69
+      end: 82
+    - source: BaseModel
+      style: secondary
+      start: 53
+      end: 62
+    - source: (BaseModel)
+      style: secondary
+      start: 52
+      end: 63
+    - source: |-
+        class InventoryCheck(BaseModel):
+            success: bool
+            available_stock: int
+      style: secondary
+      start: 32
+      end: 107
+  ? |
+    from pydantic import BaseModel
+
+    class InvoiceGeneration(BaseModel):
+        success: bool
+        invoice_number: str | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 72
+      end: 85
+    - source: BaseModel
+      style: secondary
+      start: 56
+      end: 65
+    - source: (BaseModel)
+      style: secondary
+      start: 55
+      end: 66
+    - source: |-
+        class InvoiceGeneration(BaseModel):
+            success: bool
+            invoice_number: str | None = None
+      style: secondary
+      start: 32
+      end: 123
+  ? |
+    from pydantic import BaseModel
+
+    class JobStatus(BaseModel, frozen=True):
+        job_id: str
+        success: bool
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 93
+      end: 106
+    - source: BaseModel
+      style: secondary
+      start: 48
+      end: 57
+    - source: (BaseModel, frozen=True)
+      style: secondary
+      start: 47
+      end: 71
+    - source: |-
+        class JobStatus(BaseModel, frozen=True):
+            job_id: str
+            success: bool
+      style: secondary
+      start: 32
+      end: 106
+  ? |
+    from pydantic import BaseModel
+
+    class LoginResult(BaseModel):
+        success: bool
+        token: str | None = None
+        error: str | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 66
+      end: 79
+    - source: BaseModel
+      style: secondary
+      start: 50
+      end: 59
+    - source: (BaseModel)
+      style: secondary
+      start: 49
+      end: 60
+    - source: |-
+        class LoginResult(BaseModel):
+            success: bool
+            token: str | None = None
+            error: str | None = None
+      style: secondary
+      start: 32
+      end: 137
+  ? |
+    from pydantic import BaseModel
+
+    class LogoutResult(BaseModel):
+        success: bool
+        cleared_cookies: int
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 67
+      end: 80
+    - source: BaseModel
+      style: secondary
+      start: 51
+      end: 60
+    - source: (BaseModel)
+      style: secondary
+      start: 50
+      end: 61
+    - source: |-
+        class LogoutResult(BaseModel):
+            success: bool
+            cleared_cookies: int
+      style: secondary
+      start: 32
+      end: 105
+  ? |
+    from pydantic import BaseModel
+
+    class MFAStatus(BaseModel):
+        success: bool
+        backup_codes_left: int
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 64
+      end: 77
+    - source: BaseModel
+      style: secondary
+      start: 48
+      end: 57
+    - source: (BaseModel)
+      style: secondary
+      start: 47
+      end: 58
+    - source: |-
+        class MFAStatus(BaseModel):
+            success: bool
+            backup_codes_left: int
+      style: secondary
+      start: 32
+      end: 104
+  ? |
+    from pydantic import BaseModel
+
+    class OrderPlacement(BaseModel):
+        success: bool
+        order_id: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 69
+      end: 82
+    - source: BaseModel
+      style: secondary
+      start: 53
+      end: 62
+    - source: (BaseModel)
+      style: secondary
+      start: 52
+      end: 63
+    - source: |-
+        class OrderPlacement(BaseModel):
+            success: bool
+            order_id: str
+      style: secondary
+      start: 32
+      end: 100
+  ? |
+    from pydantic import BaseModel
+
+    class PasswordReset(BaseModel):
+        success: bool
+        email_sent: bool
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 68
+      end: 81
+    - source: BaseModel
+      style: secondary
+      start: 52
+      end: 61
+    - source: (BaseModel)
+      style: secondary
+      start: 51
+      end: 62
+    - source: |-
+        class PasswordReset(BaseModel):
+            success: bool
+            email_sent: bool
+      style: secondary
+      start: 32
+      end: 102
+  ? |
+    from pydantic import BaseModel
+
+    class PayoutResult(BaseModel):
+        success: bool
+        bank_reference: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 67
+      end: 80
+    - source: BaseModel
+      style: secondary
+      start: 51
+      end: 60
+    - source: (BaseModel)
+      style: secondary
+      start: 50
+      end: 61
+    - source: |-
+        class PayoutResult(BaseModel):
+            success: bool
+            bank_reference: str
+      style: secondary
+      start: 32
+      end: 104
+  ? |
+    from pydantic import BaseModel
+
+    class PhoneVerification(BaseModel):
+        success: bool
+        carrier: str | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 72
+      end: 85
+    - source: BaseModel
+      style: secondary
+      start: 56
+      end: 65
+    - source: (BaseModel)
+      style: secondary
+      start: 55
+      end: 66
+    - source: |-
+        class PhoneVerification(BaseModel):
+            success: bool
+            carrier: str | None = None
+      style: secondary
+      start: 32
+      end: 116
+  ? |
+    from pydantic import BaseModel
+
+    class PingResponse(BaseModel):
+        success: bool
+        round_trip_ms: float
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 67
+      end: 80
+    - source: BaseModel
+      style: secondary
+      start: 51
+      end: 60
+    - source: (BaseModel)
+      style: secondary
+      start: 50
+      end: 61
+    - source: |-
+        class PingResponse(BaseModel):
+            success: bool
+            round_trip_ms: float
+      style: secondary
+      start: 32
+      end: 105
+  ? |
+    from pydantic import BaseModel
+
+    class PolicyRenewal(BaseModel):
+        success: bool
+        new_expiry_date: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 68
+      end: 81
+    - source: BaseModel
+      style: secondary
+      start: 52
+      end: 61
+    - source: (BaseModel)
+      style: secondary
+      start: 51
+      end: 62
+    - source: |-
+        class PolicyRenewal(BaseModel):
+            success: bool
+            new_expiry_date: str
+      style: secondary
+      start: 32
+      end: 106
+  ? |
+    from pydantic import BaseModel
+
+    class QueryResponse(BaseModel):
+        success: bool
+        execution_time_ms: float
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 68
+      end: 81
+    - source: BaseModel
+      style: secondary
+      start: 52
+      end: 61
+    - source: (BaseModel)
+      style: secondary
+      start: 51
+      end: 62
+    - source: |-
+        class QueryResponse(BaseModel):
+            success: bool
+            execution_time_ms: float
+      style: secondary
+      start: 32
+      end: 110
+  ? |
+    from pydantic import BaseModel
+
+    class RefundStatus(BaseModel):
+        success: bool
+        amount_refunded: float
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 67
+      end: 80
+    - source: BaseModel
+      style: secondary
+      start: 51
+      end: 60
+    - source: (BaseModel)
+      style: secondary
+      start: 50
+      end: 61
+    - source: |-
+        class RefundStatus(BaseModel):
+            success: bool
+            amount_refunded: float
+      style: secondary
+      start: 32
+      end: 107
+  ? |
+    from pydantic import BaseModel
+
+    class RegistrationResult(BaseModel):
+        success: bool
+        profile_completed: bool
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 73
+      end: 86
+    - source: BaseModel
+      style: secondary
+      start: 57
+      end: 66
+    - source: (BaseModel)
+      style: secondary
+      start: 56
+      end: 67
+    - source: |-
+        class RegistrationResult(BaseModel):
+            success: bool
+            profile_completed: bool
+      style: secondary
+      start: 32
+      end: 114
+  ? |
+    from pydantic import BaseModel
+
+    class ReservationStatus(BaseModel):
+        success: bool
+        reservation_id: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 72
+      end: 85
+    - source: BaseModel
+      style: secondary
+      start: 56
+      end: 65
+    - source: (BaseModel)
+      style: secondary
+      start: 55
+      end: 66
+    - source: |-
+        class ReservationStatus(BaseModel):
+            success: bool
+            reservation_id: str
+      style: secondary
+      start: 32
+      end: 109
+  ? |
+    from pydantic import BaseModel
+
+    class RestoreStatus(BaseModel):
+        success: bool
+        error_message: str | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 68
+      end: 81
+    - source: BaseModel
+      style: secondary
+      start: 52
+      end: 61
+    - source: (BaseModel)
+      style: secondary
+      start: 51
+      end: 62
+    - source: |-
+        class RestoreStatus(BaseModel):
+            success: bool
+            error_message: str | None = None
+      style: secondary
+      start: 32
+      end: 118
+  ? |
+    from pydantic import BaseModel
+
+    class SearchResponse(BaseModel):
+        success: bool
+        total_hits: int = 0
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 69
+      end: 82
+    - source: BaseModel
+      style: secondary
+      start: 53
+      end: 62
+    - source: (BaseModel)
+      style: secondary
+      start: 52
+      end: 63
+    - source: |-
+        class SearchResponse(BaseModel):
+            success: bool
+            total_hits: int = 0
+      style: secondary
+      start: 32
+      end: 106
+  ? |
+    from pydantic import BaseModel
+
+    class SessionInit(BaseModel):
+        success: bool
+        session_token: str | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 66
+      end: 79
+    - source: BaseModel
+      style: secondary
+      start: 50
+      end: 59
+    - source: (BaseModel)
+      style: secondary
+      start: 49
+      end: 60
+    - source: |-
+        class SessionInit(BaseModel):
+            success: bool
+            session_token: str | None = None
+      style: secondary
+      start: 32
+      end: 116
+  ? |
+    from pydantic import BaseModel
+
+    class ShippingCalculation(BaseModel):
+        success: bool
+        shipping_cost: float
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 74
+      end: 87
+    - source: BaseModel
+      style: secondary
+      start: 58
+      end: 67
+    - source: (BaseModel)
+      style: secondary
+      start: 57
+      end: 68
+    - source: |-
+        class ShippingCalculation(BaseModel):
+            success: bool
+            shipping_cost: float
+      style: secondary
+      start: 32
+      end: 112
+  ? |
+    from pydantic import BaseModel
+
+    class StepResult(BaseModel):
+        success: bool
+        duration: float
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 65
+      end: 78
+    - source: BaseModel
+      style: secondary
+      start: 49
+      end: 58
+    - source: (BaseModel)
+      style: secondary
+      start: 48
+      end: 59
+    - source: |-
+        class StepResult(BaseModel):
+            success: bool
+            duration: float
+      style: secondary
+      start: 32
+      end: 98
+  ? |
+    from pydantic import BaseModel
+
+    class SubscriptionStatus(BaseModel):
+        success: bool
+        plan_name: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 73
+      end: 86
+    - source: BaseModel
+      style: secondary
+      start: 57
+      end: 66
+    - source: (BaseModel)
+      style: secondary
+      start: 56
+      end: 67
+    - source: |-
+        class SubscriptionStatus(BaseModel):
+            success: bool
+            plan_name: str
+      style: secondary
+      start: 32
+      end: 105
+  ? |
+    from pydantic import BaseModel
+
+    class SyncResult(BaseModel):
+        success: bool
+        synced_records: int
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 65
+      end: 78
+    - source: BaseModel
+      style: secondary
+      start: 49
+      end: 58
+    - source: (BaseModel)
+      style: secondary
+      start: 48
+      end: 59
+    - source: |-
+        class SyncResult(BaseModel):
+            success: bool
+            synced_records: int
+      style: secondary
+      start: 32
+      end: 102
+  ? |
+    from pydantic import BaseModel
+
+    class TaskResponse(BaseModel):
+        task_id: str
+        success: bool
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 84
+      end: 97
+    - source: BaseModel
+      style: secondary
+      start: 51
+      end: 60
+    - source: (BaseModel)
+      style: secondary
+      start: 50
+      end: 61
+    - source: |-
+        class TaskResponse(BaseModel):
+            task_id: str
+            success: bool
+      style: secondary
+      start: 32
+      end: 97
+  ? |
+    from pydantic import BaseModel
+
+    class TaxCalculation(BaseModel):
+        success: bool
+        tax_amount: float
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 69
+      end: 82
+    - source: BaseModel
+      style: secondary
+      start: 53
+      end: 62
+    - source: (BaseModel)
+      style: secondary
+      start: 52
+      end: 63
+    - source: |-
+        class TaxCalculation(BaseModel):
+            success: bool
+            tax_amount: float
+      style: secondary
+      start: 32
+      end: 104
+  ? |
+    from pydantic import BaseModel
+
+    class TradeExecution(BaseModel):
+        success: bool
+        filled_qty: float
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 69
+      end: 82
+    - source: BaseModel
+      style: secondary
+      start: 53
+      end: 62
+    - source: (BaseModel)
+      style: secondary
+      start: 52
+      end: 63
+    - source: |-
+        class TradeExecution(BaseModel):
+            success: bool
+            filled_qty: float
+      style: secondary
+      start: 32
+      end: 104
+  ? |
+    from pydantic import BaseModel
+
+    class TransferStatus(BaseModel):
+        success: bool
+        source_account: str
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 69
+      end: 82
+    - source: BaseModel
+      style: secondary
+      start: 53
+      end: 62
+    - source: (BaseModel)
+      style: secondary
+      start: 52
+      end: 63
+    - source: |-
+        class TransferStatus(BaseModel):
+            success: bool
+            source_account: str
+      style: secondary
+      start: 32
+      end: 106
+  ? |
+    from pydantic import BaseModel
+
+    class UpdateResponse(BaseModel):
+        success: bool = True
+        updated_id: int
+  : labels:
+    - source: 'success: bool = True'
+      style: primary
+      start: 69
+      end: 89
+    - source: BaseModel
+      style: secondary
+      start: 53
+      end: 62
+    - source: (BaseModel)
+      style: secondary
+      start: 52
+      end: 63
+    - source: |-
+        class UpdateResponse(BaseModel):
+            success: bool = True
+            updated_id: int
+      style: secondary
+      start: 32
+      end: 109
+  ? |
+    from pydantic import BaseModel
+
+    class UploadResult(BaseModel):
+        success: bool
+        file_size: int
+        url: str | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 67
+      end: 80
+    - source: BaseModel
+      style: secondary
+      start: 51
+      end: 60
+    - source: (BaseModel)
+      style: secondary
+      start: 50
+      end: 61
+    - source: |-
+        class UploadResult(BaseModel):
+            success: bool
+            file_size: int
+            url: str | None = None
+      style: secondary
+      start: 32
+      end: 126
+  ? |
+    from pydantic import BaseModel
+
+    class ValidationResult(BaseModel):
+        success: bool
+        errors: list[str] = []
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 71
+      end: 84
+    - source: BaseModel
+      style: secondary
+      start: 55
+      end: 64
+    - source: (BaseModel)
+      style: secondary
+      start: 54
+      end: 65
+    - source: |-
+        class ValidationResult(BaseModel):
+            success: bool
+            errors: list[str] = []
+      style: secondary
+      start: 32
+      end: 111
+  ? |
+    from pydantic import BaseModel
+
+    class VerificationResponse(BaseModel):
+        """Response for verification step."""
+        success: bool
+        code_expired: bool = False
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 117
+      end: 130
+    - source: BaseModel
+      style: secondary
+      start: 59
+      end: 68
+    - source: (BaseModel)
+      style: secondary
+      start: 58
+      end: 69
+    - source: |-
+        class VerificationResponse(BaseModel):
+            """Response for verification step."""
+            success: bool
+            code_expired: bool = False
+      style: secondary
+      start: 32
+      end: 161
+  ? |
+    from pydantic import BaseModel
+    from typing import Generic, TypeVar
+
+    T = TypeVar('T')
+
+    class GenericResponse(BaseModel, Generic[T]):
+        success: bool
+        result: T | None = None
+  : labels:
+    - source: 'success: bool'
+      style: primary
+      start: 136
+      end: 149
+    - source: BaseModel
+      style: secondary
+      start: 108
+      end: 117
+    - source: (BaseModel, Generic[T])
+      style: secondary
+      start: 107
+      end: 130
+    - source: |-
+        class GenericResponse(BaseModel, Generic[T]):
+            success: bool
+            result: T | None = None
+      style: secondary
+      start: 86
+      end: 177
+  ? |
+    from pydantic import BaseModel, Field
+
+    class PaymentStatus(BaseModel):
+        success: bool = Field(..., description='Whether the payment succeeded')
+        transaction_id: str | None = None
+  : labels:
+    - source: 'success: bool = Field(..., description=''Whether the payment succeeded'')'
+      style: primary
+      start: 75
+      end: 146
+    - source: BaseModel
+      style: secondary
+      start: 59
+      end: 68
+    - source: (BaseModel)
+      style: secondary
+      start: 58
+      end: 69
+    - source: |-
+        class PaymentStatus(BaseModel):
+            success: bool = Field(..., description='Whether the payment succeeded')
+            transaction_id: str | None = None
+      style: secondary
+      start: 39
+      end: 184
