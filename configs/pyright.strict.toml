@@ -1,0 +1,35 @@
+pythonVersion                       = "3.13"
+typeCheckingMode                    = "strict"
+strictListInference                 = true
+strictDictionaryInference           = true
+strictSetInference                  = true
+strictParameterNoneValue            = true
+
+reportUnusedImport                  = "error"
+reportUnusedVariable                = "error"
+reportDeprecated                    = "error"
+reportUnusedFunction                = false
+reportMissingTypeStubs              = false
+
+reportUnknownMemberType             = false
+reportUnknownParameterType          = false
+reportMissingParameterType          = false
+reportUnknownVariableType           = false
+reportUnknownArgumentType           = false
+reportMissingTypeArgument           = false
+reportUnknownLambdaType             = false
+reportUnusedClass                   = false
+
+reportUnnecessaryIsInstance         = "error"
+reportUnnecessaryComparison         = "error"
+reportUnnecessaryCast               = "error"
+reportConstantRedefinition          = "error"
+reportCallIssue                     = "error"
+reportMatchNotExhaustive            = "error"
+reportUntypedFunctionDecorator      = "error"
+reportUnnecessaryTypeIgnoreComment  = "error"
+reportReturnType                    = "error"
+reportPropertyTypeMismatch          = "error"
+reportArgumentType                  = "error"
+reportPrivateUsage                  = "error"
+reportImplicitOverride              = "warning"

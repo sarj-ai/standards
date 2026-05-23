@@ -1,0 +1,79 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'eslint-plugin-v*'
+      - 'python-lint-v*'
+      - 'lint-configs-v*'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which package to publish'
+        required: true
+        type: choice
+        options:
+          - eslint-plugin
+          - python-lint
+          - lint-configs
+          - all
+
+jobs:
+  publish-eslint:
+    if: startsWith(github.ref, 'refs/tags/eslint-plugin-v') || inputs.target == 'eslint-plugin' || inputs.target == 'all'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/eslint-plugin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci || npm install
+      - run: npm test
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-python-lint:
+    if: startsWith(github.ref, 'refs/tags/python-lint-v') || inputs.target == 'python-lint' || inputs.target == 'all'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/python-lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.13
+      - run: uv sync --dev
+      - run: uv run pytest -q
+      - run: uv build --wheel --sdist
+      - run: uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN_PYTHON_LINT }}
+
+  publish-lint-configs:
+    if: startsWith(github.ref, 'refs/tags/lint-configs-v') || inputs.target == 'lint-configs' || inputs.target == 'all'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/lint-configs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.13
+      - run: uv build --wheel
+      - name: Test against the built wheel
+        run: |
+          uv venv --python 3.13 --seed
+          uv pip install ./dist/*.whl pytest ruff
+          uv run --no-project pytest -q tests/
+      - run: uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN_LINT_CONFIGS }}
