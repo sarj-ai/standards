@@ -15,7 +15,7 @@ classifiers = [
   "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
-  "sqlfluff>=3.0",
+  "sqlfluff>=4.2.1",
 ]
 
 [project.scripts]
