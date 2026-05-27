@@ -28,7 +28,7 @@ Issues = "https://github.com/sarj-ai/linting/issues"
 dev = [
   "pytest>=8.0",
   "pytest-benchmark>=4.0",
-  "ruff>=0.6",
+  "ruff>=0.15.14",
   "basedpyright>=1.20",
 ]
 
