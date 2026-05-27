@@ -27,7 +27,7 @@ Issues = "https://github.com/sarj-ai/linting/issues"
 [dependency-groups]
 dev = [
   "pytest>=8.0",
-  "pytest-benchmark>=4.0",
+  "pytest-benchmark>=5.2.3",
   "ruff>=0.6",
   "basedpyright>=1.20",
 ]
