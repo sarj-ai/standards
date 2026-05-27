@@ -36,8 +36,8 @@ jobs:
       run:
         working-directory: packages/typescript
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
@@ -58,8 +58,8 @@ jobs:
       run:
         working-directory: packages/python
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: 'packages/**/uv.lock'
@@ -80,8 +80,8 @@ jobs:
       run:
         working-directory: packages/sql
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: 'packages/**/uv.lock'
@@ -102,8 +102,8 @@ jobs:
       run:
         working-directory: packages/lint-configs
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: 'packages/**/uv.lock'
@@ -129,8 +129,8 @@ jobs:
       run:
         working-directory: packages/eslint-configs
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
