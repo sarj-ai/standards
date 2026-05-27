@@ -1,0 +1,39 @@
+name: lint-configs CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/lint-configs/**'
+      - 'configs/**'
+      - '.github/workflows/lint-configs-ci.yml'
+  pull_request:
+    paths:
+      - 'packages/lint-configs/**'
+      - 'configs/**'
+      - '.github/workflows/lint-configs-ci.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/lint-configs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv python install 3.13
+      - name: Build wheel
+        run: uv build --wheel
+      - name: Install built wheel + test deps into a fresh venv
+        run: |
+          uv venv --python 3.13 --seed
+          uv pip install ./dist/sarj_lint_configs-*.whl pytest ruff
+      - name: Pytest
+        run: uv run --no-project pytest -q
+      - name: CLI smoke
+        run: |
+          uv run --no-project sarj-lint-configs list
+          uv run --no-project sarj-lint-configs path ruff
