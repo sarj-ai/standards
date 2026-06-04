@@ -2,18 +2,17 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 MAKEFLAGS += --warn-undefined-variables --no-builtin-rules
 
-.PHONY: help build test typecheck publish publish-typescript publish-python publish-sql publish-lint-configs publish-eslint-configs
+.PHONY: help build test typecheck publish publish-typescript publish-python publish-sql publish-lint-configs
 
 help:
-	@echo "Targets: build | test | typecheck | publish-{typescript,python,sql,lint-configs,eslint-configs} | publish (all)"
-	@echo "Releases trigger via tag push: typescript-v* python-v* sql-v* lint-configs-v* eslint-configs-v*"
+	@echo "Targets: build | test | typecheck | publish-{typescript,python,sql,lint-configs} | publish (all)"
+	@echo "Releases trigger via tag push: typescript-v* python-v* sql-v* lint-configs-v*"
 
 build:
 	cd packages/typescript     && npm run build
 	cd packages/python         && uv build --wheel --sdist
 	cd packages/sql            && uv build --wheel --sdist
 	cd packages/lint-configs   && uv build --wheel --sdist
-	cd packages/eslint-configs && npm pack --dry-run
 
 test:
 	cd packages/typescript     && npm test
@@ -39,8 +38,4 @@ publish-sql:
 publish-lint-configs:
 	cd packages/lint-configs && uv build --wheel --sdist && uv publish
 
-publish-eslint-configs:
-	@test -n "$$NPM_TOKEN" || (echo "error: NPM_TOKEN unset"; exit 1)
-	cd packages/eslint-configs && npm publish --access public
-
-publish: publish-typescript publish-python publish-sql publish-lint-configs publish-eslint-configs
+publish: publish-typescript publish-python publish-sql publish-lint-configs

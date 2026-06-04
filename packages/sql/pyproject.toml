@@ -15,7 +15,7 @@ classifiers = [
   "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
-  "sqlfluff>=3.0",
+  "sqlfluff>=4.2",
 ]
 
 [project.scripts]
@@ -28,10 +28,10 @@ Issues = "https://github.com/sarj-ai/linting/issues"
 
 [dependency-groups]
 dev = [
-  "pytest>=8.0",
-  "pytest-benchmark>=4.0",
-  "ruff>=0.6",
-  "basedpyright>=1.20",
+  "pytest>=9.0",
+  "pytest-benchmark>=5.2",
+  "ruff>=0.15",
+  "basedpyright>=1.39",
 ]
 
 [build-system]
