@@ -6,7 +6,7 @@ Lint rules + maximally-strict configs for TypeScript + Python + SQL.
 
 | Tool | Add this |
 |---|---|
-| **ESLint** | `pnpm add -D @sarj/eslint-plugin @sarj/lint-configs` → `import sarj from "@sarj/lint-configs"; export default [...sarj];` |
+| **ESLint** | `pnpm add -D @sarj/eslint-plugin` → use `configs/eslint.strict.mjs` directly (copy or git submodule) |
 | **ruff** | `uv add --dev sarj-lint-configs` → `uv run sarj-lint-configs sync --only ruff` → `[tool.ruff] extend = ".ruff-strict.toml"` |
 | **pyright** | `uv run sarj-lint-configs sync --only pyright` → in `pyrightconfig.json`: `{"extends": ".pyright-strict.toml"}` |
 | **pre-commit (Python)** | `repo: https://github.com/sarj-ai/linting, rev: python-v0.2.0` |
@@ -20,7 +20,6 @@ Lint rules + maximally-strict configs for TypeScript + Python + SQL.
 | [`packages/python/`](packages/python/) | `sarj-python-lint` on [PyPI](https://pypi.org/project/sarj-python-lint/) |
 | [`packages/sql/`](packages/sql/) | `sarj-sql-lint` on [PyPI](https://pypi.org/project/sarj-sql-lint/) |
 | [`packages/lint-configs/`](packages/lint-configs/) → ships [`configs/`](configs/) | `sarj-lint-configs` on [PyPI](https://pypi.org/project/sarj-lint-configs/) |
-| [`packages/eslint-configs/`](packages/eslint-configs/) → ships `configs/eslint.strict.mjs` | `@sarj/lint-configs` on [npm](https://www.npmjs.com/package/@sarj/lint-configs) |
 
 ## Release
 
@@ -32,7 +31,6 @@ Tag and push — the `release.yml` workflow handles publish via OIDC (PyPI) and 
 | `python-vX.Y.Z` | `sarj-python-lint` to PyPI |
 | `sql-vX.Y.Z` | `sarj-sql-lint` to PyPI |
 | `lint-configs-vX.Y.Z` | `sarj-lint-configs` to PyPI |
-| `eslint-configs-vX.Y.Z` | `@sarj/lint-configs` to npm |
 
 ```bash
 git tag python-v0.2.0 && git push --tags
