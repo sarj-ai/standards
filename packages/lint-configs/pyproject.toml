@@ -31,11 +31,6 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/sarj_lint_configs"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"../../configs/ruff.strict.toml"    = "sarj_lint_configs/configs/ruff.strict.toml"
-"../../configs/pyright.strict.toml" = "sarj_lint_configs/configs/pyright.strict.toml"
-"../../configs/eslint.strict.mjs"   = "sarj_lint_configs/configs/eslint.strict.mjs"
-
 [tool.hatch.build.targets.sdist]
 include = [
   "src/sarj_lint_configs/**",
@@ -43,7 +38,3 @@ include = [
   "pyproject.toml",
 ]
 
-[tool.hatch.build.targets.sdist.force-include]
-"../../configs/ruff.strict.toml"    = "src/sarj_lint_configs/configs/ruff.strict.toml"
-"../../configs/pyright.strict.toml" = "src/sarj_lint_configs/configs/pyright.strict.toml"
-"../../configs/eslint.strict.mjs"   = "src/sarj_lint_configs/configs/eslint.strict.mjs"

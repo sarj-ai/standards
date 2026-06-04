@@ -5,12 +5,10 @@ on:
     branches: [main]
     paths:
       - 'packages/lint-configs/**'
-      - 'configs/**'
       - '.github/workflows/lint-configs-ci.yml'
   pull_request:
     paths:
       - 'packages/lint-configs/**'
-      - 'configs/**'
       - '.github/workflows/lint-configs-ci.yml'
 
 permissions:

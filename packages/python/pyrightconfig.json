@@ -1,5 +1,5 @@
 {
-  "extends": "../../configs/pyright.strict.toml",
+  "extends": "../lint-configs/src/sarj_lint_configs/configs/pyright.strict.toml",
   "include": ["src", "tests"],
   "pythonVersion": "3.13"
 }
