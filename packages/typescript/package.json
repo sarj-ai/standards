@@ -1,6 +1,6 @@
 {
   "name": "@sarj/eslint-plugin",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Custom ESLint rules for hypermodern TypeScript / React / Next.js projects",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -24,12 +24,12 @@
   "sideEffects": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sarj-ai/linting.git",
+    "url": "git+https://github.com/sarj-ai/standards.git",
     "directory": "packages/typescript"
   },
-  "homepage": "https://github.com/sarj-ai/linting/tree/main/packages/typescript",
+  "homepage": "https://github.com/sarj-ai/standards/tree/main/packages/typescript",
   "bugs": {
-    "url": "https://github.com/sarj-ai/linting/issues"
+    "url": "https://github.com/sarj-ai/standards/issues"
   },
   "scripts": {
     "build": "tsup",
@@ -47,6 +47,9 @@
   ],
   "author": "sarj-ai",
   "license": "MIT",
+  "dependencies": {
+    "@typescript-eslint/utils": "^8.60.0"
+  },
   "devDependencies": {
     "@types/node": "latest",
     "@typescript-eslint/parser": "latest",
