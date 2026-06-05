@@ -1,4 +1,4 @@
-pythonVersion                       = "3.13"
+pythonVersion                       = "3.14"
 typeCheckingMode                    = "strict"
 strictListInference                 = true
 strictDictionaryInference           = true

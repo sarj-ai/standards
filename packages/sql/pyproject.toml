@@ -5,13 +5,13 @@ description = "Custom SQL lint rules for Postgres migrations — sqlfluff + pygr
 readme = "README.md"
 authors = [{ name = "sarj-ai" }]
 license = { text = "MIT" }
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [

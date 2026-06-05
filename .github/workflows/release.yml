@@ -34,8 +34,8 @@ jobs:
       run:
         working-directory: packages/typescript
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
@@ -56,16 +56,16 @@ jobs:
       run:
         working-directory: packages/python
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v7
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
         with:
           enable-cache: true
           cache-dependency-glob: 'packages/**/uv.lock'
-      - run: uv python install 3.13
+      - run: uv python install 3.14
       - run: uv sync --dev
       - run: uv run pytest -q
       - run: uv build --wheel --sdist
-      - uses: pypa/gh-action-pypi-publish@v1.13.0
+      - uses: pypa/gh-action-pypi-publish@v1.14.0
         with:
           packages-dir: packages/python/dist
 
@@ -78,12 +78,12 @@ jobs:
       run:
         working-directory: packages/sql
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v7
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
         with:
           enable-cache: true
           cache-dependency-glob: 'packages/**/uv.lock'
-      - run: uv python install 3.13
+      - run: uv python install 3.14
       - run: uv sync --dev
       - run: uv run pytest -q
       - run: uv build --wheel --sdist
@@ -100,16 +100,16 @@ jobs:
       run:
         working-directory: packages/lint-configs
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v7
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8
         with:
           enable-cache: true
           cache-dependency-glob: 'packages/**/uv.lock'
-      - run: uv python install 3.13
+      - run: uv python install 3.14
       - run: uv build --wheel
       - name: Test against the built wheel
         run: |
-          uv venv --python 3.13 --seed
+          uv venv --python 3.14 --seed
           uv pip install ./dist/*.whl pytest ruff
           uv run --no-project pytest -q tests/
       - run: uv build --sdist
