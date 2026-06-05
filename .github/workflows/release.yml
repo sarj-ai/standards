@@ -57,7 +57,7 @@ jobs:
         working-directory: packages/python
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: 'packages/**/uv.lock'
@@ -79,7 +79,7 @@ jobs:
         working-directory: packages/sql
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: 'packages/**/uv.lock'
@@ -101,7 +101,7 @@ jobs:
         working-directory: packages/lint-configs
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: 'packages/**/uv.lock'
