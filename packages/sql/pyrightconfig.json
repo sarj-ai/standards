@@ -1,5 +1,7 @@
 {
-  "extends": "../lint-configs/src/sarj_lint_configs/configs/pyright.strict.toml",
   "include": ["src", "tests"],
-  "pythonVersion": "3.13"
+  "pythonVersion": "3.13",
+  "typeCheckingMode": "strict",
+  "reportImplicitOverride": "none",
+  "reportUnannotatedClassAttribute": "none"
 }
