@@ -1,4 +1,4 @@
-# sarj-ai/linting
+# sarj-ai/standards
 
 Lint rules + maximally-strict configs for TypeScript + Python + SQL.
 
@@ -9,8 +9,8 @@ Lint rules + maximally-strict configs for TypeScript + Python + SQL.
 | **ESLint** | `pnpm add -D @sarj/eslint-plugin` → use `packages/lint-configs/src/sarj_lint_configs/configs/eslint.strict.mjs` directly |
 | **ruff** | `uv add --dev sarj-lint-configs` → `uv run sarj-lint-configs sync --only ruff` → `[tool.ruff] extend = ".ruff-strict.toml"` |
 | **pyright** | `uv run sarj-lint-configs sync --only pyright` → in `pyrightconfig.json`: `{"extends": ".pyright-strict.toml"}` |
-| **pre-commit (Python)** | `repo: https://github.com/sarj-ai/linting, rev: python-v0.2.0` |
-| **pre-commit (SQL)** | `repo: https://github.com/sarj-ai/linting, rev: sql-v0.1.0` |
+| **pre-commit (Python)** | `repo: https://github.com/sarj-ai/standards, rev: python-v0.2.0` |
+| **pre-commit (SQL)** | `repo: https://github.com/sarj-ai/standards, rev: sql-v0.1.0` |
 
 ## Where things live
 

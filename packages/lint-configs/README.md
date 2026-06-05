@@ -1,6 +1,6 @@
 # sarj-lint-configs
 
-Ships the maximally-strict ruff / pyright / ESLint configs from `sarj-ai/linting` as a pip-installable package.
+Ships the maximally-strict ruff / pyright / ESLint configs from `sarj-ai/standards` as a pip-installable package.
 
 ```bash
 uv add --dev sarj-lint-configs

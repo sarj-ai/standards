@@ -9,7 +9,7 @@ uv tool install sarj-sql-lint
 ## Pre-commit
 
 ```yaml
-- repo: https://github.com/sarj-ai/linting
+- repo: https://github.com/sarj-ai/standards
   rev: sql-v0.1.0
   hooks:
     - id: sarj-enforce-timestamptz

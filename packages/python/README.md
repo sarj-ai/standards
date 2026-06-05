@@ -9,7 +9,7 @@ uv tool install sarj-python-lint
 ## Pre-commit
 
 ```yaml
-- repo: https://github.com/sarj-ai/linting
+- repo: https://github.com/sarj-ai/standards
   rev: python-v0.2.0
   hooks:
     - id: sarj-no-sequential-await
