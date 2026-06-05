@@ -1,16 +1,19 @@
 # @sarj/tsconfig
 
 Hyper-modern, maximally-strict TypeScript configs for sarj-ai projects.
-Audited against bulbul's production tsconfigs + community presets (`@tsconfig/strictest`, `@total-typescript/tsconfig`, `sindresorhus/tsconfig`).
+Covers every type-safety flag in bulbul's `tsconfig.base.json` and `integration-client/tsconfig.json`. Per-project flags (`composite`, `noEmit`, `outDir`, `jsx`, `types`) and bundler-specific module resolution are intentionally omitted — see [What's NOT in the preset](#whats-not-in-the-preset-and-why) below.
 
-Strictly a superset of every flag in bulbul's `tsconfig.base.json` and `integration-client/tsconfig.json`.
+## Requires
+
+- **TypeScript ≥ 6.0** — the configs use `target: "ES2025"`, `lib: ["ES2025"]`, `isolatedDeclarations`, `erasableSyntaxOnly`, and `strictBuiltinIteratorReturn`, all of which need TS 5.5+ at minimum and ES2025 needs TS 6.
 
 ## Install
 
 ```bash
-npm i -D @sarj/tsconfig typescript
-# or
-yarn add -D @sarj/tsconfig typescript
+npm  i  -D @sarj/tsconfig typescript@^6
+pnpm add -D @sarj/tsconfig typescript@^6
+yarn add -D @sarj/tsconfig typescript@^6
+bun  add -d @sarj/tsconfig typescript@^6
 ```
 
 ## Use
@@ -39,7 +42,7 @@ For libraries that need to be less strict (e.g. mid-migration), extend the base:
 **Module / target (TS 6 + Node 24 LTS):**
 
 - `target: "ES2025"` / `lib: ["ES2025"]` — Iterator helpers, `Promise.try`, Set methods, `RegExp.escape`, Float16Array
-- `module: "NodeNext"` / `moduleResolution: "NodeNext"` — Node 24 native ESM resolution
+- `module: "NodeNext"` / `moduleResolution: "NodeNext"` — Node 24 native ESM resolution. **Override to `"preserve"` / `"bundler"` for Next.js / Vite / Vitest / esbuild consumers** (see rejection table)
 - `moduleDetection: "force"` — every file is a module; no accidental global scripts
 - `verbatimModuleSyntax: true` — `import type` required for type-only imports
 - `isolatedModules: true` — every file is a standalone compilation unit
@@ -69,10 +72,6 @@ For libraries that need to be less strict (e.g. mid-migration), extend the base:
 - `forceConsistentCasingInFileNames: true`
 - `skipLibCheck: true`
 
-**Misc:**
-
-- `ignoreDeprecations: "6.0"` — silences TS 6.0 `baseUrl` warnings emitted by tools like tsup
-
 ### `strict.json` — extends base + the hyper-strict flags
 
 - `isolatedDeclarations: true` (TS 5.5+) — forces explicit return types on every exported symbol; enables parallel `.d.ts` emit by `tsgo`/`swc`/`oxc`
@@ -85,27 +84,45 @@ For libraries that need to be less strict (e.g. mid-migration), extend the base:
 
 These were considered and explicitly rejected — they're per-project decisions, not shared-config concerns:
 
-| Flag | Why not in @sarj/tsconfig |
-|------|---------------------------|
-| `composite` / `incremental` | Per-project; depends on whether you use project references |
-| `noEmit` | App-vs-lib; apps want `true`, libs want `false` |
-| `outDir` / `rootDir` / `paths` / `include` / `exclude` | Per-project layout |
-| `jsx` | Framework-specific (`preserve` for Next, `react-jsx` for plain React) |
-| `DOM` / `DOM.Iterable` in `lib` | Base is Node-safe; browser packages add DOM in their own tsconfig |
-| `types` / `typeRoots` | Forces every consumer to enumerate ambient types — high friction |
-| `noEmitOnError` | Breaks dev/editor partial-emit workflows; gate via separate `tsc --noEmit` in CI |
-| `rewriteRelativeImportExtensions` / `allowImportingTsExtensions` | Per-runtime decision (depends on whether you run `.ts` directly) |
+| Flag | Why not in @sarj/tsconfig | What to set in your own tsconfig |
+|------|---------------------------|----------------------------------|
+| `composite` / `incremental` | Per-project; depends on whether you use project references | Add to your tsconfig if you use `tsc -b` |
+| `noEmit` | App-vs-lib; apps want `true`, libs want `false` | `true` for Next.js / Vite apps; omit for libs |
+| `outDir` / `rootDir` / `paths` | Per-project layout | Set per package |
+| `jsx` | Framework-specific | `"preserve"` for Next.js; `"react-jsx"` for plain React |
+| `DOM` / `DOM.Iterable` / `DOM.AsyncIterable` in `lib` | Base is Node-safe; browser packages add DOM in their own tsconfig. **`lib` is a REPLACE field, not merge — you must include `ES2025` too.** | `"lib": ["ES2025", "DOM", "DOM.Iterable", "DOM.AsyncIterable"]` |
+| `types` / `typeRoots` | Forces every consumer to enumerate ambient types — high friction | Add `["node", "vitest/globals"]` etc. per project |
+| Bundler module resolution | NodeNext is correct for libraries; Next.js / Vite / esbuild prefer bundler | `"module": "preserve", "moduleResolution": "bundler"` |
+| `noEmitOnError` | Breaks dev/editor partial-emit workflows; gate via separate `tsc --noEmit` in CI | — |
+| `rewriteRelativeImportExtensions` / `allowImportingTsExtensions` | Per-runtime decision (depends on whether you run `.ts` directly) | Set if using `tsx` / Bun / Deno |
+
+## Migration notes
+
+Adopting `strict.json` on a brownfield codebase typically surfaces hundreds of errors. The three flags that produce the bulk:
+
+- **`isolatedDeclarations`** (TS9007) — every exported function, class, and `const` needs an explicit return type. A multi-day sweep. Run `tsc --noEmit --isolatedDeclarations` first to see the scope.
+- **`erasableSyntaxOnly`** — bans `enum`, `namespace { ... value ... }`, parameter properties (`constructor(private x: T)`), `import =`. Convert enums to `as const` literal unions; rewrite parameter properties as explicit field assignment.
+- **`exactOptionalPropertyTypes`** — `{ x?: T }` no longer accepts `{ x: undefined }`. Either tighten the call sites to omit the key, or widen the type to `{ x?: T | undefined }`.
+
+To opt out of a single flag from your tsconfig, just set it to `false` (it overrides the extended preset):
+
+```json
+{
+  "extends": "@sarj/tsconfig/strict.json",
+  "compilerOptions": {
+    "isolatedDeclarations": false
+  }
+}
+```
 
 ## Versioning
 
-Semver. Major-bump on TypeScript major releases (currently TS 6.x).
+Semver. Major-bump on TypeScript major releases (currently TS 6.x). The package ships with sigstore provenance (npm-attested).
 
-## Provenance
+## Influences
 
-These configs were authored via a 10-agent hyper-strict audit comparing the draft against:
+These configs were authored by comparing against:
 
-- bulbul's `tsconfig.base.json` (the Next.js + lib monorepo baseline)
-- bulbul's `integration-client/tsconfig.json` (the published SDK strict reference)
+- bulbul's `tsconfig.base.json` (Next.js + lib monorepo baseline) and `integration-client/tsconfig.json` (published SDK)
 - `@tsconfig/strictest`, `@total-typescript/tsconfig`, `sindresorhus/tsconfig`, `@swan-io/tsconfig`, `vercel/style-guide`
-- TypeScript handbook strict-mode reference
-- Every strict-related flag introduced from TS 5.0 → 6.0
+- TypeScript handbook strict-mode reference and the full TS 5.0 → 6.0 changelog

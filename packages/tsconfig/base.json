@@ -35,8 +35,6 @@
     "declarationMap": true,
     "sourceMap": true,
     "newLine": "lf",
-    "stripInternal": true,
-
-    "ignoreDeprecations": "6.0"
+    "stripInternal": true
   }
 }
