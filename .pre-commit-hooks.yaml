@@ -22,6 +22,12 @@
   language: python
   types: [python]
 
+- id: sarj-no-fat-try-blocks
+  name: 'sarj-lint: try block body exceeds 3 statements'
+  entry: sarj-python-lint check --rule no-fat-try-blocks
+  language: python
+  types: [python]
+
 - id: sarj-enforce-timestamptz
   name: 'sarj-lint(sql): TIMESTAMP must use WITH TIME ZONE (TIMESTAMPTZ)'
   entry: sarj-sql-lint check --rule enforce-timestamptz
