@@ -28,6 +28,12 @@
   language: python
   types: [python]
 
+- id: sarj-pydantic-at-boundaries
+  name: 'sarj-lint: pydantic models (not raw dicts/tuples) at function boundaries'
+  entry: sarj-python-lint check --rule pydantic-at-boundaries
+  language: python
+  types: [python]
+
 - id: sarj-enforce-timestamptz
   name: 'sarj-lint(sql): TIMESTAMP must use WITH TIME ZONE (TIMESTAMPTZ)'
   entry: sarj-sql-lint check --rule enforce-timestamptz
