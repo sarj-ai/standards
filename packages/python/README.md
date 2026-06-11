@@ -16,6 +16,7 @@ uv tool install sarj-python-lint
     - id: sarj-inefficient-string-concat-in-loop
     - id: sarj-prefer-discriminated-union
     - id: sarj-prefer-str-enum
+    - id: sarj-no-fat-try-blocks
 ```
 
 ## CLI
