@@ -2,10 +2,22 @@ from __future__ import annotations
 
 from sarj_sql_lint.rule_base import Rule
 from sarj_sql_lint.rules.enforce_timestamptz import EnforceTimestamptz
+from sarj_sql_lint.rules.idempotent_ddl import IdempotentDdl
+from sarj_sql_lint.rules.insert_requires_on_conflict import InsertRequiresOnConflict
+from sarj_sql_lint.rules.no_limit_offset import NoLimitOffset
+from sarj_sql_lint.rules.no_pg_enum import NoPgEnum
+from sarj_sql_lint.rules.prefer_jsonb import PreferJsonb
+from sarj_sql_lint.rules.prefer_text_over_varchar import PreferTextOverVarchar
 
 
 REGISTRY: dict[str, type[Rule]] = {
     EnforceTimestamptz.id: EnforceTimestamptz,
+    IdempotentDdl.id: IdempotentDdl,
+    NoPgEnum.id: NoPgEnum,
+    PreferTextOverVarchar.id: PreferTextOverVarchar,
+    InsertRequiresOnConflict.id: InsertRequiresOnConflict,
+    PreferJsonb.id: PreferJsonb,
+    NoLimitOffset.id: NoLimitOffset,
 }
 
 __all__ = ["REGISTRY"]
