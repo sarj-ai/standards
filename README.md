@@ -1,8 +1,22 @@
 # sarj-ai/standards
 
-Lint rules + maximally-strict configs for TypeScript + Python + SQL.
+The single home for Sarj code standards, in two layers:
 
-## How to use
+- **Machine-enforced floor** — lint rules + maximally-strict configs for TypeScript + Python + SQL (`@sarj/eslint-plugin`, `sarj-python-lint`, `sarj-sql-lint`, `sarj-lint-configs`). Run in CI.
+- **Judgment layer** — the `sarj-audit` Claude Code plugin: on-demand audit commands for the things that can't be reliably linted. Each audit cites the deterministic rule that backs it where one exists. (Merged here from the retired `sarj-ai/agentic` repo.)
+
+## Claude Code plugin (`sarj-audit`)
+
+This repo is a Claude Code plugin marketplace. Install the audit commands with:
+
+```
+/plugin marketplace add sarj-ai/standards
+/plugin install sarj-audit@sarj
+```
+
+Then run any audit, e.g. `/sarj-audit:data-contracts` or `/sarj-audit:concurrency-and-performance`. The plugin lives in [`plugins/sarj-audit/`](plugins/sarj-audit/); [`commands/stack-detection.md`](plugins/sarj-audit/commands/stack-detection.md) is the shared stack-aware Phase-0 the audits gate on.
+
+## How to use (lint rules)
 
 | Tool | Add this |
 |---|---|
@@ -20,6 +34,7 @@ Lint rules + maximally-strict configs for TypeScript + Python + SQL.
 | [`packages/python/`](packages/python/) | `sarj-python-lint` on [PyPI](https://pypi.org/project/sarj-python-lint/) |
 | [`packages/sql/`](packages/sql/) | `sarj-sql-lint` on [PyPI](https://pypi.org/project/sarj-sql-lint/) |
 | [`packages/lint-configs/`](packages/lint-configs/) | `sarj-lint-configs` on [PyPI](https://pypi.org/project/sarj-lint-configs/) |
+| [`plugins/sarj-audit/`](plugins/sarj-audit/) | `sarj-audit` Claude Code plugin (install via `/plugin marketplace add sarj-ai/standards`) |
 
 ## Release
 
