@@ -92,7 +92,7 @@ const config = [
       ]}],
 
       "unicorn/consistent-function-scoping": "error",
-      "unicorn/filename-case": ["error", { cases: { kebabCase: true, pascalCase: true } }],
+      "unicorn/filename-case": ["error", { cases: { kebabCase: true } }],
       "unicorn/prefer-switch": "warn",
       "unicorn/no-array-for-each": "warn",
       "unicorn/no-useless-undefined": "error",
@@ -126,6 +126,14 @@ const config = [
         {
           selector: "TryStatement > BlockStatement[body.length > 3]",
           message: "Try blocks should not contain more than 3 statements. Isolate the throwing statement.",
+        },
+        {
+          selector: "CallExpression[callee.name='useCallback']",
+          message: "Don't memoize by hand — the React Compiler handles it. Remove useCallback.",
+        },
+        {
+          selector: "CallExpression[callee.name='useMemo']",
+          message: "Don't memoize by hand — the React Compiler handles it. Remove useMemo (extract a plain function or compute inline).",
         },
       ],
       "no-restricted-properties": ["error", {
@@ -164,6 +172,9 @@ const config = [
       "@sarj/enforce-file-structure": "warn",
       "@sarj/prefer-schema-for-api-payload": "error",
       "@sarj/no-unnecessary-use-client": "warn",
+      "@sarj/no-client-side-data-fetching": "error",
+      "@sarj/prefer-server-actions": "warn",
+      "@sarj/zod-naming-convention": "error",
     },
   },
 
