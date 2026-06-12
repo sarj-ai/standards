@@ -22,6 +22,18 @@
   language: python
   types: [python]
 
+- id: sarj-no-fat-try-blocks
+  name: 'sarj-lint: try block body exceeds 3 statements'
+  entry: sarj-python-lint check --rule no-fat-try-blocks
+  language: python
+  types: [python]
+
+- id: sarj-pydantic-at-boundaries
+  name: 'sarj-lint: pydantic models (not raw dicts/tuples) at function boundaries'
+  entry: sarj-python-lint check --rule pydantic-at-boundaries
+  language: python
+  types: [python]
+
 - id: sarj-enforce-timestamptz
   name: 'sarj-lint(sql): TIMESTAMP must use WITH TIME ZONE (TIMESTAMPTZ)'
   entry: sarj-sql-lint check --rule enforce-timestamptz
@@ -31,9 +43,10 @@
 
 - id: sarj-ban-postgres-enums
   name: 'sarj-lint(sql): ban native postgres ENUM types (prefer TEXT with CHECK)'
-  entry: '(?i)CREATE TYPE.*AS ENUM'
-  language: pygrep
+  entry: sarj-sql-lint check --rule no-pg-enum
+  language: python
   types: [sql]
+  additional_dependencies: ['sarj-sql-lint']
 
 - id: sarj-ban-create-trigger
   name: 'sarj-lint(sql): ban database triggers (prefer application-level logic)'
@@ -43,6 +56,35 @@
 
 - id: sarj-prefer-text-over-varchar
   name: 'sarj-lint(sql): ban VARCHAR(n) in postgres migrations (use TEXT)'
-  entry: '(?i)VARCHAR\('
-  language: pygrep
+  entry: sarj-sql-lint check --rule prefer-text-over-varchar
+  language: python
   types: [sql]
+  additional_dependencies: ['sarj-sql-lint']
+
+- id: sarj-idempotent-ddl
+  name: 'sarj-lint(sql): DDL must be re-runnable (IF [NOT] EXISTS)'
+  entry: sarj-sql-lint check --rule idempotent-ddl
+  language: python
+  types: [sql]
+  additional_dependencies: ['sarj-sql-lint']
+
+- id: sarj-insert-requires-on-conflict
+  name: 'sarj-lint(sql): INSERT in migrations must be an idempotent upsert (ON CONFLICT)'
+  entry: sarj-sql-lint check --rule insert-requires-on-conflict
+  language: python
+  types: [sql]
+  additional_dependencies: ['sarj-sql-lint']
+
+- id: sarj-prefer-jsonb
+  name: 'sarj-lint(sql): use JSONB, not JSON'
+  entry: sarj-sql-lint check --rule prefer-jsonb
+  language: python
+  types: [sql]
+  additional_dependencies: ['sarj-sql-lint']
+
+- id: sarj-no-limit-offset
+  name: 'sarj-lint(sql): no OFFSET pagination (use cursor pagination)'
+  entry: sarj-sql-lint check --rule no-limit-offset
+  language: python
+  types: [sql]
+  additional_dependencies: ['sarj-sql-lint']
