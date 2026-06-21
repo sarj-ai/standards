@@ -52,7 +52,9 @@ jobs:
       - run: npm ci || npm install
       - run: npm run build
       - run: npm test
-      - run: npm publish --access public --provenance
+      # No --provenance: npm provenance requires a PUBLIC source repo, but this
+      # repo is internal. Publishes via NODE_AUTH_TOKEN instead.
+      - run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -146,7 +148,9 @@ jobs:
         run: |
           node -e "JSON.parse(require('fs').readFileSync('base.json','utf8'))"
           node -e "JSON.parse(require('fs').readFileSync('strict.json','utf8'))"
-      - run: npm publish --access public --provenance
+      # No --provenance: npm provenance requires a PUBLIC source repo, but this
+      # repo is internal. Publishes via NODE_AUTH_TOKEN instead.
+      - run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

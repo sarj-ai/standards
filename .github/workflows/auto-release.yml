@@ -61,16 +61,13 @@ jobs:
       target: typescript
     secrets: inherit
 
-  publish-python:
-    needs: detect
-    if: needs.detect.outputs.python == 'true'
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/release.yml
-    with:
-      target: python
-    secrets: inherit
+  # NOTE: sarj-python-lint is intentionally NOT auto-published here. It uses PyPI
+  # Trusted Publishing (OIDC), which PyPI does not support via reusable workflows
+  # (workflow_call) — only via a directly-triggered workflow. So publish it by
+  # pushing a tag, which runs release.yml non-reusably:
+  #     git tag -a python-v<X.Y.Z> -m "release" && git push origin python-v<X.Y.Z>
+  # (To fully automate it too, add a RELEASE_PAT secret and switch this workflow
+  # to push tags via that PAT — see the PR description.)
 
   publish-sql:
     needs: detect
