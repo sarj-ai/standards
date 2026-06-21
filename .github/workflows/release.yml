@@ -1,7 +1,16 @@
 name: release
 
+# Publishing model:
+# - Push to main: the `detect` job finds which package's manifest `version`
+#   changed vs the previous commit, and the matching publish job runs. Because
+#   this workflow runs DIRECTLY on the push (not via workflow_call), PyPI
+#   Trusted Publishing (OIDC) works — reusable workflows are unsupported by PyPI.
+# - Tag `<pkg>-v*` or manual dispatch: publishes the selected package(s).
+# A push with no version bump publishes nothing (no duplicate-version errors).
+
 on:
   push:
+    branches: [main]
     tags:
       - 'typescript-v*'
       - 'python-v*'
@@ -21,21 +30,53 @@ on:
           - lint-configs
           - tsconfig
           - all
-  # Called by auto-release.yml on merge to main so the publish runs in THIS
-  # workflow's context (keeps PyPI trusted-publisher / npm provenance bound to
-  # release.yml). `target` selects the single package whose version changed.
-  workflow_call:
-    inputs:
-      target:
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 jobs:
+  # Detects which package versions changed on a push to main. For tag/dispatch
+  # runs it emits all-false (the publish jobs gate on the tag/target instead).
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      typescript: ${{ steps.c.outputs.typescript }}
+      python: ${{ steps.c.outputs.python }}
+      sql: ${{ steps.c.outputs.sql }}
+      lint-configs: ${{ steps.c.outputs.lint-configs }}
+      tsconfig: ${{ steps.c.outputs.tsconfig }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: c
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # True iff the manifest's own `version` line changed between BEFORE..AFTER.
+          ver_changed () {
+            if git rev-parse --verify --quiet "${BEFORE}^{commit}" >/dev/null 2>&1; then
+              git diff --no-color "$BEFORE" "$AFTER" -- "$1" | grep -qE "$2"
+            else
+              return 1
+            fi
+          }
+          emit () { echo "$1=$( { ver_changed "$2" "$3"; } && echo true || echo false )" >> "$GITHUB_OUTPUT"; }
+          emit typescript    packages/typescript/package.json     '^\+[[:space:]]*"version":'
+          emit tsconfig      packages/tsconfig/package.json       '^\+[[:space:]]*"version":'
+          emit python        packages/python/pyproject.toml       '^\+version = '
+          emit sql           packages/sql/pyproject.toml          '^\+version = '
+          emit lint-configs  packages/lint-configs/pyproject.toml '^\+version = '
+          cat "$GITHUB_OUTPUT"
+
   publish-typescript:
-    if: startsWith(github.ref, 'refs/tags/typescript-v') || inputs.target == 'typescript' || inputs.target == 'all'
+    needs: detect
+    if: >-
+      startsWith(github.ref, 'refs/tags/typescript-v') ||
+      github.event.inputs.target == 'typescript' || github.event.inputs.target == 'all' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect.outputs.typescript == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -59,7 +100,11 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-python:
-    if: startsWith(github.ref, 'refs/tags/python-v') || inputs.target == 'python' || inputs.target == 'all'
+    needs: detect
+    if: >-
+      startsWith(github.ref, 'refs/tags/python-v') ||
+      github.event.inputs.target == 'python' || github.event.inputs.target == 'all' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect.outputs.python == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -82,7 +127,11 @@ jobs:
           packages-dir: packages/python/dist
 
   publish-sql:
-    if: startsWith(github.ref, 'refs/tags/sql-v') || inputs.target == 'sql' || inputs.target == 'all'
+    needs: detect
+    if: >-
+      startsWith(github.ref, 'refs/tags/sql-v') ||
+      github.event.inputs.target == 'sql' || github.event.inputs.target == 'all' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect.outputs.sql == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -104,7 +153,11 @@ jobs:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN_SQL_LINT }}
 
   publish-lint-configs:
-    if: startsWith(github.ref, 'refs/tags/lint-configs-v') || inputs.target == 'lint-configs' || inputs.target == 'all'
+    needs: detect
+    if: >-
+      startsWith(github.ref, 'refs/tags/lint-configs-v') ||
+      github.event.inputs.target == 'lint-configs' || github.event.inputs.target == 'all' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect.outputs.lint-configs == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -130,7 +183,11 @@ jobs:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN_LINT_CONFIGS }}
 
   publish-tsconfig:
-    if: startsWith(github.ref, 'refs/tags/tsconfig-v') || inputs.target == 'tsconfig' || inputs.target == 'all'
+    needs: detect
+    if: >-
+      startsWith(github.ref, 'refs/tags/tsconfig-v') ||
+      github.event.inputs.target == 'tsconfig' || github.event.inputs.target == 'all' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect.outputs.tsconfig == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -153,4 +210,3 @@ jobs:
       - run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
