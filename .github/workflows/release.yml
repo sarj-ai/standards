@@ -21,6 +21,14 @@ on:
           - lint-configs
           - tsconfig
           - all
+  # Called by auto-release.yml on merge to main so the publish runs in THIS
+  # workflow's context (keeps PyPI trusted-publisher / npm provenance bound to
+  # release.yml). `target` selects the single package whose version changed.
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
 
 permissions:
   contents: read
