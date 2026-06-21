@@ -41,7 +41,7 @@ const rules = {
 const plugin = {
   meta: {
     name: "@sarj/eslint-plugin",
-    version: "2.1.0",
+    version: "2.1.1",
   },
   rules,
   configs: {
