@@ -77,10 +77,29 @@ class CallService:
     assert len(_check(src)) == 1
 
 
-def test_flags_private_function_returning_untyped_dict():
-    """Private name only exempts tuple returns — dict[str, Any] is flagged everywhere."""
+def test_skips_private_function():
+    """Private/internal functions are not public boundaries — never flagged."""
     src = "def _build() -> dict[str, Any]:\n    return {}\n"
-    assert len(_check(src)) == 1
+    assert _check(src) == []
+
+
+def test_skips_pydantic_validator_hooks():
+    """@model_validator/@field_validator take and return raw dict/values by contract."""
+    src = '''
+from typing import Any
+from pydantic import model_validator, field_validator
+
+class M:
+    @model_validator(mode="before")
+    @classmethod
+    def normalize(cls, data) -> dict[str, Any]:
+        return data
+
+    @field_validator("x")
+    def coerce(cls, v) -> dict[str, Any]:
+        return v
+'''
+    assert _check(src) == []
 
 
 def test_allows_concrete_dict_value_types():
@@ -107,24 +126,22 @@ def i() -> list[CallPayload]: ...
     assert _check(src) == []
 
 
-# --- Trigger 1: heterogeneous tuple returns ---------------------------------
+# --- tuple returns are NOT flagged (multiple return values are idiomatic) ----
 
 
-def test_flags_heterogeneous_tuple_return():
+def test_allows_heterogeneous_tuple_return():
     src = "def stop_call() -> tuple[bool, str | None]:\n    return True, None\n"
-    diags = _check(src)
-    assert len(diags) == 1
-    assert "tuple[bool, str | None]" in diags[0].message
+    assert _check(src) == []
 
 
-def test_flags_typing_tuple_heterogeneous():
+def test_allows_typing_tuple_heterogeneous():
     src = """
 from typing import Tuple
 
 def f() -> Tuple[int, str]:
     return 1, "x"
 """
-    assert len(_check(src)) == 1
+    assert _check(src) == []
 
 
 def test_allows_homogeneous_tuples():

@@ -69,29 +69,15 @@ class Status(StrEnum):
 @pytest.mark.parametrize(
     "field",
     [
-        "provider",
-        "language",
-        "lang",
-        "role",
-        "priority",
-        "level",
-        "mode",
-        "category",
-        "direction",
-        "environment",
-        "env",
-        "tier",
-        "severity",
-        "channel",
-        "method",
-        "strategy",
-        "format",
-        "source",
-        "stage",
         "status",
         "state",
-        "type",
         "kind",
+        "role",
+        "priority",
+        "severity",
+        "direction",
+        "tier",
+        "stage",
     ],
 )
 def test_flags_exact_choice_like_name(field: str):
@@ -106,13 +92,29 @@ class Config(BaseModel):
     assert field in diags[0].message
 
 
+@pytest.mark.parametrize(
+    "field",
+    # Free-form-prone tokens removed from the name heuristic (too noisy).
+    ["type", "provider", "level", "mode", "category", "channel", "method", "format", "source", "language", "env"],
+)
+def test_allows_dropped_choice_tokens(field: str):
+    """These names are too free-form to flag on the name alone (need corroboration)."""
+    src = f"""
+from pydantic import BaseModel
+
+class Config(BaseModel):
+    {field}: str
+"""
+    assert _check(src) == []
+
+
 def test_flags_choice_like_suffix_name():
     src = """
 from pydantic import BaseModel
 
 class Call(BaseModel):
-    tts_provider: str
-    output_language: str
+    payment_status: str
+    call_direction: str
 """
     assert len(_check(src)) == 2
 
@@ -157,7 +159,7 @@ def test_flags_choice_like_name_with_field_default():
 from pydantic import BaseModel, Field
 
 class Job(BaseModel):
-    mode: str = Field(default="fast")
+    status: str = Field(default="pending")
 """
     assert len(_check(src)) == 1
 

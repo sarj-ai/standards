@@ -27,15 +27,16 @@ Purely annotation-based (no type inference), checked on function definitions
 (sync + async):
 
 1. Return annotation that is ``dict[str, Any]`` / ``dict[str, object]`` /
-   bare ``dict`` / ``Dict``, ``list[dict[str, Any]]``, or a ``tuple[...]``
-   with 2+ distinct element types.
+   bare ``dict`` / ``Dict``, or ``list[dict[str, Any]]``.
 2. FastAPI route handlers (``@router.get(...)`` / ``@app.post(...)`` etc.)
    with no return annotation and no ``response_model=`` in the decorator.
 
-Not flagged: fully-concrete dict value types (``dict[str, str]``),
-homogeneous tuples (``tuple[int, ...]``, ``tuple[str, str]``), heterogeneous
-tuple returns from private (``_``-prefixed) non-route functions, ``@overload``
-stubs, and test files.
+Deliberately NOT flagged (kept high-precision for real boundaries):
+private / ``_``-prefixed functions (internal, not a public contract), pydantic
+``@model_validator`` / ``@field_validator`` hooks (raw dict in/out is their
+API), ``tuple[...]`` returns (multiple return values are idiomatic Python),
+fully-concrete dict value types (``dict[str, str]``), ``@overload`` stubs, and
+test files.
 
 References:
 - https://docs.pydantic.dev/latest/concepts/models/
@@ -53,7 +54,6 @@ from sarj_python_lint.rule_base import Diagnostic, Rule
 _HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
 _DICT_NAMES = {"dict", "Dict"}
 _LIST_NAMES = {"list", "List"}
-_TUPLE_NAMES = {"tuple", "Tuple"}
 _ANY_VALUE_NAMES = {"Any", "object"}
 
 
@@ -65,12 +65,12 @@ class _RouteInfo:
 
 
 class PydanticAtBoundaries(Rule):
-    """Untyped dict / heterogeneous tuple return — define a pydantic model."""
+    """Untyped dict return at a public boundary — define a pydantic model."""
 
     id = "pydantic-at-boundaries"
     code = "SARJ008"
     description = (
-        "Function returns an untyped dict or heterogeneous tuple — "
+        "Public function/route returns an untyped dict — "
         "define a pydantic model (or frozen dataclass)."
     )
 
@@ -86,6 +86,15 @@ class PydanticAtBoundaries(Rule):
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             if _is_overload(node):
+                continue
+            # Private/internal functions are not public boundaries — their
+            # return shape is an implementation detail, not a data contract.
+            if node.name.startswith("_"):
+                continue
+            # Pydantic validator hooks (`@model_validator`/`@field_validator`)
+            # take and return raw dict/values by contract — that's the API, not
+            # a missing model.
+            if _is_validator(node):
                 continue
             route = _route_info(node)
             returns = _resolve_annotation(node.returns)
@@ -107,10 +116,6 @@ class PydanticAtBoundaries(Rule):
                 continue
             kind = _classify_return(returns)
             if kind is None:
-                continue
-            # Private functions returning heterogeneous tuples are common and
-            # fine-ish; untyped dicts are flagged everywhere.
-            if kind == "tuple" and route is None and node.name.startswith("_"):
                 continue
             ann_text = ast.unparse(returns)
             diags.append(
@@ -137,6 +142,19 @@ def _is_overload(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
         if isinstance(dec, ast.Name) and dec.id == "overload":
             return True
         if isinstance(dec, ast.Attribute) and dec.attr == "overload":
+            return True
+    return False
+
+
+_VALIDATOR_DECORATORS = {"model_validator", "field_validator", "validator", "root_validator"}
+
+
+def _is_validator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """A pydantic validator hook — dict/value in-and-out is its required contract."""
+    for dec in node.decorator_list:
+        target = dec.func if isinstance(dec, ast.Call) else dec
+        name = _flat_name(target) if isinstance(target, (ast.Name, ast.Attribute)) else ""
+        if name in _VALIDATOR_DECORATORS:
             return True
     return False
 
@@ -199,8 +217,8 @@ def _classify_return(node: ast.expr) -> str | None:
         return "dict" if inner == "dict" else None
     if base in _DICT_NAMES:
         return "dict" if _is_untyped_dict_args(node.slice) else None
-    if base in _TUPLE_NAMES:
-        return "tuple" if _is_heterogeneous_tuple_args(node.slice) else None
+    # Heterogeneous tuple returns are NOT flagged — multiple return values are
+    # idiomatic Python, not a missing data contract.
     return None
 
 
@@ -211,15 +229,6 @@ def _is_untyped_dict_args(slice_node: ast.expr) -> bool:
     return _flat_name(slice_node.elts[1]) in _ANY_VALUE_NAMES
 
 
-def _is_heterogeneous_tuple_args(slice_node: ast.expr) -> bool:
-    """`tuple[...]` is flagged when it has 2+ distinct element types."""
-    if not isinstance(slice_node, ast.Tuple):
-        return False  # single-element `tuple[X]`
-    # `tuple[X, ...]` is a homogeneous variadic tuple.
-    if any(isinstance(elt, ast.Constant) and elt.value is Ellipsis for elt in slice_node.elts):
-        return False
-    distinct = {ast.unparse(elt) for elt in slice_node.elts}
-    return len(distinct) >= 2
 
 
 def _flat_name(node: ast.expr) -> str:
