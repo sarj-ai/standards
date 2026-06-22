@@ -40,30 +40,22 @@ from pathlib import Path
 from sarj_python_lint.rule_base import Diagnostic, Rule
 
 #: Field / variable name tokens that strongly suggest a closed enumeration.
+#: Kept deliberately HIGH-PRECISION — only words that are almost always a fixed
+#: set. Broader/free-form-prone tokens (type, provider, level, mode, category,
+#: channel, method, strategy, format, source, language, environment, …) were
+#: removed: they over-fired on free-form strings. Those cases are still caught
+#: when corroborated — via a sibling `choices`/`states` attribute or a
+#: comparison cluster against literal values.
 CHOICE_NAME_TOKENS = frozenset(
     {
         "status",
         "state",
-        "type",
         "kind",
-        "provider",
-        "language",
-        "lang",
         "role",
         "priority",
-        "level",
-        "mode",
-        "category",
-        "direction",
-        "environment",
-        "env",
-        "tier",
         "severity",
-        "channel",
-        "method",
-        "strategy",
-        "format",
-        "source",
+        "direction",
+        "tier",
         "stage",
     }
 )
