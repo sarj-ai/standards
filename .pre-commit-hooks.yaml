@@ -34,6 +34,12 @@
   language: python
   types: [python]
 
+- id: sarj-no-isinstance-union-chain
+  name: 'sarj-lint: if/elif isinstance chain — prefer match/case with assert_never'
+  entry: sarj-python-lint check --rule no-isinstance-union-chain
+  language: python
+  types: [python]
+
 - id: sarj-enforce-timestamptz
   name: 'sarj-lint(sql): TIMESTAMP must use WITH TIME ZONE (TIMESTAMPTZ)'
   entry: sarj-sql-lint check --rule enforce-timestamptz
