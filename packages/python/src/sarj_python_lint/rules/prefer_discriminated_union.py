@@ -43,6 +43,10 @@ Three triggers:
    (`*Input` / `*Params` / `*Filter` / `*Query` / `Update*` / `Patch*` /
    `Upsert*`) are excluded from this trigger.
 
+   A single-value `Literal` tag (e.g. `type: Literal["complete"]`) marks a model
+   that is already an arm of a discriminated union, so it is excluded too — a
+   multi-value `Literal[...]` is still treated as a poor-man's discriminator.
+
 References:
 - https://docs.pydantic.dev/latest/concepts/unions/#discriminated-unions
 - https://en.wikipedia.org/wiki/Tagged_union
@@ -131,6 +135,7 @@ class PreferDiscriminatedUnion(Rule):
         if not (is_model or is_dc):
             return None
         has_status_bool = False
+        has_literal_tag = False
         optional_fields: list[str] = []
         discriminator_fields: list[str] = []
         for stmt in node.body:
@@ -146,6 +151,8 @@ class PreferDiscriminatedUnion(Rule):
                 stmt.annotation, str_enum_names
             ):
                 discriminator_fields.append(name)
+                if _is_single_value_literal(stmt.annotation):
+                    has_literal_tag = True
             if _is_optional(stmt.annotation):
                 if name not in IGNORED_OPTIONAL_FIELDS:
                     optional_fields.append(name)
@@ -164,10 +171,13 @@ class PreferDiscriminatedUnion(Rule):
                 ),
             )
         # Nullable-cluster trigger: discriminator-ish field + 3 or more nullables.
+        # A single-value `Literal` tag (e.g. `type: Literal["complete"]`) marks a
+        # model that is already a discriminated-union arm, not a poor-man's result.
         if (
             discriminator_fields
             and len(optional_fields) >= NULLABLE_CLUSTER_THRESHOLD
             and not _is_dto_class_name(node.name)
+            and not has_literal_tag
         ):
             return Diagnostic(
                 path=path,
@@ -188,6 +198,33 @@ class PreferDiscriminatedUnion(Rule):
 def _is_dto_class_name(name: str) -> bool:
     """Query/filter input and partial-update DTO names are all-optional by design."""
     return name.endswith(DTO_CLASS_NAME_SUFFIXES) or name.startswith(DTO_CLASS_NAME_PREFIXES)
+
+
+def _is_single_value_literal(node: ast.AST | None) -> bool:
+    """Detect a single-constant `Literal[X]` annotation.
+
+    A one-element `Literal` (e.g. `type: Literal["complete"]`) is the canonical
+    tag of a discriminated-union arm, so a model carrying one is already modelled
+    correctly. A multi-value `Literal[...]` is still a poor-man's discriminator.
+    """
+    if node is None:
+        return False
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        try:
+            parsed = ast.parse(node.value, mode="eval")
+        except SyntaxError:
+            return False
+        return _is_single_value_literal(parsed.body)
+    if not isinstance(node, ast.Subscript):
+        return False
+    if _get_name_flat(node.value).rsplit(".", 1)[-1] != "Literal":
+        return False
+    slice_node = node.slice
+    if type(slice_node).__name__ == "Index":
+        slice_node = getattr(slice_node, "value", slice_node)
+    if isinstance(slice_node, ast.Tuple):
+        return len(slice_node.elts) == 1
+    return True
 
 
 def _inherits_basemodel(node: ast.ClassDef) -> bool:
