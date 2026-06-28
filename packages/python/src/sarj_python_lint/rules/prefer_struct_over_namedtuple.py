@@ -54,6 +54,7 @@ class PreferStructOverNamedtuple(Rule):
             tree = ast.parse(source, filename=str(path))
         except SyntaxError:
             return []
+        collections_names = _collections_bindings(tree)
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module == "collections":
@@ -65,7 +66,7 @@ class PreferStructOverNamedtuple(Rule):
                 and isinstance(node.func, ast.Attribute)
                 and node.func.attr == "namedtuple"
                 and isinstance(node.func.value, ast.Name)
-                and node.func.value.id == "collections"
+                and node.func.value.id in collections_names
             ):
                 diags.append(self._diag(path, node))
         return diags
@@ -78,3 +79,14 @@ class PreferStructOverNamedtuple(Rule):
             code=self.code,
             message=_MSG,
         )
+
+
+def _collections_bindings(tree: ast.AST) -> set[str]:
+    """Local names bound to the `collections` module, honouring `import ... as`."""
+    names = {"collections"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "collections":
+                    names.add(alias.asname or "collections")
+    return names

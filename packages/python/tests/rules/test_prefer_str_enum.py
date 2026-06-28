@@ -95,7 +95,19 @@ class Config(BaseModel):
 @pytest.mark.parametrize(
     "field",
     # Free-form-prone tokens removed from the name heuristic (too noisy).
-    ["type", "provider", "level", "mode", "category", "channel", "method", "format", "source", "language", "env"],
+    [
+        "type",
+        "provider",
+        "level",
+        "mode",
+        "category",
+        "channel",
+        "method",
+        "format",
+        "source",
+        "language",
+        "env",
+    ],
 )
 def test_allows_dropped_choice_tokens(field: str):
     """These names are too free-form to flag on the name alone (need corroboration)."""
@@ -119,7 +131,9 @@ class Call(BaseModel):
     assert len(_check(src)) == 2
 
 
-@pytest.mark.parametrize("field", ["name", "email", "provider_name", "description", "url"])
+@pytest.mark.parametrize(
+    "field", ["name", "email", "provider_name", "description", "url"]
+)
 def test_allows_non_choice_like_names(field: str):
     src = f"""
 from pydantic import BaseModel

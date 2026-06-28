@@ -16,8 +16,11 @@ string even when the level is disabled.
 
 To keep false positives near zero we require BOTH a logger-like receiver
 (`logger`/`log`/`logging`/`loguru` and common aliases) AND a logging method
-name — an f-string passed to some unrelated `.info(...)` is not flagged. Only
-the first positional argument (the message) is inspected.
+name — an f-string passed to some unrelated `.info(...)` is not flagged. The
+receiver chain is resolved, so builder/factory forms are still caught:
+`logger.bind(...).info(...)`, `logger.opt(lazy=True).debug(...)`, and
+`logging.getLogger(__name__).warning(...)`. Only the first positional argument
+(the message) is inspected.
 
 Suppress an intentional case with `# sarj-noqa: SARJ017 — <reason>`.
 """
@@ -46,6 +49,8 @@ _LOG_METHODS = frozenset(
 )
 
 _LOGGER_NAMES = frozenset({"logger", "log", "logging", "loguru", "_logger", "_log"})
+
+_LOGGER_FACTORIES = frozenset({"getlogger", "getchild"})
 
 
 class NoFstringInLog(Rule):
@@ -90,11 +95,29 @@ def _is_logging_call(node: ast.Call) -> bool:
     func = node.func
     if not isinstance(func, ast.Attribute) or func.attr not in _LOG_METHODS:
         return False
-    receiver = func.value
-    if isinstance(receiver, ast.Name):
-        return receiver.id.lower() in _LOGGER_NAMES
-    if isinstance(receiver, ast.Attribute):
-        return receiver.attr.lower() in _LOGGER_NAMES
+    return _is_logger_expr(func.value)
+
+
+def _is_logger_expr(expr: ast.expr) -> bool:
+    """True if `expr` evaluates to a logger.
+
+    Resolves the whole receiver chain so adapter/builder calls are caught:
+    `logger.bind(...).info(...)`, `logger.opt(lazy=True).debug(...)`,
+    `logging.getLogger(__name__).info(...)`, `self.logger.error(...)`.
+    """
+    if isinstance(expr, ast.Name):
+        return expr.id.lower() in _LOGGER_NAMES
+    if isinstance(expr, ast.Attribute):
+        if expr.attr.lower() in _LOGGER_NAMES or expr.attr.lower() in _LOGGER_FACTORIES:
+            return True
+        return _is_logger_expr(expr.value)
+    if isinstance(expr, ast.Call):
+        if (
+            isinstance(expr.func, ast.Attribute)
+            and expr.func.attr.lower() in _LOGGER_FACTORIES
+        ):
+            return True
+        return _is_logger_expr(expr.func)
     return False
 
 

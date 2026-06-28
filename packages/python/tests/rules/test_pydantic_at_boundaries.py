@@ -85,7 +85,7 @@ def test_skips_private_function():
 
 def test_skips_pydantic_validator_hooks():
     """@model_validator/@field_validator take and return raw dict/values by contract."""
-    src = '''
+    src = """
 from typing import Any
 from pydantic import model_validator, field_validator
 
@@ -98,7 +98,7 @@ class M:
     @field_validator("x")
     def coerce(cls, v) -> dict[str, Any]:
         return v
-'''
+"""
     assert _check(src) == []
 
 

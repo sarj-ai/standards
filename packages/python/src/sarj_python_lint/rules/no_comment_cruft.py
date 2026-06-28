@@ -71,9 +71,14 @@ _BANNER_RUN_RE = re.compile(r"={3,}|-{4,}|#{3,}|\*{3,}|~{3,}")
 _REGION_RE = re.compile(r"^(?:end)?region\b", re.IGNORECASE)
 
 _CODE_STMT_RE = re.compile(
-    r"^(?:import |from \S+ import |return\b|yield\b|raise\b|assert\b|await |"
+    r"^(?:import |from \S+ import |return\b|yield\b|await |"
     r"del |pass\b|break\b|continue\b|global |nonlocal |print\()"
 )
+# `assert`/`raise` double as English verbs ("assert this is true"), so they are
+# only treated as code when the line also carries a code signal (an operator,
+# paren, bracket, dot, or digit) — prose almost never does.
+_RISKY_STMT_RE = re.compile(r"^(?:assert |raise )")
+_CODE_SIGNAL_RE = re.compile(r"""[=()\[\]{}.:+\-*/%<>!&|@"']|\d""")
 _CODE_HEADER_RE = re.compile(
     r"^(?:def |class |async def |if |elif |else:|for |while |with |"
     r"try:|except|finally:)"
@@ -108,6 +113,8 @@ def _looks_like_code(body: str) -> bool:
         return False
     if _CODE_STMT_RE.match(c):
         return _compiles(c)
+    if _RISKY_STMT_RE.match(c):
+        return bool(_CODE_SIGNAL_RE.search(c)) and _compiles(c)
     if _CODE_HEADER_RE.match(c):
         return _compiles(c + "\n    pass")
     if c.startswith("@"):

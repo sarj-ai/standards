@@ -33,6 +33,14 @@ A = collections.namedtuple("A", ["x"])
     assert len(_check(src)) == 2
 
 
+def test_flags_aliased_collections_import():
+    src = """
+import collections as c
+Row = c.namedtuple("Row", "id name")
+"""
+    assert len(_check(src)) == 1
+
+
 def test_allows_typing_namedtuple():
     src = """
 from typing import NamedTuple

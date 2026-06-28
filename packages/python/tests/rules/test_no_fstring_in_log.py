@@ -24,6 +24,21 @@ def test_flags_module_logging_attr_receiver():
     assert len(_check(src)) == 1
 
 
+def test_flags_chained_bind_receiver():
+    src = 'logger.bind(call_id=cid).info(f"done {x}")\n'
+    assert len(_check(src)) == 1
+
+
+def test_flags_getlogger_chain():
+    src = 'logging.getLogger(__name__).warning(f"slow {dt}")\n'
+    assert len(_check(src)) == 1
+
+
+def test_flags_opt_chain():
+    src = 'logger.opt(lazy=True).debug(f"v={value}")\n'
+    assert len(_check(src)) == 1
+
+
 def test_allows_structured_kwargs():
     src = 'logger.info("call done", call_id=call_id)\n'
     assert _check(src) == []

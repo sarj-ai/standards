@@ -81,6 +81,25 @@ import os
     assert _check(src) == []
 
 
+def test_allows_assert_raise_prose():
+    src = """
+def f():
+    # assert this is true before we proceed
+    # raise the question with the team first
+    return go()
+"""
+    assert _check(src) == []
+
+
+def test_flags_commented_out_assert_with_signal():
+    src = """
+def f():
+    # assert result == expected
+    return f()
+"""
+    assert len(_check(src)) == 1
+
+
 def test_allows_prose_why_comment():
     src = """
 def f():

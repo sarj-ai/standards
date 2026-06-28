@@ -39,6 +39,44 @@ def test_allows_timedelta_annotation():
     assert _check(src) == []
 
 
+def test_flags_pydantic_constrained_duration():
+    src = """
+class Settings:
+    api_timeout_s: NonNegativeFloat = 30.0
+    retry_interval_seconds: PositiveInt = 5
+"""
+    assert len(_check(src)) == 2
+
+
+def test_flags_annotated_duration():
+    src = "def f(delay_seconds: Annotated[int, Field(ge=0)]) -> None: ...\n"
+    assert len(_check(src)) == 1
+
+
+def test_flags_pydantic_constrained_optional_duration():
+    src = "def f(ttl: PositiveInt | None = None) -> None: ...\n"
+    assert len(_check(src)) == 1
+
+
+def test_allows_wall_clock_singular_components():
+    src = """
+class TimeEdge:
+    hour: int
+    minute: int
+    second: int
+"""
+    assert _check(src) == []
+
+
+def test_allows_percentage_and_rate_named_floats():
+    src = """
+class Report:
+    average_duration_trend_percentage: float
+    interval_hit_rate: float
+"""
+    assert _check(src) == []
+
+
 def test_allows_count_like_names():
     src = """
 def f(retry_count: int, num_days: int, page_size: int) -> None: ...
