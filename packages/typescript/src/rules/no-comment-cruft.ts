@@ -22,14 +22,17 @@ const LICENSE_RE =
   /copyright|licen[cs]ed?|spdx|permission is hereby granted|all rights reserved/i;
 
 const BANNER_FULL_RE = /^[\s\-=*#~_+.]{4,}$/;
-const BANNER_RUN_RE = /={3,}|-{4,}|#{3,}|\*{4,}|~{3,}/;
+// `={4,}` not `={3,}`: `===` is TS strict-equality and appears in prose comments.
+const BANNER_RUN_RE = /={4,}|-{4,}|#{4,}|\*{4,}|~{4,}/;
 const REGION_RE = /^#?(?:end)?region\b/i;
 
 const CODE_KEYWORD_RE =
   /^(import |export |const |let |var |function\b|class |interface |type \w|enum |return\b|throw |await |async |if\s*\(|for\s*\(|while\s*\(|switch\s*\(|new |console\.)/;
 const CODE_TAIL_RE = /[;{}()]\s*$|=>\s*$|,\s*$/;
+// LHS must be a real identifier (not a number literal — `0=Monday` in prose is
+// not an assignment) and `=` must not be `==`/`===`/`=>` (comparison/arrow).
 const CALL_OR_ASSIGN_RE =
-  /^[\w.$[\]]+\s*(?:=|\+=|-=|\*=)\s*\S|^[\w.$]+\([^)]*\)\s*;?\s*$/;
+  /^[A-Za-z_$][\w.$[\]]*\s*(?:=(?![=>])|\+=|-=|\*=)\s*\S|^[A-Za-z_$][\w.$]*\([^)]*\)\s*;?\s*$/;
 
 function stripCommentMarker(line: string): string {
   return line.replace(/^\s*\/\//, "").replace(/^\s*\*+/, "").trim();

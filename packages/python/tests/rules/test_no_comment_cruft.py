@@ -109,6 +109,15 @@ def f():
     assert _check(src) == []
 
 
+def test_allows_short_equals_run_in_prose():
+    src = """
+def f():
+    # compare with a === b in the JS bridge, not ==
+    return g()
+"""
+    assert _check(src) == []
+
+
 def test_allows_directive_comments():
     src = """
 import os  # noqa: F401

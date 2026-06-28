@@ -67,7 +67,7 @@ _LICENSE_RE = re.compile(
 )
 
 _BANNER_FULL_RE = re.compile(r"^[-=#*~_+.\s]{4,}$")
-_BANNER_RUN_RE = re.compile(r"={3,}|-{4,}|#{3,}|\*{3,}|~{3,}")
+_BANNER_RUN_RE = re.compile(r"={4,}|-{4,}|#{4,}|\*{4,}|~{4,}")
 _REGION_RE = re.compile(r"^(?:end)?region\b", re.IGNORECASE)
 
 _CODE_STMT_RE = re.compile(

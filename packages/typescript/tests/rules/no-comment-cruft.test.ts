@@ -25,6 +25,10 @@ ruleTester.run("no-comment-cruft", rule, {
     { code: "// prettier-ignore\nconst x = 1;" },
     // A short leading comment block (< 4 lines) is fine.
     { code: "// the entrypoint\nimport x from 'y';" },
+    // Prose with `key=value` / comparisons is not commented-out code.
+    { code: "// 0=Monday … 6=Sunday — matches Python's WeekDay IntEnum\nexport const days = 1;" },
+    { code: "// if x === y the cache is warm\nconst x = 1;" },
+    { code: "// returns true => proceed\nconst ok = true;" },
     // License header preamble is exempt.
     {
       code: "// Copyright 2023 Acme, Inc.\n// Licensed under the Apache License 2.0.\n// You may not use this file except in compliance.\n// See the License for details.\nimport x from 'y';",
