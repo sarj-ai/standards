@@ -271,3 +271,45 @@ class UpdateCall(BaseModel):
     report: str | None = None
 """
     assert _check(src) == []
+
+
+def test_allows_single_value_literal_union_arm():
+    src = """
+from pydantic import BaseModel
+from typing import Literal
+
+class CallCompletedWebhookPayload(BaseModel):
+    type: Literal["complete"] = "complete"
+    call_started: str | None = None
+    response_body: dict | None = None
+    call_data: dict | None = None
+"""
+    assert _check(src) == []
+
+
+def test_allows_single_value_literal_arm_optional_spelling():
+    src = """
+from pydantic import BaseModel
+from typing import Literal, Optional
+
+class Created(BaseModel):
+    kind: Literal["created"]
+    a: Optional[str] = None
+    b: Optional[str] = None
+    c: Optional[str] = None
+"""
+    assert _check(src) == []
+
+
+def test_flags_multi_value_literal_discriminator():
+    src = """
+from pydantic import BaseModel
+from typing import Literal
+
+class Job(BaseModel):
+    status: Literal["pending", "running", "done"]
+    result: str | None = None
+    error: str | None = None
+    duration: float | None = None
+"""
+    assert len(_check(src)) == 1
