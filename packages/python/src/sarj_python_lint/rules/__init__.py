@@ -12,6 +12,7 @@ from sarj_python_lint.rules.no_sequential_await import NoSequentialAwait
 from sarj_python_lint.rules.no_unreachable_after_terminal import (
     NoUnreachableAfterTerminal,
 )
+from sarj_python_lint.rules.prefer_class_row import PreferClassRow
 from sarj_python_lint.rules.prefer_constant_time_secret_compare import (
     PreferConstantTimeSecretCompare,
 )
@@ -24,6 +25,7 @@ REGISTRY: dict[str, type[Rule]] = {
     NoSequentialAwait.id: NoSequentialAwait,
     InefficientStringConcatInLoop.id: InefficientStringConcatInLoop,
     PreferDiscriminatedUnion.id: PreferDiscriminatedUnion,
+    PreferClassRow.id: PreferClassRow,
     PreferStrEnum.id: PreferStrEnum,
     NoFatTryBlocks.id: NoFatTryBlocks,
     NoIsinstanceUnionChain.id: NoIsinstanceUnionChain,

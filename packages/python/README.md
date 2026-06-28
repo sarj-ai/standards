@@ -18,6 +18,7 @@ uv tool install sarj-python-lint
     - id: sarj-prefer-str-enum
     - id: sarj-no-fat-try-blocks
     - id: sarj-pydantic-at-boundaries
+    - id: sarj-prefer-class-row
 ```
 
 ## CLI
