@@ -1,5 +1,6 @@
 import enforceFileStructure from "./rules/enforce-file-structure.js";
 import noClientSideDataFetching from "./rules/no-client-side-data-fetching.js";
+import noCommentCruft from "./rules/no-comment-cruft.js";
 import noEnum from "./rules/no-enum.js";
 import noInsecureRandomId from "./rules/no-insecure-random-id.js";
 import noJsonStringifyError from "./rules/no-json-stringify-error.js";
@@ -20,6 +21,7 @@ import zodNamingConvention from "./rules/zod-naming-convention.js";
 const rules = {
   "enforce-file-structure": enforceFileStructure,
   "no-client-side-data-fetching": noClientSideDataFetching,
+  "no-comment-cruft": noCommentCruft,
   "no-enum": noEnum,
   "no-insecure-random-id": noInsecureRandomId,
   "no-json-stringify-error": noJsonStringifyError,
@@ -64,6 +66,7 @@ const plugin = {
         "@sarj/no-json-stringify-error": "warn",
         "@sarj/no-string-concat-in-loop": "warn",
         "@sarj/prefer-discriminated-union": "warn",
+        "@sarj/no-comment-cruft": "warn",
       },
     },
     strict: {
@@ -88,6 +91,7 @@ const plugin = {
         "@sarj/no-json-stringify-error": "error",
         "@sarj/no-string-concat-in-loop": "error",
         "@sarj/prefer-discriminated-union": "error",
+        "@sarj/no-comment-cruft": "error",
       },
     },
   },
