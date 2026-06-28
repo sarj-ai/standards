@@ -6,6 +6,7 @@ from sarj_python_lint.rules.inefficient_string_concat_in_loop import (
 )
 from sarj_python_lint.rules.no_comment_cruft import NoCommentCruft
 from sarj_python_lint.rules.no_fat_try_blocks import NoFatTryBlocks
+from sarj_python_lint.rules.no_fstring_in_log import NoFstringInLog
 from sarj_python_lint.rules.no_isinstance_union_chain import NoIsinstanceUnionChain
 from sarj_python_lint.rules.no_secret_in_log import NoSecretInLog
 from sarj_python_lint.rules.no_sentinel_return_on_except import NoSentinelReturnOnExcept
@@ -44,6 +45,7 @@ REGISTRY: dict[str, type[Rule]] = {
     PreferTimedeltaForDurations.id: PreferTimedeltaForDurations,
     PreferStructOverNamedtuple.id: PreferStructOverNamedtuple,
     NoCommentCruft.id: NoCommentCruft,
+    NoFstringInLog.id: NoFstringInLog,
 }
 
 __all__ = ["REGISTRY"]
