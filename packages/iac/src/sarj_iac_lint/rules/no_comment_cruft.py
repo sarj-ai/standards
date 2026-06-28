@@ -51,7 +51,10 @@ _BANNER_RUN_RE = re.compile(r"={4,}|-{4,}|#{4,}|\*{4,}|~{4,}")
 _HCL_CODE_RE = re.compile(
     r"^(?:resource|data|module|variable|output|provider|locals|terraform|"
     r'backend|dynamic|moved)\s+["{]'
-    r"|^[A-Za-z_][\w-]*\s*=(?!=)\s*\S"  # attribute assignment (not `==` prose)
+    # attribute assignment whose RHS looks like an HCL value (not English prose
+    # such as `deploy = provision the stack` in a comment legend).
+    r'|^[A-Za-z_][\w-]*\s*=(?!=)\s*(?:["\'\[{]|\d|true\b|false\b|null\b'
+    r"|var\.|local\.|module\.|data\.|[A-Za-z_][\w]*\.|[a-z_][\w]*\()"
     r"|^[A-Za-z_][\w-]*\s*\{$"  # block opener
     r"|^\}\s*$"  # block closer
 )

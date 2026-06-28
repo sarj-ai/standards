@@ -32,6 +32,18 @@ _PRIVATE_CIDR_RE = re.compile(
     r")(?:/\d{1,2})?\b"
 )
 
+# The whole RFC-1918 aggregates are universal constants (used verbatim in
+# NetworkPolicy / firewall allow-rules), not env-specific subnets — flagging
+# "extract 10.0.0.0/8 to a variable" is noise.
+_AGGREGATE_RANGES = frozenset(
+    {
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "100.64.0.0/10",
+    }
+)
+
 
 class NoHardcodedPrivateCidr(Rule):
     """Hardcoded RFC-1918 private IP/CIDR — extract to a variable."""
@@ -50,6 +62,8 @@ class NoHardcodedPrivateCidr(Rule):
         for lineno, line in enumerate(source.splitlines(), start=1):
             code = _strip_comment(line)
             for m in _PRIVATE_CIDR_RE.finditer(code):
+                if m.group(0) in _AGGREGATE_RANGES:
+                    continue
                 diags.append(
                     Diagnostic(
                         path=path,

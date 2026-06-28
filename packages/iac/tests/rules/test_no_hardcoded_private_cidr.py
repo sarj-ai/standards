@@ -37,6 +37,22 @@ docrange = "203.0.113.5"
     assert _check(src) == []
 
 
+def test_ignores_aggregate_rfc1918_ranges():
+    # The whole /8, /12, /16 ranges are constants (NetworkPolicy allow-rules),
+    # not env-specific subnets.
+    src = """
+a = "10.0.0.0/8"
+b = "172.16.0.0/12"
+c = "192.168.0.0/16"
+"""
+    assert _check(src) == []
+
+
+def test_still_flags_specific_subnet_in_aggregate_space():
+    src = 'cidr = "10.0.1.0/24"\n'
+    assert len(_check(src)) == 1
+
+
 def test_ignores_cidr_in_comment():
     src = "# legacy subnet was 10.0.1.0/24\nx = var.cidr\n"
     assert _check(src) == []
