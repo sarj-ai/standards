@@ -13,7 +13,6 @@ uv tool install sarj-iac-lint
 |------|------|---------------|
 | SARJ201 | `require-deletion-protection` | A stateful resource (Cloud SQL, GKE, BigQuery, Spanner, AlloyDB, Bigtable, RDS, DynamoDB, ElastiCache, DocumentDB, Neptune, Azure databases, Cosmos DB, ...) without `deletion_protection = true`. |
 | SARJ202 | `no-comment-cruft` | Commented-out Terraform/HCL and section-banner / divider comments. |
-| SARJ203 | `no-hardcoded-private-cidr` | A hardcoded RFC-1918 private IP/CIDR literal that should be a variable. |
 
 `.tf`, `.hcl`, and `.tfvars` files are scanned by all rules; `.yaml`/`.yml`
 (Helm/k8s/Compose) are scanned by `no-comment-cruft` for banners only.
@@ -22,11 +21,10 @@ uv tool install sarj-iac-lint
 
 ```yaml
 - repo: https://github.com/sarj-ai/standards
-  rev: iac-v0.1.0
+  rev: iac-v0.2.0
   hooks:
     - id: sarj-require-deletion-protection
     - id: sarj-no-comment-cruft-iac
-    - id: sarj-no-hardcoded-private-cidr
 ```
 
 ## CLI
@@ -42,9 +40,7 @@ Diagnostic format is `path:line:col: CODE message` — Ruff-compatible.
 ## Adoption
 
 `require-deletion-protection` and `no-comment-cruft` have ~zero false positives —
-run them as hard (blocking) hooks. `no-hardcoded-private-cidr` legitimately fires
-on network modules that define subnets, so adopt it with `--exit-zero` (warn) or
-suppress the source-of-truth definitions and let it catch *new* duplication.
+run them as hard (blocking) hooks.
 
 `require-deletion-protection` treats variable/expression-gated protection
 (`deletion_protection = var.enabled`) and `lifecycle { prevent_destroy = true }`

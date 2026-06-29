@@ -37,13 +37,6 @@ def test_absent_noqa_reports(tmp_path: Path, capsys: pytest.CaptureFixture[str])
     assert "SARJ201" in capsys.readouterr().out
 
 
-def test_cidr_noqa_suppresses(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    src = 'cidr = "10.0.1.0/24"  # sarj-noqa: SARJ203 — source of truth\n'
-    rc = main(["check", "--rule", "no-hardcoded-private-cidr", _write(tmp_path, src)])
-    assert rc == 0
-    assert not capsys.readouterr().out
-
-
 def _write(tmp_path: Path, content: str) -> str:
     f = tmp_path / "main.tf"
     _ = f.write_text(content, encoding="utf-8")
