@@ -62,6 +62,18 @@ def _check(rule_ids: list[str], paths: list[Path]) -> list[Diagnostic]:
     return diags
 
 
+class _Args(argparse.Namespace):
+    cmd: str | None
+    rule: list[str]
+    files: list[Path]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.cmd = None
+        self.rule = []
+        self.files = []
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="sarj-sql-lint", description="Custom SQL lint rules.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -73,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("list-rules", help="List available rule IDs.")
 
-    args = parser.parse_args(argv)
+    args = parser.parse_args(argv, namespace=_Args())
 
     if args.cmd == "list-rules":
         for rid, cls in sorted(REGISTRY.items()):

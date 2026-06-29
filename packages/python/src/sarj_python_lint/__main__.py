@@ -66,6 +66,18 @@ def _check(rule_ids: list[str], paths: list[Path]) -> list[Diagnostic]:
     return diags
 
 
+class _Args(argparse.Namespace):
+    cmd: str | None
+    rule: list[str]
+    files: list[Path]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.cmd = None
+        self.rule = []
+        self.files = []
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="sarj-python-lint",
@@ -85,18 +97,15 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("list-rules", help="List available rule IDs.")
 
-    args = parser.parse_args(argv)
-    cmd: str | None = args.cmd
+    args = parser.parse_args(argv, namespace=_Args())
 
-    if cmd == "list-rules":
+    if args.cmd == "list-rules":
         for rid, cls in sorted(REGISTRY.items()):
             inst = cls()
             sys.stdout.write(f"{inst.code:8}  {rid:40}  {inst.description}\n")
         return 0
 
-    rule_ids: list[str] = args.rule
-    files: list[Path] = args.files
-    diags = _check(rule_ids, files)
+    diags = _check(args.rule, args.files)
     for d in diags:
         sys.stdout.write(d.format() + "\n")
     return 1 if diags else 0

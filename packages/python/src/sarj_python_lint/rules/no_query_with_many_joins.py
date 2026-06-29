@@ -61,9 +61,9 @@ def _strip_sql_comments(text: str) -> str:
 class NoQueryWithManyJoins(Rule):
     """A SQL query with 3+ JOINs is too entangled — split it or denormalize."""
 
-    id = "no-query-with-many-joins"
-    code = "SARJ019"
-    description = (
+    id: str = "no-query-with-many-joins"
+    code: str = "SARJ019"
+    description: str = (
         "SQL query with 3 or more JOINs — split the query or denormalize instead of fanning across many tables."
     )
 

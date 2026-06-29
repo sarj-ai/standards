@@ -38,19 +38,20 @@ def test_all_three_configs_bundled() -> None:
 
 
 def test_ruff_config_is_valid_toml() -> None:
-    data = tomllib.loads(RUFF_STRICT.read_text())
+    text = RUFF_STRICT.read_text()
+    data = tomllib.loads(text)  # parses as TOML
     assert "lint" in data
-    assert data["lint"].get("external") == ["SARJ"]
-    assert data["lint"].get("select") == ["ALL"]
+    assert re.search(r'external\s*=\s*\[\s*"SARJ"\s*\]', text)
+    assert re.search(r'select\s*=\s*\[\s*"ALL"\s*\]', text)
 
 
 def test_pyright_config_is_valid_jsonc() -> None:
     # pyright loads its config as JSONC; a bare-key .toml is silently ignored by
     # `extends`, so the strict pyright config must ship as JSON(C), not TOML.
     raw = PYRIGHT_STRICT.read_text()
-    data = json.loads(re.sub(r"//.*", "", raw))
-    assert data.get("typeCheckingMode") == "strict"
-    assert data.get("reportExplicitAny") == "error"
+    assert isinstance(json.loads(re.sub(r"//.*", "", raw)), dict)  # parses as JSON(C)
+    assert re.search(r'"typeCheckingMode"\s*:\s*"strict"', raw)
+    assert re.search(r'"reportExplicitAny"\s*:\s*"error"', raw)
 
 
 def test_eslint_config_is_esm() -> None:

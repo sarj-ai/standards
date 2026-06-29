@@ -61,9 +61,9 @@ def _strip_sql_comments(text: str) -> str:
 class StoreInsertRequiresOnConflict(Rule):
     """Embedded INSERT in store code without ON CONFLICT — store writes must be upserts."""
 
-    id = "store-insert-requires-on-conflict"
-    code = "SARJ018"
-    description = "Embedded SQL INSERT in store code without ON CONFLICT — store writes must be idempotent upserts."
+    id: str = "store-insert-requires-on-conflict"
+    code: str = "SARJ018"
+    description: str = "Embedded SQL INSERT in store code without ON CONFLICT — store writes must be idempotent upserts."
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
