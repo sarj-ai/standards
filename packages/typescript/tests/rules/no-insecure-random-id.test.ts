@@ -43,6 +43,11 @@ ruleTester.run("no-insecure-random-id", rule, {
     { code: "const delayMs = Math.random() * 1000;" },
     // Math.random() in a property with a non-sensitive name.
     { code: "const cfg = { jitter: Math.random() };" },
+    // KNOWN GAP (documented false-negative): arithmetic between Math.random()
+    // and `.toString(36)` breaks the chain walk, so the idiom is NOT caught
+    // unless the binding name is identifier/secret-like. The innocuous binding
+    // name here means this is (currently) not flagged.
+    { code: "const x = (Math.random() * 1e9).toString(36);" },
   ],
   invalid: [
     // Trigger 1: classic `.toString(36)` insecure id idiom.

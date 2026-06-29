@@ -17,19 +17,20 @@ from __future__ import annotations
 
 import ast
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rules._logging import is_logger_expr
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 # Logging method names (the `.attr` of the call's func).
 _LOG_METHODS = frozenset(
     {"debug", "info", "warning", "warn", "error", "exception", "critical"}
 )
-
-# Names that look like a logger object. We're permissive on the object but
-# require it to plausibly be a logger to avoid flagging unrelated `.info(...)`
-# calls.
-_LOGGER_NAMES = frozenset({"logger", "log", "logging"})
 
 # A keyword name leaks a secret if it CONTAINS a secret word (so `AuthToken`,
 # `api_key`, `userPassword` all match) UNLESS it also carries a redaction marker
@@ -55,10 +56,11 @@ def _is_secret_keyword(name: str) -> bool:
 class NoSecretInLog(Rule):
     """Secret passed by keyword argument to a logging call."""
 
-    id = "no-secret-in-log"
-    code = "SARJ012"
-    description = "Secret passed by keyword to a logging call — redact or omit."
+    id: str = "no-secret-in-log"
+    code: str = "SARJ012"
+    description: str = "Secret passed by keyword to a logging call — redact or omit."
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))
@@ -95,22 +97,13 @@ def _is_logging_call(node: ast.Call) -> bool:
     """Return True if `node` looks like `logger.<level>(...)`.
 
     Precise on the method name (must be a known log level) and conservative on
-    the object: it must be a Name in {logger, log, logging} or an Attribute
-    ending in one of those (e.g. `self.logger`, `self.log`).
+    the object: the shared resolver walks the receiver chain so factory/builder
+    forms (`logging.getLogger(__name__).info`, `logger.bind(...).info`) are
+    recognised, not just `logger` / `self.logger`.
     """
     func = node.func
     if not isinstance(func, ast.Attribute):
         return False
     if func.attr not in _LOG_METHODS:
         return False
-    return _looks_like_logger(func.value)
-
-
-def _looks_like_logger(value: ast.AST) -> bool:
-    """Return True if `value` names a logger object (case-insensitively)."""
-    if isinstance(value, ast.Name):
-        return value.id.lower() in _LOGGER_NAMES
-    if isinstance(value, ast.Attribute):
-        # e.g. `self.logger`, `cls.log`
-        return value.attr.lower() in _LOGGER_NAMES
-    return False
+    return is_logger_expr(func.value)

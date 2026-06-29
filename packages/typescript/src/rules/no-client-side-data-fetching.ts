@@ -20,8 +20,11 @@
  *   - `ky.<method>(...)` / `superagent.<method>(...)` (same verbs)
  *   - bare `axios(...)` / `ky(...)` calls (when treated as a GET)
  *
- * Analytics / telemetry endpoints (`*track*`, `*log*`, `*ping*`, ...) are
- * intentionally exempt because they aren't render-blocking data fetches.
+ * Analytics / telemetry endpoints whose URL has a whole path segment of
+ * `track` / `log` / `ping` / `event` / ... are intentionally exempt because
+ * they aren't render-blocking data fetches. (Matched per-segment, so
+ * `/api/login`, `/blog`, `/api/events`, `/catalog`, `/api/shipping` are NOT
+ * exempt.)
  *
  * References:
  *   - https://nextjs.org/docs/app/building-your-application/data-fetching
@@ -52,7 +55,11 @@ const HTTP_METHOD_NAMES: ReadonlySet<string> = new Set([
   "options",
 ]);
 
-const ANALYTICS_KEYWORDS: readonly string[] = [
+// Matched against whole path SEGMENTS (split on `/` and `.`), never as raw
+// substrings — otherwise `/api/login` ("log"), `/blog` ("log"), `/api/events`
+// ("event"), `/catalog` ("log"), and `/api/shipping` ("ping") would be wrongly
+// exempted.
+const ANALYTICS_SEGMENTS: ReadonlySet<string> = new Set([
   "analytics",
   "telemetry",
   "track",
@@ -61,7 +68,7 @@ const ANALYTICS_KEYWORDS: readonly string[] = [
   "beacon",
   "metrics",
   "event",
-];
+]);
 
 function isEffectHookCall(node: TSESTree.CallExpression): boolean {
   const callee = node.callee;
@@ -190,7 +197,11 @@ function extractUrlString(node: TSESTree.CallExpression): string {
 function isAnalyticsCall(node: TSESTree.CallExpression): boolean {
   const url = extractUrlString(node).toLowerCase();
   if (url === "") return false;
-  return ANALYTICS_KEYWORDS.some((keyword) => url.includes(keyword));
+  // Split into path segments and file-extension parts; exempt only when a
+  // WHOLE segment is a known analytics keyword.
+  return url
+    .split(/[/.]/)
+    .some((segment) => ANALYTICS_SEGMENTS.has(segment));
 }
 
 export default ESLintUtils.RuleCreator(

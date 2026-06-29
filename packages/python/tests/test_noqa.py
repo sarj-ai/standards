@@ -1,8 +1,8 @@
 """Test that # sarj-noqa: SARJ00X suppression works on real diagnostics."""
 from pathlib import Path
 
-from sarj_python_lint.rules.no_sequential_await import NoSequentialAwait
 from sarj_python_lint.rule_base import is_suppressed
+from sarj_python_lint.rules.no_sequential_await import NoSequentialAwait
 
 
 def test_sarj_noqa_suppresses_diag():

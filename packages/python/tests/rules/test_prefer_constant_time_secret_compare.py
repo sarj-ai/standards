@@ -1,11 +1,16 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sarj_python_lint.rules.prefer_constant_time_secret_compare import (
     PreferConstantTimeSecretCompare,
 )
 
 
-def _check(source: str) -> list:
+if TYPE_CHECKING:
+    from sarj_python_lint.rule_base import Diagnostic
+
+
+def _check(source: str) -> list[Diagnostic]:
     return PreferConstantTimeSecretCompare().check(Path("<test>.py"), source)
 
 

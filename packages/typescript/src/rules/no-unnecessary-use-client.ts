@@ -166,9 +166,15 @@ export default ESLintUtils.RuleCreator(
         }
       },
       CallExpression(node): void {
+        // The `Program` visitor (entered first) has already determined whether
+        // this file has a `'use client'` directive. If it doesn't, the result
+        // can't change — skip all of the per-node indicator work, including the
+        // hot scope-resolution in the `Identifier` visitor below.
+        if (directiveNode === null) return;
         markIfHookOrContext(node.callee);
       },
       JSXAttribute(node): void {
+        if (directiveNode === null) return;
         if (
           node.name.type === AST_NODE_TYPES.JSXIdentifier &&
           EVENT_PROP_REGEX.test(node.name.name)
@@ -177,6 +183,7 @@ export default ESLintUtils.RuleCreator(
         }
       },
       ImportDeclaration(node): void {
+        if (directiveNode === null) return;
         if (
           typeof node.source.value === "string" &&
           CLIENT_ONLY_PACKAGES_REGEX.test(node.source.value)
@@ -185,22 +192,27 @@ export default ESLintUtils.RuleCreator(
         }
       },
       ExportNamedDeclaration(node): void {
+        if (directiveNode === null) return;
         if (node.source !== null) {
           hasClientIndicator = true;
         }
       },
       ExportAllDeclaration(node): void {
+        if (directiveNode === null) return;
         if (node.source !== null) {
           hasClientIndicator = true;
         }
       },
       ClassDeclaration(): void {
+        if (directiveNode === null) return;
         hasClientIndicator = true;
       },
       ClassExpression(): void {
+        if (directiveNode === null) return;
         hasClientIndicator = true;
       },
       Identifier(node): void {
+        if (directiveNode === null) return;
         if (isGlobalReference(node, context)) {
           hasClientIndicator = true;
         }

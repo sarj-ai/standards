@@ -10,6 +10,11 @@
  * deliberately conservative: when the initializer type cannot be determined
  * (no initializer, a non-literal expression, a parameter, etc.) the `+=` is
  * NOT flagged. This mirrors the Python rule SARJ002.
+ *
+ * KNOWN GAP (false-negative): only the compound `+=` operator is detected. The
+ * equivalent longhand `s = s + x` (a plain `=` assignment whose RHS is a
+ * `BinaryExpression` referencing the LHS) has the same O(n^2) behavior but is
+ * NOT flagged. Left as a deliberate scope limit to keep the rule conservative.
  */
 
 import { ESLintUtils, type TSESTree } from "@typescript-eslint/utils";

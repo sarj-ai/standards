@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
+import sys
 
 from sarj_iac_lint import __version__
 from sarj_iac_lint.rule_base import Diagnostic, is_suppressed
 from sarj_iac_lint.rules import REGISTRY
+
 
 SKIP_DIR_NAMES = {
     "node_modules",
@@ -23,6 +24,13 @@ SKIP_DIR_NAMES = {
     ".ruff_cache",
 }
 
+# `.yaml`/`.yml` are collected so `no-comment-cruft` banner detection reaches
+# Helm/k8s/Compose IaC. The CIDR and deletion-protection rules self-filter to
+# `.tf`/`.hcl`, so on YAML only the (HCL-agnostic) banner check runs.
+_SCANNED_SUFFIXES = frozenset({".tf", ".hcl", ".tfvars", ".yaml", ".yml"})
+
+_MAX_FILE_BYTES = 500_000
+
 
 def _expand_paths(paths: list[Path]) -> list[Path]:
     out: list[Path] = []
@@ -33,12 +41,12 @@ def _expand_paths(paths: list[Path]) -> list[Path]:
             out.append(p)
             continue
         for child in p.rglob("*"):
-            if not child.is_file() or child.suffix not in {".tf", ".hcl", ".tfvars"}:
+            if not child.is_file() or child.suffix not in _SCANNED_SUFFIXES:
                 continue
             if any(part in SKIP_DIR_NAMES for part in child.parts):
                 continue
             try:
-                if child.stat().st_size > 500_000:
+                if child.stat().st_size > _MAX_FILE_BYTES:
                     continue
             except OSError:
                 continue
@@ -73,9 +81,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="sarj-iac-lint",
         description="Custom Terraform / IaC lint rules.",
     )
-    parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}"
-    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     check_p = sub.add_parser("check", help="Run rules over files.")

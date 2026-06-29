@@ -12,21 +12,26 @@ caller must explicitly handle).
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class NoSentinelReturnOnExcept(Rule):
     """Exception handler that swallows the error by returning a sentinel."""
 
-    id = "no-sentinel-return-on-except"
-    code = "SARJ009"
-    description = (
+    id: str = "no-sentinel-return-on-except"
+    code: str = "SARJ009"
+    description: str = (
         "`except` handler returns a sentinel and never re-raises — "
         "the exception is silently swallowed."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))
@@ -70,9 +75,7 @@ def _is_sentinel(value: ast.expr) -> bool:
         # are meaningful and must not be flagged.
         if value.value is None or value.value is False:
             return True
-        if isinstance(value.value, str) and value.value == "":
-            return True
-        return False
+        return isinstance(value.value, str) and not value.value
     # Empty list / dict / set / tuple literals.
     if isinstance(value, ast.List):
         return len(value.elts) == 0
@@ -87,14 +90,12 @@ def _is_sentinel(value: ast.expr) -> bool:
     # `set()` call with no args.
     if isinstance(value, ast.Call):
         func = value.func
-        if (
+        return (
             isinstance(func, ast.Name)
             and func.id == "set"
             and not value.args
             and not value.keywords
-        ):
-            return True
-        return False
+        )
     return False
 
 
@@ -104,10 +105,7 @@ def _handler_reraises(handler: ast.ExceptHandler) -> bool:
     A `raise` inside a nested def/lambda doesn't re-raise for *this* handler, so
     we stop walking at function/lambda boundaries.
     """
-    for stmt in handler.body:
-        if _contains_raise(stmt):
-            return True
-    return False
+    return any(_contains_raise(stmt) for stmt in handler.body)
 
 
 def _contains_raise(node: ast.AST) -> bool:
@@ -118,7 +116,4 @@ def _contains_raise(node: ast.AST) -> bool:
         return False
     if isinstance(node, ast.Raise):
         return True
-    for child in ast.iter_child_nodes(node):
-        if _contains_raise(child):
-            return True
-    return False
+    return any(_contains_raise(child) for child in ast.iter_child_nodes(node))

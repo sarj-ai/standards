@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from pathlib import Path
+import re
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _SARJ_NOQA_RE = re.compile(
     r"#\s*sarj-noqa(?::\s*([A-Za-z0-9_, ]+))?",

@@ -1,11 +1,16 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sarj_python_lint.rules.no_unreachable_after_terminal import (
     NoUnreachableAfterTerminal,
 )
 
 
-def _check(source: str) -> list:
+if TYPE_CHECKING:
+    from sarj_python_lint.rule_base import Diagnostic
+
+
+def _check(source: str) -> list[Diagnostic]:
     return NoUnreachableAfterTerminal().check(Path("<test>.py"), source)
 
 

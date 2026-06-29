@@ -12,48 +12,67 @@ References:
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class InefficientStringConcatInLoop(Rule):
     """O(n²) string concatenation in a loop."""
 
-    id = "inefficient-string-concat-in-loop"
-    code = "SARJ002"
-    description = "`s += '...'` in a loop is O(n²); append to a list and join."
+    id: str = "inefficient-string-concat-in-loop"
+    code: str = "SARJ002"
+    description: str = "`s += '...'` in a loop is O(n²); append to a list and join."
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))
         except SyntaxError:
             return []
-        diags: list[Diagnostic] = []
-        for loop in ast.walk(tree):
-            if not isinstance(loop, (ast.For, ast.While)):
-                continue
-            for node in ast.walk(loop):
-                if not isinstance(node, ast.AugAssign):
-                    continue
-                if not isinstance(node.op, ast.Add):
-                    continue
-                # Heuristic: the RHS is a string-like value
-                if not _looks_like_string(node.value):
-                    continue
-                diags.append(
-                    Diagnostic(
-                        path=path,
-                        line=node.lineno,
-                        col=node.col_offset + 1,
-                        code=self.code,
-                        message=(
-                            "`+=` string concat in a loop is O(n²). "
-                            "Append to a list and `''.join(...)`."
-                        ),
-                    )
-                )
-        return diags
+        visitor = _ConcatVisitor()
+        visitor.visit(tree)
+        return [
+            Diagnostic(
+                path=path,
+                line=node.lineno,
+                col=node.col_offset + 1,
+                code=self.code,
+                message=(
+                    "`+=` string concat in a loop is O(n²). "
+                    "Append to a list and `''.join(...)`."
+                ),
+            )
+            for node in visitor.hits
+        ]
+
+
+class _ConcatVisitor(ast.NodeVisitor):
+    """Single O(n) pass flagging each in-loop string `+=` exactly once."""
+
+    def __init__(self) -> None:
+        self._loop_depth: int = 0
+        self.hits: list[ast.AugAssign] = []
+
+    @override
+    def generic_visit(self, node: ast.AST) -> None:
+        if isinstance(node, (ast.For, ast.While)):
+            self._loop_depth += 1
+            super().generic_visit(node)
+            self._loop_depth -= 1
+            return
+        if (
+            self._loop_depth
+            and isinstance(node, ast.AugAssign)
+            and isinstance(node.op, ast.Add)
+            and _looks_like_string(node.value)
+        ):
+            self.hits.append(node)
+        super().generic_visit(node)
 
 
 def _looks_like_string(node: ast.AST) -> bool:

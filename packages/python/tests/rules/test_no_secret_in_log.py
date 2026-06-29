@@ -1,9 +1,14 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sarj_python_lint.rules.no_secret_in_log import NoSecretInLog
 
 
-def _check(source: str) -> list:
+if TYPE_CHECKING:
+    from sarj_python_lint.rule_base import Diagnostic
+
+
+def _check(source: str) -> list[Diagnostic]:
     return NoSecretInLog().check(Path("<test>.py"), source)
 
 
@@ -56,6 +61,29 @@ self.logger.info("auth", secret=s)
 def test_flags_logging_module_call():
     src = """
 logging.error("boom", credential=c)
+"""
+    assert len(_check(src)) == 1
+
+
+def test_flags_getlogger_factory_receiver():
+    """`logging.getLogger(__name__).info(...)` is now recognised (SARJ017 parity)."""
+    src = """
+logging.getLogger(__name__).info("auth", token=token)
+"""
+    assert len(_check(src)) == 1
+
+
+def test_flags_bind_builder_receiver():
+    """`logger.bind(...).info(...)` adapter chain resolves to a logger."""
+    src = """
+logger.bind(request_id=rid).warning("auth", password=pw)
+"""
+    assert len(_check(src)) == 1
+
+
+def test_flags_module_logger_attribute_chain():
+    src = """
+app.logging.getLogger("svc").error("x", secret=s)
 """
     assert len(_check(src)) == 1
 

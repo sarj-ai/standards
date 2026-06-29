@@ -15,10 +15,14 @@ of that list, the statement immediately after it is unreachable.
 from __future__ import annotations
 
 import ast
-from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 # Statements that terminate control flow for their enclosing block.
 _TERMINALS = (ast.Return, ast.Raise, ast.Break, ast.Continue)
@@ -30,13 +34,14 @@ _BLOCK_FIELDS = ("body", "orelse", "finalbody")
 class NoUnreachableAfterTerminal(Rule):
     """Code following a `return`/`raise`/`break`/`continue` is unreachable."""
 
-    id = "no-unreachable-after-terminal"
-    code = "SARJ010"
-    description = (
+    id: str = "no-unreachable-after-terminal"
+    code: str = "SARJ010"
+    description: str = (
         "Unreachable code after a terminal statement "
         "(`return`/`raise`/`break`/`continue`)."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))
@@ -48,11 +53,10 @@ class NoUnreachableAfterTerminal(Rule):
                 raw = getattr(node, field, None)
                 if not isinstance(raw, list):
                     continue
-                # `getattr` is untyped; the block fields (`body`/`orelse`/
-                # `finalbody`) only ever hold statements, so cast to a concrete
-                # element type to keep the `.lineno`/`.col_offset` access below
-                # well-typed under strict checking.
-                stmts = cast("list[ast.stmt]", raw)
+                # The block fields (`body`/`orelse`/`finalbody`) only ever hold
+                # statements; annotating keeps the `.lineno`/`.col_offset`
+                # access below well-typed under strict checking.
+                stmts: list[ast.stmt] = raw
                 # Find the first terminal that is not the last element; the
                 # statement immediately after it is unreachable.
                 for i in range(len(stmts) - 1):

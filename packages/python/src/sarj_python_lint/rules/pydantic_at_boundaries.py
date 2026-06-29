@@ -47,14 +47,21 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 _HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
 _DICT_NAMES = {"dict", "Dict"}
 _LIST_NAMES = {"list", "List"}
 _ANY_VALUE_NAMES = {"Any", "object"}
+# `dict[K, V]` subscript carries exactly two type arguments.
+_DICT_ARG_COUNT = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,13 +74,14 @@ class _RouteInfo:
 class PydanticAtBoundaries(Rule):
     """Untyped dict return at a public boundary — define a pydantic model."""
 
-    id = "pydantic-at-boundaries"
-    code = "SARJ008"
-    description = (
+    id: str = "pydantic-at-boundaries"
+    code: str = "SARJ008"
+    description: str = (
         "Public function/route returns an untyped dict — "
         "define a pydantic model (or frozen dataclass)."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         if _is_test_path(path):
             return []
@@ -224,11 +232,9 @@ def _classify_return(node: ast.expr) -> str | None:
 
 def _is_untyped_dict_args(slice_node: ast.expr) -> bool:
     """`dict[K, V]` is flagged only when V is `Any` or `object`."""
-    if not isinstance(slice_node, ast.Tuple) or len(slice_node.elts) != 2:
+    if not isinstance(slice_node, ast.Tuple) or len(slice_node.elts) != _DICT_ARG_COUNT:
         return False
     return _flat_name(slice_node.elts[1]) in _ANY_VALUE_NAMES
-
-
 
 
 def _flat_name(node: ast.expr) -> str:

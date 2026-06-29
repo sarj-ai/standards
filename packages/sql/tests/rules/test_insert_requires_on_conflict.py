@@ -1,7 +1,13 @@
-from pathlib import Path
+from __future__ import annotations
 
-from sarj_sql_lint.rule_base import Diagnostic
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from sarj_sql_lint.rules.insert_requires_on_conflict import InsertRequiresOnConflict
+
+
+if TYPE_CHECKING:
+    from sarj_sql_lint.rule_base import Diagnostic
 
 
 def _check(source: str) -> list[Diagnostic]:
@@ -64,6 +70,16 @@ INSERT INTO plan (name) VALUES ('pro');
 
 def test_on_conflict_in_trailing_comment_does_not_count():
     src = "INSERT INTO plan (name) VALUES ('free'); -- TODO add ON CONFLICT"
+    assert len(_check(src)) == 1
+
+
+def test_semicolon_inside_string_does_not_mis_split():
+    src = "INSERT INTO plan (name) VALUES ('a;b') ON CONFLICT (name) DO NOTHING;"
+    assert _check(src) == []
+
+
+def test_semicolon_inside_string_keeps_single_violation():
+    src = "INSERT INTO plan (name) VALUES ('a;b');"
     assert len(_check(src)) == 1
 
 

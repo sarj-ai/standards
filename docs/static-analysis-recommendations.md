@@ -4,7 +4,7 @@ Synthesis of 10 theme-agent analyses over 5,504 review comments by nmaswood acro
 
 ## Executive summary
 
-- **The single biggest win is rollout, not rule-writing.** Roughly a third of all recurring comments (~350+ merged occurrences) are already encoded in `ruff.strict.toml`, `pyright.strict.toml`, `eslint.strict.mjs`, `sarj-python-lint`, and `@sarj/eslint-plugin` — but the smaller repos (ai, noura-be, tahded, kashta, summer, tamr, hala, qa-copilot, portal) don't run them, **and bulbul's Python does not use sarj-python-lint or the strict ruff/pyright configs** even though bulbul TS uses `@sarj/eslint-plugin`. A standards-audit bot + required CI checks kills this whole class.
+- **The single biggest win is rollout, not rule-writing.** Roughly a third of all recurring comments (~350+ merged occurrences) are already encoded in `ruff.strict.toml`, `pyright.strict.json`, `eslint.strict.mjs`, `sarj-python-lint`, and `@sarj/eslint-plugin` — but the smaller repos (ai, noura-be, tahded, kashta, summer, tamr, hala, qa-copilot, portal) don't run them, **and bulbul's Python does not use sarj-python-lint or the strict ruff/pyright configs** even though bulbul TS uses `@sarj/eslint-plugin`. A standards-audit bot + required CI checks kills this whole class.
 - **Highest-value new rule: a Python "pydantic at every boundary" rule** (port of `@sarj/prefer-schema-for-api-payload` + flag `dict[str, Any]`/tuple returns/untyped route responses). ~146 merged occurrences — his single most common ask.
 - **Broaden SARJ006 (prefer_str_enum).** ~113 occurrences, but the current name heuristic (`*_status/_state/_type/_kind`) misses most of his actual hits (`provider`, `language`, `role`, `priority`, …). Cheap extension, huge coverage.
 - **A 3-statement try-block rule for Python** (direct port of the existing ESLint `TryStatement > BlockStatement[body.length > 3]`) plus the already-existing ruff BLE001 rollout covers ~90 skinny-try/bubble-up comments.
@@ -22,10 +22,10 @@ Synthesis of 10 theme-agent analyses over 5,504 review comments by nmaswood acro
 
 ## Tier 1 — Adopt existing tooling (highest ROI)
 
-These rules **already exist** in sarj-ai/standards. The comments keep recurring only because the reviewed repos don't run the configs. Note: bulbul TS already uses `@sarj/eslint-plugin`, but **bulbul Python does NOT use `sarj-python-lint` or `ruff.strict.toml`/`pyright.strict.toml`** — adoption starts at home.
+These rules **already exist** in sarj-ai/standards. The comments keep recurring only because the reviewed repos don't run the configs. Note: bulbul TS already uses `@sarj/eslint-plugin`, but **bulbul Python does NOT use `sarj-python-lint` or `ruff.strict.toml`/`pyright.strict.json`** — adoption starts at home.
 
 **Adoption plan (one effort, kills every row below):**
-1. Adopt `ruff.strict.toml` + `pyright.strict.toml` + `sarj-python-lint` + `sarj-sql-lint` in bulbul Python, ai, noura-be, tahded, kashta, summer, automations, wiki.
+1. Adopt `ruff.strict.toml` + `pyright.strict.json` + `sarj-python-lint` + `sarj-sql-lint` in bulbul Python, ai, noura-be, tahded, kashta, summer, automations, wiki.
 2. Adopt `eslint.strict.mjs` + `@sarj/eslint-plugin` in summer, kashta, tamr, hala, tahded, noura-be, qa-copilot, portal, ai-canvas-health.
 3. Make `ruff check` / `ruff format --check` / `eslint --max-warnings 0` / `prettier --check` **required** GitHub status checks org-wide.
 4. Stand up a scheduled "standards-audit" workflow that scans every sarj-ai repo for the shared configs + CI gates and opens a scaffolding PR when missing.

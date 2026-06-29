@@ -9,7 +9,7 @@ an extra step that is easy to forget and leaves the value untyped in between.
 Flags any `row_factory=dict_row` keyword argument (typically on
 `conn.cursor(...)`). If you genuinely need a plain mapping — an ad-hoc
 aggregate, a `COUNT(*)`, or a dynamic projection with no model — suppress with
-`# sarj-noqa: prefer-class-row — <reason>`.
+`# sarj-noqa: SARJ013 — <reason>`.
 
 Replace:
     async with conn.cursor(row_factory=dict_row) as cur:
@@ -30,9 +30,13 @@ References:
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 _ROW_FACTORY_KW = "row_factory"
@@ -42,10 +46,11 @@ _BANNED_FACTORY = "dict_row"
 class PreferClassRow(Rule):
     """`row_factory=dict_row` returns unvalidated dicts — prefer `class_row(Model)`."""
 
-    id = "prefer-class-row"
-    code = "SARJ013"
-    description = "psycopg row_factory=dict_row returns unvalidated dicts — prefer class_row(Model)."
+    id: str = "prefer-class-row"
+    code: str = "SARJ013"
+    description: str = "psycopg row_factory=dict_row returns unvalidated dicts — prefer class_row(Model)."
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))
@@ -68,7 +73,7 @@ class PreferClassRow(Rule):
                     message=(
                         "`row_factory=dict_row` yields unvalidated dict rows — "
                         "prefer `class_row(YourModel)` to validate at the DB boundary "
-                        "(suppress with `# sarj-noqa: prefer-class-row` for genuine ad-hoc shapes)"
+                        "(suppress with `# sarj-noqa: SARJ013` for genuine ad-hoc shapes)"
                     ),
                 )
             )

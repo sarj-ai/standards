@@ -13,7 +13,7 @@ const ruleTester = new RuleTester();
 
 ruleTester.run("require-assert-never", rule, {
   valid: [
-    // Switch with no default — rule only flags missing assertNever in a present default
+    // Switch with no default — rule only flags a present, no-op default
     {
       code: `
         switch (kind) {
@@ -40,6 +40,24 @@ ruleTester.run("require-assert-never", rule, {
         }
       `,
     },
+    // Namespaced assertNever — utils.assertNever(x)
+    {
+      code: `
+        switch (kind) {
+          case 'a': break;
+          default: utils.assertNever(kind);
+        }
+      `,
+    },
+    // Namespaced assertNever via return
+    {
+      code: `
+        switch (kind) {
+          case 'a': return 1;
+          default: return utils.assertNever(kind);
+        }
+      `,
+    },
     // Default with multiple statements but at least one assertNever()
     {
       code: `
@@ -52,9 +70,57 @@ ruleTester.run("require-assert-never", rule, {
         }
       `,
     },
+    // Reducer-style: default returns the existing state (legitimate runtime default)
+    {
+      code: `
+        switch (action.type) {
+          case 'inc': return state + 1;
+          case 'dec': return state - 1;
+          default: return state;
+        }
+      `,
+    },
+    // HTTP-status style: default returns a fallback (legitimate runtime default)
+    {
+      code: `
+        switch (httpStatus) {
+          case 200: return ok();
+          case 404: return notFound();
+          default: return fallback();
+        }
+      `,
+    },
+    // Default that throws a regular Error — runtime handling, not flagged.
+    {
+      code: `
+        switch (kind) {
+          case 'a': break;
+          default: throw new Error('unreachable');
+        }
+      `,
+    },
+    // Default that calls a non-assertNever function — runtime handling.
+    {
+      code: `
+        switch (kind) {
+          case 'a': break;
+          default: logUnknown(kind);
+        }
+      `,
+    },
+    // Default that just breaks — explicit runtime no-op handling.
+    {
+      code: `
+        switch (kind) {
+          case 'a': break;
+          default: break;
+        }
+      `,
+    },
   ],
   invalid: [
-    // Default with no body
+    // Default with no body — an empty, do-nothing default that should either
+    // handle the case or assert exhaustiveness.
     {
       code: `
         switch (kind) {
@@ -64,32 +130,12 @@ ruleTester.run("require-assert-never", rule, {
       `,
       errors: [{ messageId: "missingAssertNever" }],
     },
-    // Default that throws a regular Error
+    // Default block that does nothing.
     {
       code: `
         switch (kind) {
           case 'a': break;
-          default: throw new Error('unreachable');
-        }
-      `,
-      errors: [{ messageId: "missingAssertNever" }],
-    },
-    // Default that calls a non-assertNever function
-    {
-      code: `
-        switch (kind) {
-          case 'a': break;
-          default: logUnknown(kind);
-        }
-      `,
-      errors: [{ messageId: "missingAssertNever" }],
-    },
-    // Default that just breaks
-    {
-      code: `
-        switch (kind) {
-          case 'a': break;
-          default: break;
+          default: {}
         }
       `,
       errors: [{ messageId: "missingAssertNever" }],

@@ -1,11 +1,16 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from sarj_python_lint.rules.prefer_str_enum import PreferStrEnum
 
 
-def _check(source: str, path: str = "<t>.py") -> list:
+if TYPE_CHECKING:
+    from sarj_python_lint.rule_base import Diagnostic
+
+
+def _check(source: str, path: str = "<t>.py") -> list[Diagnostic]:
     return PreferStrEnum().check(Path(path), source)
 
 
@@ -364,3 +369,18 @@ class Order(BaseModel):
     payment_status: str
 """
     assert len(_check(src, path="test_models.py")) == 1
+
+
+def test_flags_single_char_literal_cluster():
+    """Single-character literals now cluster (`{0,30}` quantifier fix)."""
+    src = """
+def grade(g: str) -> int:
+    if g == "a":
+        return 4
+    if g == "b":
+        return 3
+    return 0
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "g" in diags[0].message

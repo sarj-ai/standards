@@ -17,11 +17,23 @@ ruleTester.run("require-zod-form-validation", rule, {
     {
       code: "const name = ZUser.parse({ name: formData.get('name') });",
     },
+    // safeParse is a valid Zod validation too (regression: previously rejected).
+    {
+      code: "const name = ZUser.safeParse({ name: formData.get('name') });",
+    },
+    // Schema-suffixed receiver counts as a Zod schema.
+    {
+      code: "const name = userSchema.parse({ name: formData.get('name') });",
+    },
+    // `z.*` builder chain counts as a Zod schema.
+    {
+      code: "const name = z.object({ name: z.string() }).parse({ name: formData.get('name') });",
+    },
     // Nested: .parse() ancestor exists somewhere above
     {
       code: "const result = ZUser.parse({ inner: { name: formData.get('name') } });",
     },
-    // Reading from a different identifier — rule is intentionally scoped to `formData`
+    // Reading from a different identifier that isn't a form source
     {
       code: "const name = req.body.get('name');",
     },
@@ -32,6 +44,10 @@ ruleTester.run("require-zod-form-validation", rule, {
     // .parse() ancestor at the top level expression
     {
       code: "ZForm.parse(Object.fromEntries([['name', formData.get('name')]]));",
+    },
+    // Un-hardcoded receiver: a binding from `.formData()`, validated via Zod.
+    {
+      code: "async function f(req) { const fd = await req.formData(); return ZUser.parse({ name: fd.get('name') }); }",
     },
   ],
   invalid: [
@@ -45,9 +61,19 @@ ruleTester.run("require-zod-form-validation", rule, {
       code: "console.log(formData.get('name'));",
       errors: [{ messageId: "missingZodValidation" }],
     },
-    // formData.get() passed into a non-parse method
+    // JSON.parse is NOT Zod validation — must still be flagged (false-negative fix).
     {
-      code: "ZUser.safeParse(formData.get('name'));",
+      code: "const name = JSON.parse(formData.get('name'));",
+      errors: [{ messageId: "missingZodValidation" }],
+    },
+    // Date.parse is NOT Zod validation either.
+    {
+      code: "const ts = Date.parse(formData.get('createdAt'));",
+      errors: [{ messageId: "missingZodValidation" }],
+    },
+    // Un-hardcoded receiver: a binding from `.formData()` with no validation.
+    {
+      code: "async function f(req) { const fd = await req.formData(); return fd.get('name'); }",
       errors: [{ messageId: "missingZodValidation" }],
     },
     // Multiple unvalidated reads — each is flagged

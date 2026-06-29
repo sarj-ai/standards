@@ -1,9 +1,14 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sarj_python_lint.rules.prefer_class_row import PreferClassRow
 
 
-def _check(source: str, path: str = "<t>.py") -> list:
+if TYPE_CHECKING:
+    from sarj_python_lint.rule_base import Diagnostic
+
+
+def _check(source: str, path: str = "<t>.py") -> list[Diagnostic]:
     return PreferClassRow().check(Path(path), source)
 
 

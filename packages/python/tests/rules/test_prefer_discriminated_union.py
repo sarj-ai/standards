@@ -1,9 +1,14 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sarj_python_lint.rules.prefer_discriminated_union import PreferDiscriminatedUnion
 
 
-def _check(source: str) -> list:
+if TYPE_CHECKING:
+    from sarj_python_lint.rule_base import Diagnostic
+
+
+def _check(source: str) -> list[Diagnostic]:
     return PreferDiscriminatedUnion().check(Path("<t>.py"), source)
 
 
@@ -311,5 +316,33 @@ class Job(BaseModel):
     result: str | None = None
     error: str | None = None
     duration: float | None = None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_does_not_flag_non_bool_status_type():
+    """`success: BoolishFlag` must not trip the bool trigger (parsed-node check)."""
+    src = """
+from pydantic import BaseModel
+from typing import Optional
+
+class Result(BaseModel):
+    success: BoolishFlag
+    data: Optional[str] = None
+    error: Optional[str] = None
+"""
+    assert _check(src) == []
+
+
+def test_flags_unioned_bool_status():
+    """`success: bool | None` still counts as a bool status field."""
+    src = """
+from pydantic import BaseModel
+from typing import Optional
+
+class Result(BaseModel):
+    success: bool | None = None
+    data: Optional[str] = None
+    error: Optional[str] = None
 """
     assert len(_check(src)) == 1

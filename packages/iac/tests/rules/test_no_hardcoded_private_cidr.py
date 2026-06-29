@@ -1,9 +1,16 @@
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sarj_iac_lint.rules.no_hardcoded_private_cidr import NoHardcodedPrivateCidr
 
 
-def _check(source: str, name: str = "main.tf") -> list:
+if TYPE_CHECKING:
+    from sarj_iac_lint.rule_base import Diagnostic
+
+
+def _check(source: str, name: str = "main.tf") -> list[Diagnostic]:
     return NoHardcodedPrivateCidr().check(Path(name), source)
 
 
@@ -55,6 +62,19 @@ def test_still_flags_specific_subnet_in_aggregate_space():
 
 def test_ignores_cidr_in_comment():
     src = "# legacy subnet was 10.0.1.0/24\nx = var.cidr\n"
+    assert _check(src) == []
+
+
+def test_flags_cidr_in_url_with_double_slash():
+    # `//` inside the string is NOT a comment — the CIDR must still be flagged.
+    src = 'endpoint = "https://10.0.1.0/24"\n'
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "10.0.1.0/24" in diags[0].message
+
+
+def test_still_strips_trailing_real_comment():
+    src = "x = var.cidr  // was 10.0.1.0/24\n"
     assert _check(src) == []
 
 

@@ -31,8 +31,11 @@ const CODE_KEYWORD_RE =
 const CODE_TAIL_RE = /[;{}()]\s*$|=>\s*$|,\s*$/;
 // LHS must be a real identifier (not a number literal — `0=Monday` in prose is
 // not an assignment) and `=` must not be `==`/`===`/`=>` (comparison/arrow).
+// The assignment branch additionally requires a code-tail — the line must end
+// with `;`, `)`, `}` or `]` — so plain prose like `count = number of items`
+// (which has no code-tail) is not mistaken for commented-out code.
 const CALL_OR_ASSIGN_RE =
-  /^[A-Za-z_$][\w.$[\]]*\s*(?:=(?![=>])|\+=|-=|\*=)\s*\S|^[A-Za-z_$][\w.$]*\([^)]*\)\s*;?\s*$/;
+  /^[A-Za-z_$][\w.$[\]]*\s*(?:=(?![=>])|\+=|-=|\*=)\s*\S.*[;)}\]]\s*$|^[A-Za-z_$][\w.$]*\([^)]*\)\s*;?\s*$/;
 
 function stripCommentMarker(line: string): string {
   return line.replace(/^\s*\/\//, "").replace(/^\s*\*+/, "").trim();

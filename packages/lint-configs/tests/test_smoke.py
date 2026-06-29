@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
+import re
 import subprocess
 import sys
 import tomllib
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -14,6 +16,10 @@ from sarj_lint_configs import (
     RUFF_STRICT,
     __version__,
 )
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_version_string() -> None:
@@ -38,9 +44,13 @@ def test_ruff_config_is_valid_toml() -> None:
     assert data["lint"].get("select") == ["ALL"]
 
 
-def test_pyright_config_is_valid_toml() -> None:
-    data = tomllib.loads(PYRIGHT_STRICT.read_text())
-    assert data, "pyright config parsed empty"
+def test_pyright_config_is_valid_jsonc() -> None:
+    # pyright loads its config as JSONC; a bare-key .toml is silently ignored by
+    # `extends`, so the strict pyright config must ship as JSON(C), not TOML.
+    raw = PYRIGHT_STRICT.read_text()
+    data = json.loads(re.sub(r"//.*", "", raw))
+    assert data.get("typeCheckingMode") == "strict"
+    assert data.get("reportExplicitAny") == "error"
 
 
 def test_eslint_config_is_esm() -> None:
@@ -72,7 +82,7 @@ def test_cli_sync_writes_files(tmp_path: Path) -> None:
         capture_output=True, text=True, check=True,
     )
     assert (tmp_path / ".ruff-strict.toml").is_file()
-    assert (tmp_path / ".pyright-strict.toml").is_file()
+    assert (tmp_path / ".pyright-strict.json").is_file()
     assert (tmp_path / "eslint.strict.mjs").is_file()
     assert "synced 3/3" in proc.stdout
 
@@ -105,7 +115,7 @@ def test_cli_sync_only_ruff(tmp_path: Path) -> None:
         check=True,
     )
     assert (tmp_path / ".ruff-strict.toml").is_file()
-    assert not (tmp_path / ".pyright-strict.toml").exists()
+    assert not (tmp_path / ".pyright-strict.json").exists()
     assert not (tmp_path / "eslint.strict.mjs").exists()
 
 

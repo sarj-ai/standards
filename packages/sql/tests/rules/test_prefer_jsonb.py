@@ -1,7 +1,13 @@
-from pathlib import Path
+from __future__ import annotations
 
-from sarj_sql_lint.rule_base import Diagnostic
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from sarj_sql_lint.rules.prefer_jsonb import PreferJsonb
+
+
+if TYPE_CHECKING:
+    from sarj_sql_lint.rule_base import Diagnostic
 
 
 def _check(source: str) -> list[Diagnostic]:
@@ -44,4 +50,14 @@ def test_skips_comment_lines():
 -- JSON columns are forbidden; use JSONB
 /* DEFAULT '{}'::json is also forbidden */
 """
+    assert _check(src) == []
+
+
+def test_skips_json_word_inside_string_literal():
+    src = """INSERT INTO doc (body) VALUES ('{"kind":"json"}');"""
+    assert _check(src) == []
+
+
+def test_skips_json_word_in_string_comment_clause():
+    src = "COMMENT ON COLUMN t.meta IS 'stored as JSON text';"
     assert _check(src) == []

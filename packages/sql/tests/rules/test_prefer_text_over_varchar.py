@@ -1,7 +1,13 @@
-from pathlib import Path
+from __future__ import annotations
 
-from sarj_sql_lint.rule_base import Diagnostic
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from sarj_sql_lint.rules.prefer_text_over_varchar import PreferTextOverVarchar
+
+
+if TYPE_CHECKING:
+    from sarj_sql_lint.rule_base import Diagnostic
 
 
 def _check(source: str) -> list[Diagnostic]:
@@ -54,4 +60,14 @@ def test_skips_comment_lines():
 -- VARCHAR(255) is forbidden; use TEXT
 /* CHARACTER VARYING(10) too */
 """
+    assert _check(src) == []
+
+
+def test_skips_trailing_inline_comment():
+    src = "name TEXT NOT NULL -- was VARCHAR(255)"
+    assert _check(src) == []
+
+
+def test_skips_varchar_inside_string_literal():
+    src = "INSERT INTO doc (body) VALUES ('column type VARCHAR(255)');"
     assert _check(src) == []

@@ -40,9 +40,14 @@ References:
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 _MAX_TRY_BODY_STATEMENTS = 3
 
@@ -50,10 +55,11 @@ _MAX_TRY_BODY_STATEMENTS = 3
 class NoFatTryBlocks(Rule):
     """Try body longer than 3 statements — isolate the throwing statement(s)."""
 
-    id = "no-fat-try-blocks"
-    code = "SARJ007"
-    description = "Try block body exceeds 3 statements — keep try blocks skinny."
+    id: str = "no-fat-try-blocks"
+    code: str = "SARJ007"
+    description: str = "Try block body exceeds 3 statements — keep try blocks skinny."
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))

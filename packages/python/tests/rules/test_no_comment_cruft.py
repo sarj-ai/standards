@@ -1,9 +1,14 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sarj_python_lint.rules.no_comment_cruft import NoCommentCruft
 
 
-def _check(source: str) -> list:
+if TYPE_CHECKING:
+    from sarj_python_lint.rule_base import Diagnostic
+
+
+def _check(source: str) -> list[Diagnostic]:
     return NoCommentCruft().check(Path("<t>.py"), source)
 
 

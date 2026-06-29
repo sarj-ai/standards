@@ -1,11 +1,16 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sarj_python_lint.rules.prefer_timedelta_for_durations import (
     PreferTimedeltaForDurations,
 )
 
 
-def _check(source: str) -> list:
+if TYPE_CHECKING:
+    from sarj_python_lint.rule_base import Diagnostic
+
+
+def _check(source: str) -> list[Diagnostic]:
     return PreferTimedeltaForDurations().check(Path("<t>.py"), source)
 
 

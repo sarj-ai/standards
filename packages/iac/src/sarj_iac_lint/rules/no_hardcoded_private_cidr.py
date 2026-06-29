@@ -20,9 +20,14 @@ constant with `# sarj-noqa: SARJ203 — <reason>`.
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING, final, override
 
+from sarj_iac_lint._hcl import strip_inline_comment
 from sarj_iac_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _PRIVATE_CIDR_RE = re.compile(
     r"\b(?:"
@@ -34,17 +39,19 @@ _PRIVATE_CIDR_RE = re.compile(
 
 # The whole RFC-1918 aggregates are universal constants (used verbatim in
 # NetworkPolicy / firewall allow-rules), not env-specific subnets — flagging
-# "extract 10.0.0.0/8 to a variable" is noise.
+# "extract 10.0.0.0/8 to a variable" is noise. Only ranges the detection regex
+# can actually produce are listed (CGNAT 100.64/10 is not RFC-1918 and is never
+# matched, so it is intentionally absent rather than dead config).
 _AGGREGATE_RANGES = frozenset(
     {
         "10.0.0.0/8",
         "172.16.0.0/12",
         "192.168.0.0/16",
-        "100.64.0.0/10",
     }
 )
 
 
+@final
 class NoHardcodedPrivateCidr(Rule):
     """Hardcoded RFC-1918 private IP/CIDR — extract to a variable."""
 
@@ -55,12 +62,13 @@ class NoHardcodedPrivateCidr(Rule):
         "variable so it is not duplicated across environments."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         if not str(path).endswith((".tf", ".tf.json", ".hcl", ".tfvars")):
             return []
         diags: list[Diagnostic] = []
         for lineno, line in enumerate(source.splitlines(), start=1):
-            code = _strip_comment(line)
+            code = strip_inline_comment(line)
             for m in _PRIVATE_CIDR_RE.finditer(code):
                 if m.group(0) in _AGGREGATE_RANGES:
                     continue
@@ -77,12 +85,3 @@ class NoHardcodedPrivateCidr(Rule):
                     )
                 )
         return diags
-
-
-def _strip_comment(line: str) -> str:
-    """Drop an inline `#` or `//` comment so literals in comments aren't flagged."""
-    for marker in ("#", "//"):
-        idx = line.find(marker)
-        if idx != -1:
-            line = line[:idx]
-    return line

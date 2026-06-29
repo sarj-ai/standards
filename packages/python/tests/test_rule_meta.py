@@ -13,7 +13,8 @@ def test_rule_has_self_documenting_meta(rule_id: str) -> None:
     assert issubclass(cls, Rule)
 
     assert cls.id == rule_id, f"REGISTRY key {rule_id!r} != cls.id {cls.id!r}"
-    assert cls.id and cls.id.replace("-", "").replace("_", "").isalnum(), (
+    assert cls.id, f"{rule_id}: empty id"
+    assert cls.id.replace("-", "").replace("_", "").isalnum(), (
         f"{rule_id}: id must be kebab/snake-case, got {cls.id!r}"
     )
 

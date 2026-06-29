@@ -15,7 +15,7 @@ flags three shapes of choice-like `str` usage:
    fields (the collection is the enum that should exist).
 3. **Comparison cluster** — within one function, the same variable or attribute
    compared (`==`/`!=`/`in (...)`) against 2+ distinct short lowercase string
-   literals (all matching `^[a-z][a-z0-9_-]{1,30}$`). One diagnostic on the
+   literals (all matching `^[a-z][a-z0-9_-]{0,30}$`). One diagnostic on the
    first comparison. F-string and attribute comparands and subscripted
    left-hand sides are ignored, and test files
    (`test_*.py` / under a `tests/` directory) are skipped.
@@ -34,10 +34,15 @@ from __future__ import annotations
 
 import ast
 import re
-from collections.abc import Iterator
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
+
 
 #: Field / variable name tokens that strongly suggest a closed enumeration.
 #: Kept deliberately HIGH-PRECISION — only words that are almost always a fixed
@@ -64,7 +69,7 @@ CHOICE_NAME_TOKENS = frozenset(
 CHOICES_ATTR_NAMES = frozenset({"choices", "states", "statuses", "values", "allowed"})
 
 #: A "short lowercase token" — the shape enum member values take.
-_LOWER_TOKEN_RE = re.compile(r"^[a-z][a-z0-9_-]{1,30}$")
+_LOWER_TOKEN_RE = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
 
 #: How many distinct literals a variable must be compared against to fire.
 _MIN_CLUSTER_SIZE = 2
@@ -76,10 +81,11 @@ _NESTED_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDe
 class PreferStrEnum(Rule):
     """Choice-shaped str field or string-literal comparison cluster — prefer StrEnum."""
 
-    id = "prefer-str-enum"
-    code = "SARJ006"
-    description = "Choice-like str field or literal comparison cluster — prefer StrEnum."
+    id: str = "prefer-str-enum"
+    code: str = "SARJ006"
+    description: str = "Choice-like str field or literal comparison cluster — prefer StrEnum."
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))

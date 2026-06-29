@@ -1,23 +1,14 @@
 {
+  "extends": "../tsconfig/strict.json",
   "compilerOptions": {
-    "target": "ES2024",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2024"],
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noImplicitOverride": true,
-    "verbatimModuleSyntax": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
+    // ESLint rule modules are `export default createRule(...)`. isolatedDeclarations
+    // (a d.ts-emit-parallelism constraint, not a type-safety one) would force an
+    // explicit RuleModule<...> annotation on every default export for zero safety
+    // gain — tsup emits the declarations fine. Every other strict flag stays on.
+    "isolatedDeclarations": false,
+    // tsup's DTS step injects a (now-deprecated) baseUrl; silence the TS7.0 warning.
     "ignoreDeprecations": "6.0"
   },
   "include": ["src/**/*"],

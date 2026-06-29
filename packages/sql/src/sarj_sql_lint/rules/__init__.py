@@ -1,13 +1,19 @@
 from __future__ import annotations
 
-from sarj_sql_lint.rule_base import Rule
+from typing import TYPE_CHECKING
+
 from sarj_sql_lint.rules.enforce_timestamptz import EnforceTimestamptz
 from sarj_sql_lint.rules.idempotent_ddl import IdempotentDdl
+from sarj_sql_lint.rules.index_concurrently import IndexConcurrently
 from sarj_sql_lint.rules.insert_requires_on_conflict import InsertRequiresOnConflict
 from sarj_sql_lint.rules.no_limit_offset import NoLimitOffset
 from sarj_sql_lint.rules.no_pg_enum import NoPgEnum
 from sarj_sql_lint.rules.prefer_jsonb import PreferJsonb
 from sarj_sql_lint.rules.prefer_text_over_varchar import PreferTextOverVarchar
+
+
+if TYPE_CHECKING:
+    from sarj_sql_lint.rule_base import Rule
 
 
 REGISTRY: dict[str, type[Rule]] = {
@@ -18,6 +24,7 @@ REGISTRY: dict[str, type[Rule]] = {
     InsertRequiresOnConflict.id: InsertRequiresOnConflict,
     PreferJsonb.id: PreferJsonb,
     NoLimitOffset.id: NoLimitOffset,
+    IndexConcurrently.id: IndexConcurrently,
 }
 
 __all__ = ["REGISTRY"]

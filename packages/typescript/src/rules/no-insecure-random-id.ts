@@ -14,6 +14,13 @@
  *
  * Bare `Math.random()` used for non-identifier purposes (jitter, sampling,
  * rolls, etc.) is NOT flagged.
+ *
+ * KNOWN GAP (false-negative): an arithmetic expression between `Math.random()`
+ * and `.toString(36)` breaks the member-chain walk, e.g.
+ * `(Math.random() * 1e9).toString(36)`. The intervening `BinaryExpression`
+ * means `Math.random()` is no longer the object end of the `.toString` chain,
+ * so trigger 1 does not fire. Such code is only caught if its binding/property
+ * name looks identifier/secret-like (trigger 2). See the documented test case.
  */
 
 import { ESLintUtils, type TSESTree } from "@typescript-eslint/utils";

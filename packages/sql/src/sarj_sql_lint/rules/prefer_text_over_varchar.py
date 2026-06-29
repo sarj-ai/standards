@@ -6,12 +6,17 @@ opaque error and needs a table rewrite-risking ALTER to change. Use TEXT,
 and add an explicit CHECK (char_length(col) <= n) if a length limit is a
 real domain constraint.
 """
+
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING, final, override
 
-from sarj_sql_lint.rule_base import Diagnostic, Rule
+from sarj_sql_lint.rule_base import Diagnostic, Rule, mask_sql
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 PATTERN = re.compile(
@@ -20,6 +25,7 @@ PATTERN = re.compile(
 )
 
 
+@final
 class PreferTextOverVarchar(Rule):
     """VARCHAR(n) / CHARACTER VARYING(n) — use TEXT (+ CHECK length if needed)."""
 
@@ -27,23 +33,21 @@ class PreferTextOverVarchar(Rule):
     code = "SARJ104"
     description = "VARCHAR(n) — use TEXT (+ CHECK length if needed)."
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         diags: list[Diagnostic] = []
-        for lineno, line in enumerate(source.splitlines(), start=1):
-            stripped = line.lstrip()
-            if stripped.startswith("--") or stripped.startswith("/*"):
-                continue
-            for match in PATTERN.finditer(line):
-                diags.append(
-                    Diagnostic(
-                        path=path,
-                        line=lineno,
-                        col=match.start() + 1,
-                        code=self.code,
-                        message=(
-                            "Use TEXT (+ CHECK length if needed) — VARCHAR(n) has "
-                            "no benefit in Postgres and hides a business rule in DDL."
-                        ),
-                    )
+        for lineno, line in enumerate(mask_sql(source).splitlines(), start=1):
+            diags.extend(
+                Diagnostic(
+                    path=path,
+                    line=lineno,
+                    col=match.start() + 1,
+                    code=self.code,
+                    message=(
+                        "Use TEXT (+ CHECK length if needed) — VARCHAR(n) has "
+                        "no benefit in Postgres and hides a business rule in DDL."
+                    ),
                 )
+                for match in PATTERN.finditer(line)
+            )
         return diags

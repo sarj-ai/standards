@@ -55,9 +55,14 @@ References:
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 STATUS_FIELDS = {"success", "ok", "is_success", "succeeded", "successful", "failed", "failure"}
 IGNORED_OPTIONAL_FIELDS = {
@@ -74,6 +79,10 @@ IGNORED_OPTIONAL_FIELDS = {
 }
 DISCRIMINATOR_FIELD_NAMES = {"status", "state", "type", "kind", "result", "outcome"}
 NULLABLE_CLUSTER_THRESHOLD = 3
+# A bool status field plus this many Optional siblings trips the original trigger.
+OPTIONAL_SIBLINGS_THRESHOLD = 2
+# An (ok, value) bool-tuple has exactly two elements.
+_BOOL_TUPLE_LEN = 2
 # Query/filter inputs and partial-update DTOs are all-optional by design.
 DTO_CLASS_NAME_SUFFIXES = ("Input", "Params", "Filter", "Query")
 DTO_CLASS_NAME_PREFIXES = ("Update", "Patch", "Upsert")
@@ -82,13 +91,14 @@ DTO_CLASS_NAME_PREFIXES = ("Update", "Patch", "Upsert")
 class PreferDiscriminatedUnion(Rule):
     """Bool-status models, bool-tuple results, status+Optionals — prefer a discriminated union."""
 
-    id = "prefer-discriminated-union"
-    code = "SARJ005"
-    description = (
+    id: str = "prefer-discriminated-union"
+    code: str = "SARJ005"
+    description: str = (
         "success:bool + Optionals, tuple[bool, X] results, or status + nullable "
         "cluster — use a discriminated union."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))
@@ -144,8 +154,7 @@ class PreferDiscriminatedUnion(Rule):
             if not isinstance(stmt.target, ast.Name):
                 continue
             name = stmt.target.id
-            ann_text = ast.unparse(stmt.annotation) if stmt.annotation else ""
-            if name in STATUS_FIELDS and "bool" in ann_text:
+            if name in STATUS_FIELDS and _is_bool_annotation(stmt.annotation):
                 has_status_bool = True
             if name in DISCRIMINATOR_FIELD_NAMES and _is_discriminator_type(
                 stmt.annotation, str_enum_names
@@ -153,11 +162,10 @@ class PreferDiscriminatedUnion(Rule):
                 discriminator_fields.append(name)
                 if _is_single_value_literal(stmt.annotation):
                     has_literal_tag = True
-            if _is_optional(stmt.annotation):
-                if name not in IGNORED_OPTIONAL_FIELDS:
-                    optional_fields.append(name)
+            if _is_optional(stmt.annotation) and name not in IGNORED_OPTIONAL_FIELDS:
+                optional_fields.append(name)
         # Original trigger: bool status field + Optional siblings (BaseModel only).
-        if is_model and has_status_bool and len(optional_fields) >= 2:
+        if is_model and has_status_bool and len(optional_fields) >= OPTIONAL_SIBLINGS_THRESHOLD:
             return Diagnostic(
                 path=path,
                 line=node.lineno,
@@ -220,8 +228,6 @@ def _is_single_value_literal(node: ast.AST | None) -> bool:
     if _get_name_flat(node.value).rsplit(".", 1)[-1] != "Literal":
         return False
     slice_node = node.slice
-    if type(slice_node).__name__ == "Index":
-        slice_node = getattr(slice_node, "value", slice_node)
     if isinstance(slice_node, ast.Tuple):
         return len(slice_node.elts) == 1
     return True
@@ -278,10 +284,7 @@ def _is_bool_tuple(node: ast.AST | None) -> bool:
     if name not in {"tuple", "Tuple"}:
         return False
     slice_node = node.slice
-    # Handle Python < 3.9 Index wrapper safely
-    if type(slice_node).__name__ == "Index":
-        slice_node = getattr(slice_node, "value", slice_node)
-    if not isinstance(slice_node, ast.Tuple) or len(slice_node.elts) != 2:
+    if not isinstance(slice_node, ast.Tuple) or len(slice_node.elts) != _BOOL_TUPLE_LEN:
         return False
     elts = slice_node.elts
     # `tuple[bool, ...]` is a homogeneous variadic tuple, not an (ok, value) pair.
@@ -295,6 +298,27 @@ def _is_bool(node: ast.AST) -> bool:
         return node.id == "bool"
     if isinstance(node, ast.Attribute):
         return node.attr == "bool"
+    return False
+
+
+def _is_bool_annotation(node: ast.AST | None) -> bool:
+    """True if the annotation is `bool` (optionally unioned, e.g. `bool | None`).
+
+    A parsed-node check, so `success: BoolishFlag` no longer trips the substring
+    `"bool" in ast.unparse(...)` heuristic.
+    """
+    if node is None:
+        return False
+    if _is_bool(node):
+        return True
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+        return _is_bool_annotation(node.left) or _is_bool_annotation(node.right)
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        try:
+            parsed = ast.parse(node.value, mode="eval")
+        except SyntaxError:
+            return False
+        return _is_bool_annotation(parsed.body)
     return False
 
 
@@ -357,9 +381,6 @@ def _is_optional(node: ast.AST | None) -> bool:
             return True
         if name == "Union" or name.endswith(".Union"):
             slice_node = node.slice
-            # Handle Python < 3.9 Index wrapper safely
-            if type(slice_node).__name__ == "Index":
-                slice_node = getattr(slice_node, "value", slice_node)
             if isinstance(slice_node, ast.Tuple):
                 return any(_is_optional(elt) for elt in slice_node.elts)
             return _is_optional(slice_node)
@@ -367,7 +388,4 @@ def _is_optional(node: ast.AST | None) -> bool:
     if isinstance(node, ast.Constant) and node.value is None:
         return True
 
-    if isinstance(node, ast.Name) and node.id == "None":
-        return True
-
-    return False
+    return isinstance(node, ast.Name) and node.id == "None"

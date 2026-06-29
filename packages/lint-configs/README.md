@@ -5,7 +5,7 @@ Ships the maximally-strict ruff / pyright / ESLint configs from `sarj-ai/standar
 ```bash
 uv add --dev sarj-lint-configs
 uv run sarj-lint-configs sync --only ruff      # writes .ruff-strict.toml
-uv run sarj-lint-configs sync --only pyright   # writes .pyright-strict.toml
+uv run sarj-lint-configs sync --only pyright   # writes .pyright-strict.json
 uv run sarj-lint-configs sync --only eslint    # writes eslint.strict.mjs
 ```
 
@@ -19,7 +19,7 @@ extend = ".ruff-strict.toml"
 
 ```json
 // pyrightconfig.json
-{ "extends": ".pyright-strict.toml" }
+{ "extends": ".pyright-strict.json" }
 ```
 
 ```js

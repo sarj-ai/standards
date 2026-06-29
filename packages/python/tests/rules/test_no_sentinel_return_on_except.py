@@ -1,11 +1,16 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sarj_python_lint.rules.no_sentinel_return_on_except import (
     NoSentinelReturnOnExcept,
 )
 
 
-def _check(source: str) -> list:
+if TYPE_CHECKING:
+    from sarj_python_lint.rule_base import Diagnostic
+
+
+def _check(source: str) -> list[Diagnostic]:
     return NoSentinelReturnOnExcept().check(Path("<test>.py"), source)
 
 
