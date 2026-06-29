@@ -147,3 +147,29 @@
   language: python
   files: '\.(tf|hcl|tfvars)$'
   additional_dependencies: ['sarj-iac-lint']
+
+- id: sarj-no-hardcoded-cloud-resource-id
+  name: 'sarj-lint(iac): hardcoded GCP project id on a resource — use var.project'
+  entry: sarj-iac-lint check --rule no-hardcoded-cloud-resource-id
+  language: python
+  files: '\.(tf|hcl)$'
+  additional_dependencies: ['sarj-iac-lint']
+
+- id: sarj-no-vm-public-ip
+  name: 'sarj-lint(iac): access_config gives a VM a public IP — prefer Cloud NAT'
+  entry: sarj-iac-lint check --rule no-vm-public-ip
+  language: python
+  files: '\.(tf|hcl)$'
+  additional_dependencies: ['sarj-iac-lint']
+
+- id: sarj-no-requirements-txt
+  name: 'sarj-lint(deps): use uv (pyproject + uv.lock), not requirements.txt'
+  entry: 'requirements.txt is banned — manage Python deps with uv (pyproject.toml + uv.lock)'
+  language: fail
+  files: '(^|/)requirements.*\.txt$'
+
+- id: sarj-no-compose-version-key
+  name: 'sarj-lint(docker): drop the obsolete top-level compose `version:` key'
+  entry: '^version:'
+  language: pygrep
+  files: '(^|/)docker-compose([.-].*)?\.ya?ml$'

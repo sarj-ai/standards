@@ -14,6 +14,8 @@ uv tool install sarj-iac-lint
 | SARJ201 | `require-deletion-protection` | A stateful resource (Cloud SQL, GKE, BigQuery, Spanner, RDS, ...) without `deletion_protection = true`. |
 | SARJ202 | `no-comment-cruft` | Commented-out Terraform/HCL and section-banner / divider comments. |
 | SARJ203 | `no-hardcoded-private-cidr` | A hardcoded RFC-1918 private IP/CIDR literal that should be a variable. |
+| SARJ204 | `no-hardcoded-cloud-resource-id` | A literal GCP project id on a resource `project = "..."` (use `var.project`; the literal belongs in the per-env `.tfvars`). |
+| SARJ205 | `no-vm-public-ip` | An `access_config` block — it gives a Compute VM a public IP; egress-only workloads should use Cloud NAT. |
 
 ## Pre-commit
 
@@ -24,6 +26,10 @@ uv tool install sarj-iac-lint
     - id: sarj-require-deletion-protection
     - id: sarj-no-comment-cruft-iac
     - id: sarj-no-hardcoded-private-cidr
+    - id: sarj-no-hardcoded-cloud-resource-id
+    - id: sarj-no-vm-public-ip
+    - id: sarj-no-requirements-txt        # use uv (pyproject + uv.lock)
+    - id: sarj-no-compose-version-key     # drop obsolete compose version:
 ```
 
 ## CLI
