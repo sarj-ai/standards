@@ -29,9 +29,14 @@ References:
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 _MSG = (
     "collections.namedtuple is untyped and positionally constructed — prefer "
@@ -42,13 +47,14 @@ _MSG = (
 class PreferStructOverNamedtuple(Rule):
     """`collections.namedtuple` — prefer typing.NamedTuple or a frozen model."""
 
-    id = "prefer-struct-over-namedtuple"
-    code = "SARJ015"
-    description = (
+    id: str = "prefer-struct-over-namedtuple"
+    code: str = "SARJ015"
+    description: str = (
         "collections.namedtuple is untyped/positional — prefer typing.NamedTuple "
         "or a frozen pydantic model."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))
@@ -58,9 +64,11 @@ class PreferStructOverNamedtuple(Rule):
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module == "collections":
-                for alias in node.names:
-                    if alias.name == "namedtuple":
-                        diags.append(self._diag(path, node))
+                diags.extend(
+                    self._diag(path, node)
+                    for alias in node.names
+                    if alias.name == "namedtuple"
+                )
             elif (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Attribute)

@@ -70,17 +70,39 @@ ruleTester.run("enforce-file-structure", rule, {
         const helper = () => 1;
       `,
     },
-  ],
-  invalid: [
-    // Import after a type declaration
+    // A value const before a type — ordering among non-function declarations
+    // is not enforced (stepdown: only function ordering matters).
+    {
+      filename: NON_ACTION_FILENAME,
+      code: `
+        const x = 1;
+        type T = { a: number };
+      `,
+    },
+    // Import after a type — both are declarations, not flagged.
     {
       filename: NON_ACTION_FILENAME,
       code: `
         type User = { name: string };
         import { z } from 'zod';
       `,
-      errors: [{ messageId: "incorrectOrder" }],
     },
+    // `transaction.ts` is NOT a server action (substring "action" must not match).
+    {
+      filename: "src/lib/transaction.ts",
+      code: `
+        const TAX_RATE = 0.2;
+        type Transaction = { amount: number };
+        export function total(t: Transaction) { return t.amount * (1 + TAX_RATE); }
+      `,
+    },
+    // `redaction.ts` is NOT a server action either.
+    {
+      filename: "src/lib/redaction.ts",
+      code: `export function redact(s: string) { return s; }`,
+    },
+  ],
+  invalid: [
     // Type after a function
     {
       filename: NON_ACTION_FILENAME,

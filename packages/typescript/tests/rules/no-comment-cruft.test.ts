@@ -29,6 +29,9 @@ ruleTester.run("no-comment-cruft", rule, {
     { code: "// 0=Monday … 6=Sunday — matches Python's WeekDay IntEnum\nexport const days = 1;" },
     { code: "// if x === y the cache is warm\nconst x = 1;" },
     { code: "// returns true => proceed\nconst ok = true;" },
+    // Prose `word = phrase` with no code-tail is not commented-out code.
+    { code: "// count = number of items in the cart\nconst total = 1;" },
+    { code: "// delta = new value minus old value\nconst d = 1;" },
     // License header preamble is exempt.
     {
       code: "// Copyright 2023 Acme, Inc.\n// Licensed under the Apache License 2.0.\n// You may not use this file except in compliance.\n// See the License for details.\nimport x from 'y';",
@@ -41,6 +44,11 @@ ruleTester.run("no-comment-cruft", rule, {
     },
     {
       code: "// import { foo } from './bar';\nexport const x = 1;",
+      errors: [{ messageId: "commentedOutCode" }],
+    },
+    // Assignment WITH a code-tail is still commented-out code.
+    {
+      code: "const x = 1;\n// config.value = getValue();\nconst y = 2;",
       errors: [{ messageId: "commentedOutCode" }],
     },
     {

@@ -36,9 +36,15 @@ ruleTester.run("no-client-side-data-fetching", rule, {
     {
       code: "useEffect(() => { axios.interceptors.request.use((c) => c); }, []);",
     },
-    // Analytics endpoints are exempt.
+    // Analytics endpoints are exempt (whole segment matches).
     {
       code: "useEffect(() => { fetch('/api/track/page-view'); }, []);",
+    },
+    {
+      code: "useEffect(() => { fetch('/api/log'); }, []);",
+    },
+    {
+      code: "useEffect(() => { fetch('/api/analytics.js'); }, []);",
     },
   ],
   invalid: [
@@ -75,6 +81,27 @@ ruleTester.run("no-client-side-data-fetching", rule, {
     // axios non-get methods are still data calls.
     {
       code: "useEffect(() => { axios.patch('/api/users/1', { name: 'x' }); }, []);",
+      errors: [{ messageId: "noClientFetch" }],
+    },
+    // Substring-vs-segment regressions: these must NOT be exempted as analytics.
+    {
+      code: "useEffect(() => { fetch('/api/login'); }, []);",
+      errors: [{ messageId: "noClientFetch" }],
+    },
+    {
+      code: "useEffect(() => { fetch('/api/events'); }, []);",
+      errors: [{ messageId: "noClientFetch" }],
+    },
+    {
+      code: "useEffect(() => { fetch('/catalog'); }, []);",
+      errors: [{ messageId: "noClientFetch" }],
+    },
+    {
+      code: "useEffect(() => { fetch('/blog'); }, []);",
+      errors: [{ messageId: "noClientFetch" }],
+    },
+    {
+      code: "useEffect(() => { fetch('/api/shipping'); }, []);",
       errors: [{ messageId: "noClientFetch" }],
     },
   ],

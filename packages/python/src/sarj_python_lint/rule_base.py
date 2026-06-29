@@ -2,24 +2,31 @@
 
 from __future__ import annotations
 
-import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from pathlib import Path
+import re
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from pathlib import Path
+
 
 # Suppression syntax. Two forms supported:
 #   # sarj-noqa: SARJ001 — reason
 #   # sarj-noqa: SARJ001, SARJ002 — reason
-# We deliberately do NOT use `# noqa` because ruff aggressively cleans
-# unrecognized noqa codes (RUF100/RUF102) even with `external` set, which
-# silently breaks suppressions across runs. Distinct prefix = no conflict.
+# We deliberately do NOT reuse ruff's own suppression comment because ruff
+# aggressively cleans unrecognized codes (RUF100/RUF102) even with `external`
+# set, which silently breaks suppressions across runs. A distinct prefix
+# (sarj-noqa) shares no syntax with ruff, so the two never collide.
 _SARJ_NOQA_RE = re.compile(
     r"#\s*sarj-noqa(?::\s*([A-Za-z0-9_, ]+))?",
     re.IGNORECASE,
 )
 
 
-def is_suppressed(source_lines: list[str], line: int, code: str) -> bool:
+def is_suppressed(source_lines: Sequence[str], line: int, code: str) -> bool:
     """Return True if the diagnostic's line carries a `# sarj-noqa[: CODE]` comment.
 
     `line` is 1-based to match Diagnostic.line.

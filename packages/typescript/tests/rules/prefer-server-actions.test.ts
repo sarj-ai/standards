@@ -19,6 +19,22 @@ ruleTester.run("prefer-server-actions", rule, {
     { code: "fetch('https://api.example.com/users', { method: 'POST' });" },
     // Mutation against a non-/api URL is fine.
     { code: "fetch('/other/users', { method: 'POST' });" },
+    // axios member GET is not a mutation.
+    { code: "api.get('/api/users');" },
+    // Express-style route DEFINITION (inline handler arg) is not a client
+    // mutation. Detection is limited to inline function args (see rule docs).
+    { code: "router.post('/api/users', (req, res) => res.json({}));" },
+    { code: "router.delete('/api/users/:id', function (req, res) {});" },
+    // Direct axios config with GET is fine.
+    { code: "axios({ method: 'get', url: '/api/users' });" },
+    // Direct axios config against an external URL is fine.
+    {
+      code: "axios({ method: 'post', url: 'https://x.com/api/users' });",
+    },
+    // resolveNode: variable resolves to a GET method — not a mutation.
+    {
+      code: "const method = 'GET'; fetch('/api/users', { method });",
+    },
   ],
   invalid: [
     {
@@ -41,6 +57,34 @@ ruleTester.run("prefer-server-actions", rule, {
     {
       // Dynamic template literal with `/api/` prefix.
       code: "fetch(`/api/${id}`, { method: 'POST' });",
+      errors: [{ messageId: "preferServerAction" }],
+    },
+    // Branch 2: axios/custom-wrapper member call (no handler arg).
+    {
+      code: "api.post('/api/orders', { total: 1 });",
+      errors: [{ messageId: "preferServerAction" }],
+    },
+    {
+      code: "axios.put('/api/orders/1');",
+      errors: [{ messageId: "preferServerAction" }],
+    },
+    // Branch 3: direct axios config object.
+    {
+      code: "axios({ method: 'post', url: '/api/orders' });",
+      errors: [{ messageId: "preferServerAction" }],
+    },
+    {
+      // request({ method, url }) direct-config form.
+      code: "request({ method: 'DELETE', url: '/api/orders/1' });",
+      errors: [{ messageId: "preferServerAction" }],
+    },
+    // resolveNode: url and method resolved through variables.
+    {
+      code: "const url = '/api/orders'; fetch(url, { method: 'POST' });",
+      errors: [{ messageId: "preferServerAction" }],
+    },
+    {
+      code: "const cfg = { method: 'post', url: '/api/orders' }; axios(cfg);",
       errors: [{ messageId: "preferServerAction" }],
     },
   ],

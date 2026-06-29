@@ -1,7 +1,11 @@
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from sarj_python_lint.rule_base import Diagnostic
 from sarj_python_lint.rules.pydantic_at_boundaries import PydanticAtBoundaries
+
+
+if TYPE_CHECKING:
+    from sarj_python_lint.rule_base import Diagnostic
 
 
 def _check(source: str, path: str = "svc.py") -> list[Diagnostic]:
@@ -85,7 +89,7 @@ def test_skips_private_function():
 
 def test_skips_pydantic_validator_hooks():
     """@model_validator/@field_validator take and return raw dict/values by contract."""
-    src = '''
+    src = """
 from typing import Any
 from pydantic import model_validator, field_validator
 
@@ -98,7 +102,7 @@ class M:
     @field_validator("x")
     def coerce(cls, v) -> dict[str, Any]:
         return v
-'''
+"""
     assert _check(src) == []
 
 

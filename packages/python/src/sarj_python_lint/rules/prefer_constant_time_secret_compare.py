@@ -13,9 +13,14 @@ from __future__ import annotations
 
 import ast
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 # Identifiers that look like secrets. Matched against Name.id / Attribute.attr.
 _SECRET_RE = re.compile(
@@ -27,12 +32,13 @@ _SECRET_RE = re.compile(
 class PreferConstantTimeSecretCompare(Rule):
     """Direct `==`/`!=` on a secret-like value — prefer hmac.compare_digest."""
 
-    id = "prefer-constant-time-secret-compare"
-    code = "SARJ011"
-    description = (
+    id: str = "prefer-constant-time-secret-compare"
+    code: str = "SARJ011"
+    description: str = (
         "Direct `==`/`!=` on a secret — prefer `hmac.compare_digest(a, b)`."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))
@@ -90,6 +96,6 @@ def _is_excluded_operand(node: ast.AST) -> bool:
             return True
         if isinstance(value, (int, float, complex)):
             return True
-        if isinstance(value, str) and value == "":
+        if isinstance(value, str) and not value:
             return True
     return False

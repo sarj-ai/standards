@@ -125,6 +125,13 @@
   types: [sql]
   additional_dependencies: ['sarj-sql-lint']
 
+- id: sarj-index-concurrently
+  name: 'sarj-lint(sql): CREATE INDEX must use CONCURRENTLY'
+  entry: sarj-sql-lint check --rule index-concurrently
+  language: python
+  types: [sql]
+  additional_dependencies: ['sarj-sql-lint']
+
 - id: sarj-require-deletion-protection
   name: 'sarj-lint(iac): stateful resource must keep deletion_protection = true'
   entry: sarj-iac-lint check --rule require-deletion-protection

@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
+import sys
 
 from sarj_python_lint import __version__
 from sarj_python_lint.rule_base import Diagnostic, is_suppressed
@@ -15,6 +15,10 @@ SKIP_DIR_NAMES = {
     "coverage", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache",
     ".turbo", ".yarn", ".pnpm-store",
 }
+
+# Skip files larger than this — they are almost always generated/vendored, not
+# hand-written source worth linting.
+_MAX_FILE_BYTES = 500_000
 
 
 def _expand_paths(paths: list[Path]) -> list[Path]:
@@ -31,7 +35,7 @@ def _expand_paths(paths: list[Path]) -> list[Path]:
             if any(part in SKIP_DIR_NAMES for part in child.parts):
                 continue
             try:
-                if child.stat().st_size > 500_000:
+                if child.stat().st_size > _MAX_FILE_BYTES:
                     continue
             except OSError:
                 continue
@@ -82,14 +86,17 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("list-rules", help="List available rule IDs.")
 
     args = parser.parse_args(argv)
+    cmd: str | None = args.cmd
 
-    if args.cmd == "list-rules":
+    if cmd == "list-rules":
         for rid, cls in sorted(REGISTRY.items()):
             inst = cls()
             sys.stdout.write(f"{inst.code:8}  {rid:40}  {inst.description}\n")
         return 0
 
-    diags = _check(args.rule, args.files)
+    rule_ids: list[str] = args.rule
+    files: list[Path] = args.files
+    diags = _check(rule_ids, files)
     for d in diags:
         sys.stdout.write(d.format() + "\n")
     return 1 if diags else 0

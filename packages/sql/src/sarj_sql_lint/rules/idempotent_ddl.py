@@ -1,23 +1,32 @@
 """SARJ102: DDL statements must be idempotent — migrations must be safe to re-run.
 
-`CREATE TABLE` / `CREATE INDEX` / `ALTER TABLE ... ADD COLUMN` without
-`IF NOT EXISTS`, or `DROP TABLE` / `DROP INDEX` without `IF EXISTS`, fail
-the second time a migration runs. Re-runnable DDL means a half-applied or
-replayed migration converges instead of crashing the deploy.
+`CREATE TABLE` / `CREATE INDEX` / `ALTER TABLE ... ADD COLUMN` (and the rest of the
+common DDL surface) without `IF NOT EXISTS`, or `DROP TABLE` / `DROP INDEX` without
+`IF EXISTS`, fail the second time a migration runs. Re-runnable DDL means a
+half-applied or replayed migration converges instead of crashing the deploy.
 """
+
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING, final, override
 
-from sarj_sql_lint.rule_base import Diagnostic, Rule
+from sarj_sql_lint.rule_base import Diagnostic, Rule, mask_sql
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 # `(?>\s+)` (atomic) stops the whitespace from backtracking past the negative
 # lookahead, and `CONCURRENTLY` lives inside the lookahead for the same reason.
+# `CREATE TABLE` allows the `[GLOBAL|LOCAL] {TEMP|TEMPORARY} | UNLOGGED` modifiers.
 _CHECKS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
-        re.compile(r"\bCREATE\s+TABLE(?>\s+)(?!IF\s+NOT\s+EXISTS\b)", re.IGNORECASE),
+        re.compile(
+            r"\bCREATE\s+(?:(?:GLOBAL|LOCAL)\s+)?(?:(?:TEMP(?:ORARY)?|UNLOGGED)\s+)?TABLE(?>\s+)(?!IF\s+NOT\s+EXISTS\b)",
+            re.IGNORECASE,
+        ),
         "`CREATE TABLE` without `IF NOT EXISTS` — migrations must be safe to re-run.",
     ),
     (
@@ -33,6 +42,13 @@ _CHECKS: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
     (
         re.compile(
+            r"\bCREATE\s+(?:EXTENSION|SCHEMA|SEQUENCE)(?>\s+)(?!IF\s+NOT\s+EXISTS\b)",
+            re.IGNORECASE,
+        ),
+        "`CREATE EXTENSION`/`SCHEMA`/`SEQUENCE` without `IF NOT EXISTS` — migrations must be safe to re-run.",
+    ),
+    (
+        re.compile(
             r"\bDROP\s+(?:TABLE|INDEX)(?>\s+)(?!(?:CONCURRENTLY\s+)?IF\s+EXISTS\b)",
             re.IGNORECASE,
         ),
@@ -41,6 +57,7 @@ _CHECKS: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
+@final
 class IdempotentDdl(Rule):
     """DDL without IF [NOT] EXISTS — migrations must be safe to re-run."""
 
@@ -48,21 +65,19 @@ class IdempotentDdl(Rule):
     code = "SARJ102"
     description = "DDL without IF [NOT] EXISTS — migrations must be safe to re-run."
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         diags: list[Diagnostic] = []
-        for lineno, line in enumerate(source.splitlines(), start=1):
-            stripped = line.lstrip()
-            if stripped.startswith("--") or stripped.startswith("/*"):
-                continue
+        for lineno, line in enumerate(mask_sql(source).splitlines(), start=1):
             for pattern, message in _CHECKS:
-                for match in pattern.finditer(line):
-                    diags.append(
-                        Diagnostic(
-                            path=path,
-                            line=lineno,
-                            col=match.start() + 1,
-                            code=self.code,
-                            message=message,
-                        )
+                diags.extend(
+                    Diagnostic(
+                        path=path,
+                        line=lineno,
+                        col=match.start() + 1,
+                        code=self.code,
+                        message=message,
                     )
+                    for match in pattern.finditer(line)
+                )
         return diags

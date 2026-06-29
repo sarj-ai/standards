@@ -52,3 +52,7 @@ exclude = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Dogfooding: linted/formatted by this repo's own published config (root-synced).
+[tool.ruff]
+extend = "../../.ruff-strict.toml"

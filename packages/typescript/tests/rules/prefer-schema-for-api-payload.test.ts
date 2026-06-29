@@ -30,6 +30,15 @@ ruleTester.run("prefer-schema-for-api-payload", rule, {
     {
       code: "async function f(r) { return ZUser.parse(await r.json()); }",
     },
+    // Chained `.safeParse()` directly on the json() result is a validation.
+    {
+      code: "async function f(r) { return (await r.json()).safeParse(); }",
+    },
+    // Reassignment untracks: once `data` is reassigned to a parse result, later
+    // field access is validated and must not be flagged.
+    {
+      code: "async function f(r) { let data = await r.json(); data = ZUser.parse(data); return data.name; }",
+    },
   ],
   invalid: [
     {
@@ -43,6 +52,26 @@ ruleTester.run("prefer-schema-for-api-payload", rule, {
     // Destructuring directly off a json() call.
     {
       code: "async function f(r) { const { name } = await r.json(); return name; }",
+      errors: [{ messageId: "unparsedJsonAccess" }],
+    },
+    // Array-pattern destructuring directly off a json() call.
+    {
+      code: "async function f(r) { const [first] = await r.json(); return first; }",
+      errors: [{ messageId: "unparsedJsonAccess" }],
+    },
+    // Array-pattern destructuring off a tracked variable.
+    {
+      code: "async function f(r) { const data = await r.json(); const [first] = data; return first; }",
+      errors: [{ messageId: "unparsedJsonAccess" }],
+    },
+    // Direct field access on the json() result (no schema parse).
+    {
+      code: "async function f(r) { return (await r.json()).name; }",
+      errors: [{ messageId: "unparsedJsonAccess" }],
+    },
+    // Post-first-access untracking: only the FIRST unvalidated read is flagged.
+    {
+      code: "async function f(r) { const d = await r.json(); console.log(d.a); console.log(d.b); }",
       errors: [{ messageId: "unparsedJsonAccess" }],
     },
   ],

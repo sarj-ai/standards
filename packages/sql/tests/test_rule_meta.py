@@ -13,7 +13,8 @@ def test_rule_has_self_documenting_meta(rule_id: str) -> None:
     assert issubclass(cls, Rule)
 
     assert cls.id == rule_id, f"REGISTRY key {rule_id!r} != cls.id {cls.id!r}"
-    assert cls.id and cls.id.replace("-", "").replace("_", "").isalnum()
+    assert cls.id
+    assert cls.id.replace("-", "").replace("_", "").isalnum()
 
     assert cls.code, f"{rule_id}: missing code"
     assert cls.code.startswith("SARJ"), f"{rule_id}: code {cls.code!r} must start with SARJ"

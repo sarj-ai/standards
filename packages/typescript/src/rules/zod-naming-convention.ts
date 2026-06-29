@@ -1,3 +1,14 @@
+/**
+ * @fileoverview Enforce the `Z`-prefix naming convention for Zod schemas
+ * (`ZUser = z.object({...})`).
+ *
+ * NOTE on audit backing: this is an intentional org-wide convention, not a
+ * direct mapping of `readability-and-naming.md` (which governs property-name
+ * casing, not schema-variable prefixes). The `Z` prefix lets schemas and their
+ * inferred types share a base name (`ZUser` / `type User = z.infer<typeof
+ * ZUser>`) without collision. Kept as-is by design.
+ */
+
 import { ESLintUtils, type TSESTree, AST_NODE_TYPES } from "@typescript-eslint/utils";
 
 type MessageIds = "zPrefix";

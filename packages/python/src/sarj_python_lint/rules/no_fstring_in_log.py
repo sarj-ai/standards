@@ -28,9 +28,15 @@ Suppress an intentional case with `# sarj-noqa: SARJ017 — <reason>`.
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rules._logging import is_logger_expr
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 _LOG_METHODS = frozenset(
     {
@@ -48,21 +54,18 @@ _LOG_METHODS = frozenset(
     }
 )
 
-_LOGGER_NAMES = frozenset({"logger", "log", "logging", "loguru", "_logger", "_log"})
-
-_LOGGER_FACTORIES = frozenset({"getlogger", "getchild"})
-
 
 class NoFstringInLog(Rule):
     """f-string passed as a logging message — use structured keyword arguments."""
 
-    id = "no-fstring-in-log"
-    code = "SARJ017"
-    description = (
+    id: str = "no-fstring-in-log"
+    code: str = "SARJ017"
+    description: str = (
         "f-string message in a logging call — pass variables as structured "
         "keyword arguments so logs stay filterable and templates stay constant."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))
@@ -95,30 +98,7 @@ def _is_logging_call(node: ast.Call) -> bool:
     func = node.func
     if not isinstance(func, ast.Attribute) or func.attr not in _LOG_METHODS:
         return False
-    return _is_logger_expr(func.value)
-
-
-def _is_logger_expr(expr: ast.expr) -> bool:
-    """True if `expr` evaluates to a logger.
-
-    Resolves the whole receiver chain so adapter/builder calls are caught:
-    `logger.bind(...).info(...)`, `logger.opt(lazy=True).debug(...)`,
-    `logging.getLogger(__name__).info(...)`, `self.logger.error(...)`.
-    """
-    if isinstance(expr, ast.Name):
-        return expr.id.lower() in _LOGGER_NAMES
-    if isinstance(expr, ast.Attribute):
-        if expr.attr.lower() in _LOGGER_NAMES or expr.attr.lower() in _LOGGER_FACTORIES:
-            return True
-        return _is_logger_expr(expr.value)
-    if isinstance(expr, ast.Call):
-        if (
-            isinstance(expr.func, ast.Attribute)
-            and expr.func.attr.lower() in _LOGGER_FACTORIES
-        ):
-            return True
-        return _is_logger_expr(expr.func)
-    return False
+    return is_logger_expr(func.value)
 
 
 def _has_interpolation(node: ast.JoinedStr) -> bool:

@@ -1,7 +1,13 @@
-from pathlib import Path
+from __future__ import annotations
 
-from sarj_sql_lint.rule_base import Diagnostic
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from sarj_sql_lint.rules.no_pg_enum import NoPgEnum
+
+
+if TYPE_CHECKING:
+    from sarj_sql_lint.rule_base import Diagnostic
 
 
 def _check(source: str) -> list[Diagnostic]:
@@ -13,6 +19,21 @@ def test_flags_create_type_as_enum():
     diags = _check(src)
     assert len(diags) == 1
     assert "TEXT + CHECK" in diags[0].message
+
+
+def test_flags_multiline_create_type_as_enum():
+    src = """
+CREATE TYPE call_status
+    AS ENUM ('pending', 'active', 'completed');
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].line == 2
+
+
+def test_flags_alter_type_add_value():
+    src = "ALTER TYPE call_status ADD VALUE 'archived';"
+    assert len(_check(src)) == 1
 
 
 def test_is_case_insensitive():
@@ -39,4 +60,9 @@ def test_skips_comment_lines():
 -- CREATE TYPE call_status AS ENUM is forbidden; see SARJ103
 /* CREATE TYPE x AS ENUM ('a') */
 """
+    assert _check(src) == []
+
+
+def test_skips_enum_word_inside_string_literal():
+    src = "INSERT INTO doc (body) VALUES ('CREATE TYPE x AS ENUM (a)');"
     assert _check(src) == []

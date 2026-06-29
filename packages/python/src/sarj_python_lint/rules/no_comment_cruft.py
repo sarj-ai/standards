@@ -33,9 +33,14 @@ import ast
 import io
 import re
 import tokenize
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 _LEADING_PREAMBLE_MIN = 4
 
@@ -148,13 +153,14 @@ def _is_assign_or_call(snippet: str) -> bool:
 class NoCommentCruft(Rule):
     """Commented-out code, section banners, or a leading file-header comment block."""
 
-    id = "no-comment-cruft"
-    code = "SARJ016"
-    description = (
+    id: str = "no-comment-cruft"
+    code: str = "SARJ016"
+    description: str = (
         "Comment cruft (commented-out code, section banner, or file-header "
         "preamble) — delete it; code carries the what, comments only the why."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             standalone, first_code_line = _standalone_comments(source)
@@ -172,7 +178,8 @@ class NoCommentCruft(Rule):
         self._flag_leading_preamble(standalone, first_code_line, path, diags)
         return [diags[k] for k in sorted(diags)]
 
-    def _classify(self, body: str) -> str | None:
+    @staticmethod
+    def _classify(body: str) -> str | None:
         if _is_banner(body):
             return "Section-banner / region comment — structure code with functions, not ASCII rules."
         if _looks_like_code(body):
@@ -216,16 +223,12 @@ class NoCommentCruft(Rule):
                 )
 
 
-_NON_CODE_TOKENS = frozenset(
-    {
-        tokenize.NL,
-        tokenize.NEWLINE,
-        tokenize.INDENT,
-        tokenize.DEDENT,
-        tokenize.COMMENT,
-        tokenize.ENCODING,
-        tokenize.ENDMARKER,
-    }
+_LAYOUT_TOKENS = frozenset(
+    {tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT}
+)
+
+_NON_CODE_TOKENS = _LAYOUT_TOKENS | frozenset(
+    {tokenize.COMMENT, tokenize.ENCODING, tokenize.ENDMARKER}
 )
 
 
@@ -242,12 +245,7 @@ def _standalone_comments(source: str) -> tuple[list[tuple[int, int, str]], int]:
     for tok in tokenize.generate_tokens(readline):
         if tok.type == tokenize.COMMENT and tok.start[0] != prev_end_row:
             out.append((tok.start[0], tok.start[1], _comment_body(tok.string)))
-        if tok.type not in (
-            tokenize.NL,
-            tokenize.NEWLINE,
-            tokenize.INDENT,
-            tokenize.DEDENT,
-        ):
+        if tok.type not in _LAYOUT_TOKENS:
             prev_end_row = tok.end[0]
         if tok.type not in _NON_CODE_TOKENS:
             first_code_line = min(first_code_line, tok.start[0])

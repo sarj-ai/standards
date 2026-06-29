@@ -11,12 +11,19 @@ uv tool install sarj-sql-lint
 | Code    | id                            | Flags                                                                       |
 | ------- | ----------------------------- | --------------------------------------------------------------------------- |
 | SARJ101 | `enforce-timestamptz`         | `TIMESTAMP` without `WITH TIME ZONE` — use `TIMESTAMPTZ`                     |
-| SARJ102 | `idempotent-ddl`              | `CREATE TABLE/INDEX`, `ADD COLUMN`, `DROP TABLE/INDEX` without `IF [NOT] EXISTS` |
-| SARJ103 | `no-pg-enum`                  | `CREATE TYPE ... AS ENUM` — use TEXT + CHECK constraint                      |
+| SARJ102 | `idempotent-ddl`              | `CREATE TABLE/INDEX/EXTENSION/SCHEMA/SEQUENCE/TYPE`, `ADD COLUMN`, `DROP TABLE/INDEX` without `IF [NOT] EXISTS` |
+| SARJ103 | `no-pg-enum`                  | `CREATE TYPE ... AS ENUM` / `ALTER TYPE ... ADD VALUE` — use TEXT + CHECK constraint |
 | SARJ104 | `prefer-text-over-varchar`    | `VARCHAR(n)` / `CHARACTER VARYING(n)` — use TEXT (+ CHECK length if needed)  |
 | SARJ105 | `insert-requires-on-conflict` | `INSERT INTO` statement (multi-line aware) with no `ON CONFLICT` clause      |
 | SARJ106 | `prefer-jsonb`                | `JSON` column type or `::json` cast — use JSONB                              |
 | SARJ107 | `no-limit-offset`             | `OFFSET` keyword — use cursor pagination (`WHERE id > :cursor ... LIMIT n`)  |
+| SARJ108 | `index-concurrently`          | `CREATE INDEX` without `CONCURRENTLY` — locks the table against writes       |
+
+All scanning runs over a comment/string/dollar-quote-masked view of the source, so keywords inside `--`/`/* */` comments, `'...'` literals, `$tag$...$tag$` bodies and `"..."` identifiers never match.
+
+## Suppression
+
+Add a `-- sarj-noqa` comment on the offending line to silence a diagnostic; scope it to specific codes with `-- sarj-noqa: SARJ101, SARJ108`.
 
 ## Pre-commit
 

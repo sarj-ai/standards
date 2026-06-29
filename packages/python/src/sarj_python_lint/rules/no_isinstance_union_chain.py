@@ -40,9 +40,20 @@ References:
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+# A dispatch chain needs at least this many `isinstance` arms to be flagged.
+_MIN_CHAIN_LENGTH = 2
+
+# `isinstance(x, T)` takes exactly two positional arguments.
+_ISINSTANCE_ARG_COUNT = 2
 
 _EXCLUDED_TYPE_NAMES = frozenset(
     {
@@ -86,13 +97,14 @@ _EXCLUDED_TYPE_NAMES = frozenset(
 class NoIsinstanceUnionChain(Rule):
     """`if/elif isinstance` chains over local classes — prefer match/case + assert_never."""
 
-    id = "no-isinstance-union-chain"
-    code = "SARJ003"
-    description = (
+    id: str = "no-isinstance-union-chain"
+    code: str = "SARJ003"
+    description: str = (
         "if/elif isinstance chain over local classes — prefer match/case with "
         "assert_never for compile-time exhaustiveness."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))
@@ -104,7 +116,7 @@ class NoIsinstanceUnionChain(Rule):
             if not isinstance(node, ast.If) or id(node) in elif_nodes:
                 continue
             count = _qualifying_chain_length(node)
-            if count >= 2:
+            if count >= _MIN_CHAIN_LENGTH:
                 diags.append(
                     Diagnostic(
                         path=path,
@@ -150,10 +162,11 @@ def _qualifying_chain_length(head: ast.If) -> int:
         elif dumped != target_dump:
             return 0
         count += 1
-        if len(current.orelse) == 1 and isinstance(current.orelse[0], ast.If):
-            current = current.orelse[0]
-        else:
-            current = None
+        current = (
+            current.orelse[0]
+            if len(current.orelse) == 1 and isinstance(current.orelse[0], ast.If)
+            else None
+        )
     return count
 
 
@@ -164,7 +177,7 @@ def _isinstance_single_type(test: ast.expr) -> tuple[ast.expr, str] | None:
         return None
     if not (isinstance(test.func, ast.Name) and test.func.id == "isinstance"):
         return None
-    if len(test.args) != 2 or test.keywords:
+    if len(test.args) != _ISINSTANCE_ARG_COUNT or test.keywords:
         return None
     target, type_node = test.args
     name = _class_name(type_node)

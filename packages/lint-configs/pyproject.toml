@@ -38,3 +38,14 @@ include = [
   "pyproject.toml",
 ]
 
+[dependency-groups]
+dev = [
+  "pytest>=9.0",
+  "ruff>=0.15",
+  "basedpyright>=1.39",
+]
+
+# Dogfooding: linted/formatted by this repo's own published config (root-synced).
+[tool.ruff]
+extend = "../../.ruff-strict.toml"
+

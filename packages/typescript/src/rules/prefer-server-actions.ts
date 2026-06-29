@@ -6,6 +6,10 @@
  * and external URLs are ignored. Tests, scripts, and Next.js route handlers
  * are skipped because Server Actions don't apply there.
  *
+ * The member branch (`api.post('/api/x')`) intentionally skips calls that pass
+ * a function argument (e.g. `router.post('/api/x', handler)`) so Express-style
+ * route *definitions* aren't mistaken for client-side mutations.
+ *
  * References:
  *   - https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations
  */
@@ -204,7 +208,20 @@ export default ESLintUtils.RuleCreator(
           const methodName = node.callee.property.name.toLowerCase();
           if (AXIOS_MUTATION_METHODS.has(methodName)) {
             const urlArg = node.arguments[0];
-            if (urlArg && urlArg.type !== "SpreadElement" && isApiUrl(urlArg, context)) {
+            // Skip Express-style route definitions like
+            // `router.post('/api/x', handler)`: a function argument means this
+            // is registering a handler, not issuing a client mutation.
+            const hasHandlerArg = node.arguments.some(
+              (arg) =>
+                arg.type === "ArrowFunctionExpression" ||
+                arg.type === "FunctionExpression",
+            );
+            if (
+              urlArg &&
+              urlArg.type !== "SpreadElement" &&
+              !hasHandlerArg &&
+              isApiUrl(urlArg, context)
+            ) {
               isMutation = true;
             }
           }

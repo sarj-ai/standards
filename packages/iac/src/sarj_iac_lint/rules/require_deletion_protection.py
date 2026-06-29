@@ -28,20 +28,47 @@ on the `resource` line.
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING, final, override
 
+from sarj_iac_lint._hcl import heredoc_body_mask, mask_line, strip_inline_comment
 from sarj_iac_lint.rule_base import Diagnostic, Rule
 
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+# Curated set of stateful resources whose accidental destroy is unrecoverable.
+# Each either exposes a `deletion_protection[_enabled]` argument or is a data
+# store that should at minimum carry `lifecycle { prevent_destroy = true }`.
 _PROTECTED_TYPES = frozenset(
     {
+        # GCP
         "google_sql_database_instance",
         "google_container_cluster",
         "google_bigquery_table",
+        "google_bigquery_dataset",
         "google_spanner_database",
         "google_alloydb_cluster",
+        "google_bigtable_instance",
+        "google_redis_instance",
+        # AWS
         "aws_db_instance",
         "aws_rds_cluster",
+        "aws_rds_global_cluster",
         "aws_redshift_cluster",
+        "aws_dynamodb_table",
+        "aws_elasticache_replication_group",
+        "aws_elasticache_cluster",
+        "aws_docdb_cluster",
+        "aws_neptune_cluster",
+        # Azure
+        "azurerm_postgresql_flexible_server",
+        "azurerm_postgresql_server",
+        "azurerm_mysql_flexible_server",
+        "azurerm_mysql_server",
+        "azurerm_mssql_server",
+        "azurerm_mssql_database",
+        "azurerm_cosmosdb_account",
     }
 )
 
@@ -50,6 +77,7 @@ _DELPROT_RE = re.compile(r"^\s*deletion_protection(?:_enabled)?\s*=\s*(\S+)")
 _PREVENT_DESTROY_RE = re.compile(r"^\s*prevent_destroy\s*=\s*true\b")
 
 
+@final
 class RequireDeletionProtection(Rule):
     """Stateful resource without deletion_protection = true."""
 
@@ -60,27 +88,32 @@ class RequireDeletionProtection(Rule):
         "deletion_protection = true so a stray apply cannot destroy prod data."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         if not str(path).endswith((".tf", ".tf.json", ".hcl")):
             return []
         lines = source.splitlines()
+        hmask = heredoc_body_mask(lines)
+        # `masked` blanks string contents (for brace balancing); `logical`
+        # keeps string contents but drops comments (for keyword/value matching).
+        # Heredoc body lines collapse to "" in both — they are data, not HCL.
+        masked = ["" if h else mask_line(ln) for ln, h in zip(lines, hmask, strict=True)]
+        logical = ["" if h else strip_inline_comment(ln) for ln, h in zip(lines, hmask, strict=True)]
         diags: list[Diagnostic] = []
         i = 0
         n = len(lines)
         while i < n:
-            m = _RESOURCE_RE.match(lines[i])
+            m = _RESOURCE_RE.match(logical[i])
             if m is None or m.group(1) not in _PROTECTED_TYPES:
                 i += 1
                 continue
             rtype, rname = m.group(1), m.group(2)
             start = i
-            end = _block_end(lines, i)
-            state = _protection_state(lines[start : end + 1])
+            end = _block_end(masked, i)
+            state = _protection_state(logical[start : end + 1])
             if state != "protected":
                 detail = (
-                    "deletion_protection = false"
-                    if state == "disabled"
-                    else "no deletion_protection / prevent_destroy"
+                    "deletion_protection = false" if state == "disabled" else "no deletion_protection / prevent_destroy"
                 )
                 diags.append(
                     Diagnostic(
@@ -100,7 +133,11 @@ class RequireDeletionProtection(Rule):
 
 
 def _block_end(lines: list[str], start: int) -> int:
-    """Index of the line closing the block opened on `start` (brace-balanced)."""
+    """Index of the line closing the block opened on `start` (brace-balanced).
+
+    `lines` must already be string/heredoc-masked so braces inside a string
+    literal or heredoc body do not throw off the count.
+    """
     depth = 0
     for j in range(start, len(lines)):
         depth += lines[j].count("{") - lines[j].count("}")
@@ -122,7 +159,8 @@ def _protection_state(block: list[str]) -> str:
     for line in block:
         m = _DELPROT_RE.match(line)
         if m is not None:
-            return "disabled" if m.group(1).rstrip(",") == "false" else "protected"
+            value = m.group(1).rstrip(",").strip('"')
+            return "disabled" if value == "false" else "protected"
     for line in block:
         if _PREVENT_DESTROY_RE.match(line):
             return "protected"

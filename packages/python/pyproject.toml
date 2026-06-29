@@ -27,7 +27,6 @@ Issues = "https://github.com/sarj-ai/standards/issues"
 [dependency-groups]
 dev = [
   "pytest>=9.0",
-  "pytest-benchmark>=5.2",
   "ruff>=0.15",
   "basedpyright>=1.39",
 ]
@@ -53,3 +52,7 @@ exclude = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Dogfooding: linted/formatted by this repo's own published config (root-synced).
+[tool.ruff]
+extend = "../../.ruff-strict.toml"

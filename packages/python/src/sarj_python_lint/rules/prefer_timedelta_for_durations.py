@@ -45,9 +45,14 @@ from __future__ import annotations
 
 import ast
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 _UNIT_RE = re.compile(
     r"(?:^|_)(?:"
@@ -84,13 +89,14 @@ _CONSTRAINED_NUMERIC = {
 class PreferTimedeltaForDurations(Rule):
     """Duration named in time units but typed as a raw int/float — prefer timedelta."""
 
-    id = "prefer-timedelta-for-durations"
-    code = "SARJ014"
-    description = (
+    id: str = "prefer-timedelta-for-durations"
+    code: str = "SARJ014"
+    description: str = (
         "Duration named in time units (timeout_seconds, ttl, ...) typed as raw "
         "int/float — use datetime.timedelta so the unit is explicit and checked."
     )
 
+    @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         try:
             tree = ast.parse(source, filename=str(path))

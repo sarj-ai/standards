@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
+import sys
 
 from sarj_sql_lint import __version__
-from sarj_sql_lint.rule_base import Diagnostic
+from sarj_sql_lint.rule_base import Diagnostic, is_suppressed
 from sarj_sql_lint.rules import REGISTRY
 
 
@@ -15,6 +15,7 @@ SKIP_DIR_NAMES = {
     "coverage", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache",
     ".turbo", ".yarn", ".pnpm-store",
 }
+MAX_FILE_BYTES = 500_000
 
 
 def _expand_paths(paths: list[Path]) -> list[Path]:
@@ -31,7 +32,7 @@ def _expand_paths(paths: list[Path]) -> list[Path]:
             if any(part in SKIP_DIR_NAMES for part in child.parts):
                 continue
             try:
-                if child.stat().st_size > 500_000:
+                if child.stat().st_size > MAX_FILE_BYTES:
                     continue
             except OSError:
                 continue
@@ -53,8 +54,11 @@ def _check(rule_ids: list[str], paths: list[Path]) -> list[Diagnostic]:
             source = p.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
+        source_lines = source.splitlines()
         for rule in rules:
-            diags.extend(rule.check(p, source))
+            diags.extend(
+                d for d in rule.check(p, source) if not is_suppressed(source_lines, d.line, d.code)
+            )
     return diags
 
 

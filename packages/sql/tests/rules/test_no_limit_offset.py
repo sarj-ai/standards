@@ -1,7 +1,13 @@
-from pathlib import Path
+from __future__ import annotations
 
-from sarj_sql_lint.rule_base import Diagnostic
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from sarj_sql_lint.rules.no_limit_offset import NoLimitOffset
+
+
+if TYPE_CHECKING:
+    from sarj_sql_lint.rule_base import Diagnostic
 
 
 def _check(source: str) -> list[Diagnostic]:
@@ -30,10 +36,20 @@ def test_allows_offset_substring_identifiers():
     assert _check(src) == []
 
 
+def test_allows_quoted_offset_identifier():
+    src = 'SELECT "offset" FROM tz_info ORDER BY id'
+    assert _check(src) == []
+
+
 def test_skips_comment_lines():
     src = """
 -- OFFSET is forbidden, use cursor pagination
 /* LIMIT 10 OFFSET 20 */
 SELECT * FROM call WHERE id > :cursor ORDER BY id LIMIT 50;
 """
+    assert _check(src) == []
+
+
+def test_skips_offset_inside_string_literal():
+    src = "INSERT INTO doc (body) VALUES ('use OFFSET sparingly');"
     assert _check(src) == []
