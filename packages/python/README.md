@@ -19,6 +19,10 @@ uv tool install sarj-python-lint
     - id: sarj-no-fat-try-blocks
     - id: sarj-pydantic-at-boundaries
     - id: sarj-prefer-class-row
+    - id: sarj-prefer-timedelta-for-durations
+    - id: sarj-prefer-struct-over-namedtuple
+    - id: sarj-no-comment-cruft
+    - id: sarj-no-fstring-in-log
 ```
 
 ## CLI
