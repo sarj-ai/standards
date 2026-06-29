@@ -1,8 +1,11 @@
 """CLI: sarj-python-lint check --rule <id> [--rule <id2>] <files>"""
+
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 from sarj_python_lint import __version__
@@ -10,10 +13,65 @@ from sarj_python_lint.rule_base import Diagnostic, is_suppressed
 from sarj_python_lint.rules import REGISTRY
 
 
+def _baseline_key(d: Diagnostic) -> str:
+    """Identity of a violation that survives line shifts (no line number).
+
+    Keyed on path + code + message; the message embeds the offending symbol
+    (e.g. the field name), so a moved-but-unchanged violation stays baselined
+    while a genuinely new one is not.
+    """
+    return f"{d.path}\x00{d.code}\x00{d.message}"
+
+
+def _load_baseline(path: Path) -> dict[str, int]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    out: dict[str, int] = {}
+    for e in data:
+        out[f"{e['path']}\x00{e['code']}\x00{e['message']}"] = e.get("count", 1)
+    return out
+
+
+def _dump_baseline(path: Path, diags: list[Diagnostic]) -> None:
+    counts = Counter(_baseline_key(d) for d in diags)
+    payload = [
+        {"path": p, "code": c, "message": m, "count": counts[k]}
+        for k in sorted(counts)
+        for p, c, m in [k.split("\x00")]
+    ]
+    path.write_text(json.dumps(payload, indent=1) + "\n", encoding="utf-8")
+
+
+def _apply_baseline(
+    diags: list[Diagnostic], baseline: dict[str, int]
+) -> list[Diagnostic]:
+    """Drop up to `count` occurrences of each baselined key; keep the surplus."""
+    seen: Counter[str] = Counter()
+    kept: list[Diagnostic] = []
+    for d in diags:
+        key = _baseline_key(d)
+        if seen[key] < baseline.get(key, 0):
+            seen[key] += 1
+            continue
+        kept.append(d)
+    return kept
+
+
 SKIP_DIR_NAMES = {
-    "node_modules", ".venv", "venv", ".git", "dist", "build", ".next",
-    "coverage", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache",
-    ".turbo", ".yarn", ".pnpm-store",
+    "node_modules",
+    ".venv",
+    "venv",
+    ".git",
+    "dist",
+    "build",
+    ".next",
+    "coverage",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".turbo",
+    ".yarn",
+    ".pnpm-store",
 }
 
 
@@ -67,7 +125,9 @@ def main(argv: list[str] | None = None) -> int:
         prog="sarj-python-lint",
         description="Custom Python + SQL lint rules.",
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     check_p = sub.add_parser("check", help="Run rules over files.")
@@ -76,6 +136,22 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         required=True,
         help="Rule ID (repeat for multiple).",
+    )
+    check_p.add_argument(
+        "--baseline",
+        type=Path,
+        help="Suppress violations listed in this baseline JSON (fire on new code only).",
+    )
+    check_p.add_argument(
+        "--write-baseline",
+        type=Path,
+        metavar="FILE",
+        help="Write all current violations to FILE as a baseline and exit 0.",
+    )
+    check_p.add_argument(
+        "--exit-zero",
+        action="store_true",
+        help="Report violations but always exit 0 (warn mode — does not fail CI).",
     )
     check_p.add_argument("files", nargs="+", type=Path)
 
@@ -90,8 +166,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     diags = _check(args.rule, args.files)
+
+    if args.write_baseline is not None:
+        _dump_baseline(args.write_baseline, diags)
+        sys.stderr.write(
+            f"wrote {len(diags)} baseline entries to {args.write_baseline}\n"
+        )
+        return 0
+
+    if args.baseline is not None:
+        diags = _apply_baseline(diags, _load_baseline(args.baseline))
+
     for d in diags:
         sys.stdout.write(d.format() + "\n")
+    if args.exit_zero:
+        return 0
     return 1 if diags else 0
 
 
