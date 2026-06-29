@@ -124,3 +124,26 @@
   language: python
   types: [sql]
   additional_dependencies: ['sarj-sql-lint']
+
+- id: sarj-require-deletion-protection
+  name: 'sarj-lint(iac): stateful resource must keep deletion_protection = true'
+  entry: sarj-iac-lint check --rule require-deletion-protection
+  language: python
+  files: '\.(tf|hcl)$'
+  additional_dependencies: ['sarj-iac-lint']
+
+- id: sarj-no-comment-cruft-iac
+  name: 'sarj-lint(iac): commented-out Terraform / section-banner comments'
+  entry: sarj-iac-lint check --rule no-comment-cruft
+  language: python
+  files: '\.(tf|hcl|tfvars)$'
+  additional_dependencies: ['sarj-iac-lint']
+
+# Noisy on network modules that legitimately define subnets; adopt with
+# `--exit-zero` or a baseline (see packages/iac/README.md).
+- id: sarj-no-hardcoded-private-cidr
+  name: 'sarj-lint(iac): hardcoded RFC-1918 CIDR — prefer a variable'
+  entry: sarj-iac-lint check --rule no-hardcoded-private-cidr
+  language: python
+  files: '\.(tf|hcl|tfvars)$'
+  additional_dependencies: ['sarj-iac-lint']
