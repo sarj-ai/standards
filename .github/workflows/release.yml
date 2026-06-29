@@ -49,7 +49,7 @@ jobs:
       lint-configs: ${{ steps.c.outputs.lint-configs }}
       tsconfig: ${{ steps.c.outputs.tsconfig }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: c
@@ -89,7 +89,7 @@ jobs:
       run:
         working-directory: packages/typescript
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -117,7 +117,7 @@ jobs:
       run:
         working-directory: packages/python
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
@@ -143,7 +143,7 @@ jobs:
       run:
         working-directory: packages/sql
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
@@ -169,7 +169,7 @@ jobs:
       run:
         working-directory: packages/iac
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
@@ -195,7 +195,7 @@ jobs:
       run:
         working-directory: packages/lint-configs
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
@@ -226,7 +226,7 @@ jobs:
       run:
         working-directory: packages/tsconfig
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -259,7 +259,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Create version tags for newly published packages
         env:
           PY_OK: ${{ needs.publish-python.result }}
