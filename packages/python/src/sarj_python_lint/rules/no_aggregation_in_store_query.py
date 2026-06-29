@@ -82,9 +82,9 @@ def _strip_sql_comments(text: str) -> str:
 class NoAggregationInStoreQuery(Rule):
     """DISTINCT / GROUP BY / COUNT in a store query — aggregate in ClickHouse."""
 
-    id = "no-aggregation-in-store-query"
-    code = "SARJ020"
-    description = (
+    id: str = "no-aggregation-in-store-query"
+    code: str = "SARJ020"
+    description: str = (
         "DISTINCT / GROUP BY / COUNT in a Postgres store query — push heavy "
         "aggregation to the columnar mirror (ClickHouse / BigQuery)."
     )

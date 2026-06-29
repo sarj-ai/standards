@@ -67,9 +67,9 @@ def _has_real_select_star(sql: str) -> bool:
 class NoSelectStar(Rule):
     """`SELECT *` in a store query — list the columns explicitly."""
 
-    id = "no-select-star"
-    code = "SARJ021"
-    description = (
+    id: str = "no-select-star"
+    code: str = "SARJ021"
+    description: str = (
         "SELECT * in a store query — name the columns; * over-fetches and breaks "
         "class_row mapping when the schema changes."
     )
