@@ -5,11 +5,16 @@ from typing import TYPE_CHECKING
 from sarj_python_lint.rules.inefficient_string_concat_in_loop import (
     InefficientStringConcatInLoop,
 )
+from sarj_python_lint.rules.no_aggregation_in_store_query import (
+    NoAggregationInStoreQuery,
+)
 from sarj_python_lint.rules.no_comment_cruft import NoCommentCruft
 from sarj_python_lint.rules.no_fat_try_blocks import NoFatTryBlocks
 from sarj_python_lint.rules.no_fstring_in_log import NoFstringInLog
 from sarj_python_lint.rules.no_isinstance_union_chain import NoIsinstanceUnionChain
+from sarj_python_lint.rules.no_query_with_many_joins import NoQueryWithManyJoins
 from sarj_python_lint.rules.no_secret_in_log import NoSecretInLog
+from sarj_python_lint.rules.no_select_star import NoSelectStar
 from sarj_python_lint.rules.no_sentinel_return_on_except import NoSentinelReturnOnExcept
 from sarj_python_lint.rules.no_sequential_await import NoSequentialAwait
 from sarj_python_lint.rules.no_unreachable_after_terminal import (
@@ -28,6 +33,9 @@ from sarj_python_lint.rules.prefer_timedelta_for_durations import (
     PreferTimedeltaForDurations,
 )
 from sarj_python_lint.rules.pydantic_at_boundaries import PydanticAtBoundaries
+from sarj_python_lint.rules.store_insert_requires_on_conflict import (
+    StoreInsertRequiresOnConflict,
+)
 
 
 if TYPE_CHECKING:
@@ -51,6 +59,10 @@ REGISTRY: dict[str, type[Rule]] = {
     PreferStructOverNamedtuple.id: PreferStructOverNamedtuple,
     NoCommentCruft.id: NoCommentCruft,
     NoFstringInLog.id: NoFstringInLog,
+    StoreInsertRequiresOnConflict.id: StoreInsertRequiresOnConflict,
+    NoQueryWithManyJoins.id: NoQueryWithManyJoins,
+    NoAggregationInStoreQuery.id: NoAggregationInStoreQuery,
+    NoSelectStar.id: NoSelectStar,
 }
 
 __all__ = ["REGISTRY"]
