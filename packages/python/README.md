@@ -14,7 +14,6 @@ uv tool install sarj-python-lint
   hooks:
     - id: sarj-no-sequential-await
     - id: sarj-inefficient-string-concat-in-loop
-    - id: sarj-prefer-discriminated-union
     - id: sarj-prefer-str-enum
     - id: sarj-no-fat-try-blocks
     - id: sarj-pydantic-at-boundaries

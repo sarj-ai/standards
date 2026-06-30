@@ -24,7 +24,6 @@ from sarj_python_lint.rules.prefer_class_row import PreferClassRow
 from sarj_python_lint.rules.prefer_constant_time_secret_compare import (
     PreferConstantTimeSecretCompare,
 )
-from sarj_python_lint.rules.prefer_discriminated_union import PreferDiscriminatedUnion
 from sarj_python_lint.rules.prefer_str_enum import PreferStrEnum
 from sarj_python_lint.rules.prefer_struct_over_namedtuple import (
     PreferStructOverNamedtuple,
@@ -45,7 +44,6 @@ if TYPE_CHECKING:
 REGISTRY: dict[str, type[Rule]] = {
     NoSequentialAwait.id: NoSequentialAwait,
     InefficientStringConcatInLoop.id: InefficientStringConcatInLoop,
-    PreferDiscriminatedUnion.id: PreferDiscriminatedUnion,
     PreferClassRow.id: PreferClassRow,
     PreferStrEnum.id: PreferStrEnum,
     NoFatTryBlocks.id: NoFatTryBlocks,
