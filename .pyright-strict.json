@@ -44,7 +44,9 @@
   "reportPropertyTypeMismatch": "error",
   "reportArgumentType": "error",
   "reportPrivateUsage": "error",
-  "reportImplicitOverride": "warning",
+  // Off: low value — forcing `@override` on every `ast.NodeVisitor.visit_*` hook
+  // (and similar framework dispatch methods) is noise, not safety.
+  "reportImplicitOverride": false,
   // Off: ruff owns string-concat style. ruff's ISC003 forbids explicit `+` of
   // string literals (prefers implicit), which directly contradicts flagging
   // implicit concatenation here — the two cannot both be satisfied. ruff's ISC001
