@@ -35,6 +35,75 @@ def test_still_flags_production_files():
     assert len(_check(_SEQUENTIAL_LOOP, "python/bulbul/bulbul/calls/call_store.py")) == 1
 
 
+# --- iterable is evaluated once, not per element (former false positives) ---
+
+
+def test_allows_await_in_comprehension_iterable():
+    """`{x for x in await fetch()}` awaits once to build the iterable."""
+    src = """
+async def f():
+    return {row.id: row for row in await store.fetch_all()}
+"""
+    assert _check(src) == []
+
+
+def test_allows_await_in_for_iterable():
+    src = """
+async def f():
+    for trunk in (await client.list_trunks()).rules:
+        register(trunk)
+"""
+    assert _check(src) == []
+
+
+def test_allows_await_in_genexp_and_listcomp_iterable():
+    src = """
+async def f():
+    a = [x for x in await one()]
+    b = list(y for y in await two())
+    return a, b
+"""
+    assert _check(src) == []
+
+
+def test_still_flags_await_in_element_even_with_awaited_iterable():
+    """The iterable await is free, but a per-element await is still flagged."""
+    src = """
+async def f():
+    return [await enrich(x) for x in await fetch()]
+"""
+    assert len(_check(src)) == 1
+
+
+def test_still_flags_await_in_for_body_when_iter_also_awaits():
+    src = """
+async def f():
+    for x in await fetch():
+        await process(x)
+"""
+    assert len(_check(src)) == 1
+
+
+def test_flags_awaited_iterable_of_inner_loop_nested_in_outer():
+    """Inner loop's iterable awaits once per outer element — that is sequential."""
+    src = """
+async def f(groups):
+    for g in groups:
+        for item in await load(g):
+            use(item)
+"""
+    assert len(_check(src)) == 1
+
+
+def test_allows_await_in_condition_is_still_flagged():
+    """An await in a comprehension `if` runs per element — still flagged."""
+    src = """
+async def f(items):
+    return [x for x in items if await ok(x)]
+"""
+    assert len(_check(src)) == 1
+
+
 def test_flags_sequential_await():
     src = """
 async def f(items):
