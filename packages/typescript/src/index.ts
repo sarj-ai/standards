@@ -12,6 +12,7 @@ import noStringConcatInLoop from "./rules/no-string-concat-in-loop.js";
 import noUnnecessaryUseClient from "./rules/no-unnecessary-use-client.js";
 import preferDiscriminatedUnion from "./rules/prefer-discriminated-union.js";
 import preferSchemaForApiPayload from "./rules/prefer-schema-for-api-payload.js";
+import preferSemanticColors from "./rules/prefer-semantic-colors.js";
 import preferServerActions from "./rules/prefer-server-actions.js";
 import preferShadcn from "./rules/prefer-shadcn.js";
 import requireAssertNever from "./rules/require-assert-never.js";
@@ -33,6 +34,7 @@ const rules = {
   "no-unnecessary-use-client": noUnnecessaryUseClient,
   "prefer-discriminated-union": preferDiscriminatedUnion,
   "prefer-schema-for-api-payload": preferSchemaForApiPayload,
+  "prefer-semantic-colors": preferSemanticColors,
   "prefer-server-actions": preferServerActions,
   "prefer-shadcn": preferShadcn,
   "require-assert-never": requireAssertNever,
@@ -43,7 +45,7 @@ const rules = {
 const plugin = {
   meta: {
     name: "@sarj/eslint-plugin",
-    version: "2.1.1",
+    version: "2.2.0",
   },
   rules,
   configs: {
@@ -67,6 +69,8 @@ const plugin = {
         "@sarj/no-string-concat-in-loop": "warn",
         "@sarj/prefer-discriminated-union": "warn",
         "@sarj/no-comment-cruft": "warn",
+        // Frontend / styling — distilled from frontend PR-review mining.
+        "@sarj/prefer-semantic-colors": "warn",
       },
     },
     strict: {
@@ -92,6 +96,9 @@ const plugin = {
         "@sarj/no-string-concat-in-loop": "error",
         "@sarj/prefer-discriminated-union": "error",
         "@sarj/no-comment-cruft": "error",
+        // Frontend / styling — distilled from frontend PR-review mining. Stylistic,
+        // no autofix → warn (rollout should prove the FP rate before raising it).
+        "@sarj/prefer-semantic-colors": "warn",
       },
     },
   },

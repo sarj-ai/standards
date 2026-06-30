@@ -52,6 +52,9 @@ function bestMs(ruleName: string, repeats = 5): number {
       rules: { [`@sarj/${ruleName}`]: "error" },
     },
   ];
+  // Warm up the parser + rule JIT first so the absolute gate isn't flaky on a
+  // cold process (the first parse of a fresh run is several times slower).
+  linter.verify(SOURCE, config, "synthetic.tsx");
   let best = Number.POSITIVE_INFINITY;
   for (let r = 0; r < repeats; r++) {
     const start = performance.now();
@@ -60,6 +63,10 @@ function bestMs(ruleName: string, repeats = 5): number {
   }
   return best;
 }
+
+// These re-parse a ~2k-line source many times; they are heavy integration timings,
+// not unit tests, so they get a generous timeout (the default 5s is too tight).
+const PERF_TIMEOUT_MS = 30_000;
 
 describe("rule performance", () => {
   it("no rule exceeds the absolute ms/1k-LOC budget", () => {
@@ -70,7 +77,7 @@ describe("rule performance", () => {
         `${name}: ${msPerKloc.toFixed(1)} ms/1k LOC exceeds ${ABSOLUTE_MS_PER_KLOC}`,
       ).toBeLessThan(ABSOLUTE_MS_PER_KLOC);
     }
-  });
+  }, PERF_TIMEOUT_MS);
 
   it("no rule is an algorithmic outlier (>10x median)", () => {
     const timings = ruleNames.map((name) => ({ name, ms: bestMs(name) }));
@@ -83,5 +90,5 @@ describe("rule performance", () => {
       `rules >${RELATIVE_OUTLIER_FACTOR}x median (${median.toFixed(2)}ms): ` +
         slow.map((t) => `${t.name}=${t.ms.toFixed(2)}ms`).join(", "),
     ).toHaveLength(0);
-  });
+  }, PERF_TIMEOUT_MS);
 });
