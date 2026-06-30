@@ -4,6 +4,12 @@ Sequential `await` in a for-loop serializes I/O that could be parallelized
 with `asyncio.gather([f(x) for x in xs])`. The performance gap is often 10-100x
 for network-bound work (HTTP, DB queries, LLM calls).
 
+Test modules are exempt: sequential awaits in tests are overwhelmingly
+intentional ordering (seeding rows so `created_at` stays strictly increasing,
+step-by-step assertions, per-item isolation). `asyncio.gather` would race that
+ordering, and the parallelism payoff does not apply to test setup — so the rule
+fired almost exclusively as a false positive there.
+
 References:
 - https://docs.python.org/3/library/asyncio-task.html#running-tasks-concurrently
 """
@@ -20,6 +26,13 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+def _is_test_path(path: Path) -> bool:
+    name = path.name
+    if name == "conftest.py" or name.startswith("test_") or name.endswith("_test.py"):
+        return True
+    return any(part in {"tests", "test"} for part in path.parts)
+
+
 class NoSequentialAwait(Rule):
     """Sequential await calls in a loop that could be parallelized."""
 
@@ -29,6 +42,8 @@ class NoSequentialAwait(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
+        if _is_test_path(path):
+            return []
         try:
             tree = ast.parse(source, filename=str(path))
         except SyntaxError:
@@ -41,10 +56,7 @@ class NoSequentialAwait(Rule):
                 line=node.lineno,
                 col=node.col_offset + 1,
                 code=self.code,
-                message=(
-                    "Sequential `await` inside `for` — prefer "
-                    "`asyncio.gather([f(x) for x in xs])`."
-                ),
+                message=("Sequential `await` inside `for` — prefer `asyncio.gather([f(x) for x in xs])`."),
             )
             for node in visitor.hits
         ]

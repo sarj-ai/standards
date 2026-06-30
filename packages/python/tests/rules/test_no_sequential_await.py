@@ -8,8 +8,31 @@ if TYPE_CHECKING:
     from sarj_python_lint.rule_base import Diagnostic
 
 
-def _check(source: str) -> list[Diagnostic]:
-    return NoSequentialAwait().check(Path("<test>.py"), source)
+def _check(source: str, path: str = "<prod>.py") -> list[Diagnostic]:
+    return NoSequentialAwait().check(Path(path), source)
+
+
+_SEQUENTIAL_LOOP = """
+async def f(items):
+    for x in items:
+        result = await call(x)
+"""
+
+
+def test_skips_test_prefixed_files():
+    assert _check(_SEQUENTIAL_LOOP, "test_call_store.py") == []
+
+
+def test_skips_files_under_tests_dir():
+    assert _check(_SEQUENTIAL_LOOP, "python/bulbul/tests/stores/seed.py") == []
+
+
+def test_skips_conftest():
+    assert _check(_SEQUENTIAL_LOOP, "tests/conftest.py") == []
+
+
+def test_still_flags_production_files():
+    assert len(_check(_SEQUENTIAL_LOOP, "python/bulbul/bulbul/calls/call_store.py")) == 1
 
 
 def test_flags_sequential_await():
