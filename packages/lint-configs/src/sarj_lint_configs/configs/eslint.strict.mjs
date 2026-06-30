@@ -175,6 +175,10 @@ const config = [
       "@sarj/no-client-side-data-fetching": "error",
       "@sarj/prefer-server-actions": "warn",
       "@sarj/zod-naming-convention": "error",
+
+      // Frontend / styling — distilled from frontend PR-review mining. Stylistic,
+      // no autofix → warn (rollout should prove the FP rate before raising it).
+      "@sarj/prefer-semantic-colors": "warn",
     },
   },
 
