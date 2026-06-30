@@ -1,14 +1,24 @@
-"""SARJ001: detect `for x in xs: await f(x)` patterns.
+"""SARJ001: detect the `for x in xs: await f(x)` gather antipattern.
 
 Sequential `await` in a for-loop serializes I/O that could be parallelized
 with `asyncio.gather([f(x) for x in xs])`. The performance gap is often 10-100x
 for network-bound work (HTTP, DB queries, LLM calls).
 
-Test modules are exempt: sequential awaits in tests are overwhelmingly
-intentional ordering (seeding rows so `created_at` stays strictly increasing,
-step-by-step assertions, per-item isolation). `asyncio.gather` would race that
-ordering, and the parallelism payoff does not apply to test setup — so the rule
-fired almost exclusively as a false positive there.
+Deliberately narrow, to flag the textbook antipattern and almost nothing else —
+an over-broad version drowned real signal under suppressions. The rule fires
+only for:
+
+* a `for` loop whose body is **straight-line** (no `if`/`try`/`with`/`return`/
+  `break`/`continue`/`raise`/nested loop — those signal conditional or ordered
+  logic, not a parallel map) and awaits a call that **uses the loop variable**
+  (so each iteration is a distinct, independent call); or
+* a comprehension / generator expression with an `await` in its element or a
+  per-element `if` (those have no ordered side effects).
+
+It does NOT fire for: `while` loops (pagination, polling, queue drains — length
+unknown, inherently sequential), a loop's once-evaluated iterable
+(`for x in await fetch()`), `async for`, test modules (intentional ordering),
+or a `for` body containing control flow. Those were the false-positive sources.
 
 References:
 - https://docs.python.org/3/library/asyncio-task.html#running-tasks-concurrently
@@ -64,19 +74,45 @@ class NoSequentialAwait(Rule):
         return diags
 
 
-# `while` and the comprehension element/condition run once per iteration, so a
-# bare `await` there serializes the loop. `async for` is deliberately absent — it
-# is the parallel-iteration construct, not the antipattern.
-#
-# A loop's *iterable* is the exception: in `for x in <iter>` (and a
-# comprehension's outermost `for ... in <iter>`), `<iter>` is evaluated exactly
-# once in the enclosing scope, NOT per element. So `for x in await fetch()` and
-# `{x for x in await fetch()}` await once and must not be flagged — that was a
-# false positive that forced suppressions across real code. Those iterables are
-# visited *before* the loop is pushed, so any await in them attributes to an
-# enclosing loop (if one exists) rather than to this one.
-_WHILE = (ast.While,)
+# A loop's *iterable* is evaluated once in the enclosing scope, NOT per element:
+# `for x in await fetch()` / `{x for x in await fetch()}` await once. Iterables
+# are visited *before* the loop is pushed, so an await there attributes to an
+# enclosing loop (if any), not this one.
 _SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+
+# Top-level body statements that signal conditional or ordered logic rather than
+# a straight-line parallel map. A `for` whose body contains any of these is not
+# treated as the gather antipattern.
+_CONTROL_FLOW = (
+    ast.If,
+    ast.For,
+    ast.AsyncFor,
+    ast.While,
+    ast.With,
+    ast.AsyncWith,
+    ast.Try,
+    ast.Match,
+    ast.Return,
+    ast.Break,
+    ast.Continue,
+    ast.Raise,
+)
+
+
+def _names(node: ast.AST) -> set[str]:
+    return {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+
+
+def _is_gather_antipattern(node: ast.For) -> bool:
+    """True for `for x in xs: <straight-line body awaiting a call that uses x>`."""
+    if any(isinstance(stmt, _CONTROL_FLOW) for stmt in node.body):
+        return False
+    targets = _names(node.target)
+    for stmt in node.body:
+        for inner in ast.walk(stmt):
+            if isinstance(inner, ast.Await) and _names(inner) & targets:
+                return True
+    return False
 
 
 class _SequentialAwaitVisitor(ast.NodeVisitor):
@@ -89,6 +125,7 @@ class _SequentialAwaitVisitor(ast.NodeVisitor):
     """
 
     def __init__(self) -> None:
+        super().__init__()
         self._loops: list[ast.AST] = []
         self._flagged: set[int] = set()
         self.hits: list[ast.Await] = []
@@ -103,11 +140,17 @@ class _SequentialAwaitVisitor(ast.NodeVisitor):
     def visit_For(self, node: ast.For) -> None:
         # `<iter>` runs once in the enclosing scope; visit it before entering.
         self.visit(node.iter)
-        self._loops.append(node)
+        # Only a straight-line per-element-await body is the gather antipattern;
+        # control-flow bodies (conditional/ordered) are not pushed, so awaits in
+        # them are not flagged for this loop.
+        antipattern = _is_gather_antipattern(node)
+        if antipattern:
+            self._loops.append(node)
         self.visit(node.target)
         for stmt in (*node.body, *node.orelse):
             self.visit(stmt)
-        self._loops.pop()
+        if antipattern:
+            self._loops.pop()
 
     def _visit_comprehension(self, node: ast.AST, elements: tuple[ast.expr, ...]) -> None:
         gens: list[ast.comprehension] = node.generators  # pyright: ignore[reportAttributeAccessIssue]
@@ -146,10 +189,6 @@ class _SequentialAwaitVisitor(ast.NodeVisitor):
             self._loops = []
             super().generic_visit(node)
             self._loops = saved
-        elif isinstance(node, _WHILE):
-            self._loops.append(node)
-            super().generic_visit(node)
-            self._loops.pop()
         elif isinstance(node, ast.Await):
             self._flag_if_in_loop(node)
             super().generic_visit(node)
