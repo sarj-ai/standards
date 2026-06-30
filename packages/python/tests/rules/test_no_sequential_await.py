@@ -84,15 +84,15 @@ async def f():
     assert len(_check(src)) == 1
 
 
-def test_flags_awaited_iterable_of_inner_loop_nested_in_outer():
-    """Inner loop's iterable awaits once per outer element — that is sequential."""
+def test_allows_for_whose_body_is_a_nested_loop():
+    """An outer `for` whose body is a nested loop is control flow, not a flat map."""
     src = """
 async def f(groups):
     for g in groups:
         for item in await load(g):
             use(item)
 """
-    assert len(_check(src)) == 1
+    assert _check(src) == []
 
 
 def test_allows_await_in_condition_is_still_flagged():
@@ -153,15 +153,14 @@ async def f(items):
     assert len(_check(src)) == 1
 
 
-def test_flags_sequential_await_in_while():
+def test_allows_await_in_while_loop():
+    """`while` length is unknown (pagination/polling/drain) — never the gather case."""
     src = """
 async def f(q):
     while not q.empty():
         item = await q.get()
 """
-    diags = _check(src)
-    assert len(diags) == 1
-    assert diags[0].code == "SARJ001"
+    assert _check(src) == []
 
 
 def test_flags_await_in_comprehension():
@@ -187,10 +186,68 @@ def test_flags_each_distinct_loop_once():
 async def f(rows, cols):
     for r in rows:
         a = await one(r)
-    while cols:
-        b = await two(cols.pop())
+    for c in cols:
+        b = await two(c)
 """
     assert len(_check(src)) == 2
+
+
+# --- narrowed to the textbook gather antipattern ---
+
+
+def test_allows_for_with_conditional_body():
+    src = """
+async def f(items):
+    for x in items:
+        if x.ready:
+            await call(x)
+"""
+    assert _check(src) == []
+
+
+def test_allows_for_with_try_body():
+    src = """
+async def f(items):
+    for x in items:
+        try:
+            await call(x)
+        except Exception:
+            log(x)
+"""
+    assert _check(src) == []
+
+
+def test_allows_for_with_early_return_or_break():
+    src = """
+async def f(strategies, request):
+    for s in strategies:
+        result = await s.authorize(request)
+        if result:
+            return result
+"""
+    assert _check(src) == []
+
+
+def test_allows_for_await_not_using_loop_variable():
+    src = """
+async def f(items):
+    for _ in items:
+        await tick()
+"""
+    assert _check(src) == []
+
+
+def test_flags_straight_line_multi_statement_body():
+    """A flat body that awaits per element is the antipattern even if multi-line."""
+    src = """
+async def f(items):
+    out = []
+    for x in items:
+        r = await call(x)
+        out.append(r)
+    return out
+"""
+    assert len(_check(src)) == 1
 
 
 def test_does_not_escape_nested_function_boundary():
