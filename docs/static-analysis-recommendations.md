@@ -13,6 +13,18 @@ Synthesis of 10 theme-agent analyses over 5,504 review comments by nmaswood acro
 - **Mobile is greenfield**: zero standards coverage for Kotlin/Swift. Enabling detekt/SwiftLint built-ins covers ~60 comments immediately; a small `sarj-detekt-rules` port of SARJ005/006/assert-never/try-size covers ~70 more.
 - **~600 occurrences are judgment calls** (YAGNI deletion, redundant comments, "why is this nullable?", layering, index justification) — these need an auto-invoked LLM reviewer (he manually summons `@claude` today, 28×). A ready-to-paste review-bot prompt is in Tier 4.
 
+> **Update — redundancy trim (build-vs-adopt audit).** A later audit found several
+> rules duplicated tooling we already run, so they were deleted in favor of the
+> off-the-shelf equivalent: `@sarj/no-raw-env` → the config's `no-restricted-properties`
+> ban on `process.env`; `@sarj/no-sequential-await` → core `no-await-in-loop`;
+> `@sarj/prefer-shadcn` → `react/forbid-elements`; `sarj-python-lint`'s
+> `no_unreachable_after_terminal` → basedpyright `reportUnreachable`; and four
+> `sarj-sql-lint` migration rules (`enforce_timestamptz`, `idempotent_ddl`,
+> `index_concurrently`, `prefer_text_over_varchar`) → **squawk** (`prefer-timestamptz`,
+> `prefer-robust-stmts`, `require-concurrent-index-creation`, `prefer-text-field`), the
+> parser-based migration linter consumers already run. The Tier-3 entries below that
+> proposed those rules are kept for the historical record.
+
 ## Methodology
 
 - Corpus: 5,504 comments split into 10 slices: `py-app-1..4` (~3,211 Python application comments), `py-tests` (47), `ts-frontend` (714), `ts-backend` (511), `sql-infra-config` (297), `mobile` (244, all noura-fe), `general-reviews` (480 PR-level/process).
@@ -40,7 +52,7 @@ These rules **already exist** in sarj-ai/standards. The comments keep recurring 
 | print/loguru basics, f-string logs | ~30 | ruff `T201`, `G004`, `LOG015` | Roll out; see Tier 2 for `logging.getLogger` ban ([ex1](https://github.com/sarj-ai/bulbul/pull/865#discussion_r2217485961), [ex2](https://github.com/sarj-ai/kashta/pull/43#discussion_r2093722172)) |
 | switch + assertNever exhaustiveness (TS) | ~17 | `@sarj/require-assert-never` + `switch-exhaustiveness-check` | Adopt ([ex1](https://github.com/sarj-ai/bulbul/pull/35#discussion_r1835509427), [ex2](https://github.com/sarj-ai/tamr/pull/16#discussion_r2312115462)) |
 | "Run the formatter/linter" comments | ~15 | configs exist; nothing enforces them | Required CI checks + pre-commit org-wide ([ex1](https://github.com/sarj-ai/bulbul/pull/27#discussion_r1831468493), [ex2](https://github.com/sarj-ai/tamr/pull/2#discussion_r2003898674)) |
-| Settings via pydantic/Zod, no raw env | ~12 | ruff banned-api `os.environ`/`os.getenv` (TID251); `@sarj/no-raw-env` + `no-restricted-properties` process.env | Roll out ([ex1](https://github.com/sarj-ai/kashta/pull/41#discussion_r2093269795), [ex2](https://github.com/sarj-ai/qa-copilot/pull/4#discussion_r2760437285)) |
+| Settings via pydantic/Zod, no raw env | ~12 | ruff banned-api `os.environ`/`os.getenv` (TID251); `no-restricted-properties` process.env | Roll out ([ex1](https://github.com/sarj-ai/kashta/pull/41#discussion_r2093269795), [ex2](https://github.com/sarj-ai/qa-copilot/pull/4#discussion_r2760437285)) |
 | No TS `enum` / nativeEnum | ~11 | `@sarj/no-enum` + `TSEnumDeclaration` restricted-syntax | Adopt; Tier 2 adds `z.nativeEnum` ban ([ex1](https://github.com/sarj-ai/bulbul/pull/655#discussion_r2155433629), [ex2](https://github.com/sarj-ai/bulbul/pull/793#discussion_r2189768805)) |
 | Function-level imports → top | ~8 | ruff `PLC0415` (preview, select=ALL) | Roll out ([ex1](https://github.com/sarj-ai/ai/pull/16#discussion_r2433829347), [ex2](https://github.com/sarj-ai/kashta/pull/45#discussion_r2094677530)) |
 | `success: bool` + Optional fields → Result union (narrow shape) | part of ~88 | sarj-python-lint `SARJ005` | **Install sarj-python-lint in bulbul** ([ex1](https://github.com/sarj-ai/bulbul/pull/564#discussion_r2114517314), [ex2](https://github.com/sarj-ai/ai/pull/2#discussion_r2255653372)) |

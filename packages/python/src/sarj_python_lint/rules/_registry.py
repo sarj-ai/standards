@@ -17,9 +17,6 @@ from sarj_python_lint.rules.no_secret_in_log import NoSecretInLog
 from sarj_python_lint.rules.no_select_star import NoSelectStar
 from sarj_python_lint.rules.no_sentinel_return_on_except import NoSentinelReturnOnExcept
 from sarj_python_lint.rules.no_sequential_await import NoSequentialAwait
-from sarj_python_lint.rules.no_unreachable_after_terminal import (
-    NoUnreachableAfterTerminal,
-)
 from sarj_python_lint.rules.prefer_class_row import PreferClassRow
 from sarj_python_lint.rules.prefer_constant_time_secret_compare import (
     PreferConstantTimeSecretCompare,
@@ -52,7 +49,6 @@ REGISTRY: dict[str, type[Rule]] = {
     NoIsinstanceUnionChain.id: NoIsinstanceUnionChain,
     PydanticAtBoundaries.id: PydanticAtBoundaries,
     NoSentinelReturnOnExcept.id: NoSentinelReturnOnExcept,
-    NoUnreachableAfterTerminal.id: NoUnreachableAfterTerminal,
     PreferConstantTimeSecretCompare.id: PreferConstantTimeSecretCompare,
     NoSecretInLog.id: NoSecretInLog,
     PreferTimedeltaForDurations.id: PreferTimedeltaForDurations,

@@ -70,13 +70,6 @@
   language: python
   types: [python]
 
-- id: sarj-enforce-timestamptz
-  name: 'sarj-lint(sql): TIMESTAMP must use WITH TIME ZONE (TIMESTAMPTZ)'
-  entry: sarj-sql-lint check --rule enforce-timestamptz
-  language: python
-  types: [sql]
-  additional_dependencies: ['sarj-sql-lint']
-
 - id: sarj-ban-postgres-enums
   name: 'sarj-lint(sql): ban native postgres ENUM types (prefer TEXT with CHECK)'
   entry: sarj-sql-lint check --rule no-pg-enum
@@ -89,20 +82,6 @@
   entry: '(?i)CREATE TRIGGER'
   language: pygrep
   types: [sql]
-
-- id: sarj-prefer-text-over-varchar
-  name: 'sarj-lint(sql): ban VARCHAR(n) in postgres migrations (use TEXT)'
-  entry: sarj-sql-lint check --rule prefer-text-over-varchar
-  language: python
-  types: [sql]
-  additional_dependencies: ['sarj-sql-lint']
-
-- id: sarj-idempotent-ddl
-  name: 'sarj-lint(sql): DDL must be re-runnable (IF [NOT] EXISTS)'
-  entry: sarj-sql-lint check --rule idempotent-ddl
-  language: python
-  types: [sql]
-  additional_dependencies: ['sarj-sql-lint']
 
 - id: sarj-insert-requires-on-conflict
   name: 'sarj-lint(sql): INSERT in migrations must be an idempotent upsert (ON CONFLICT)'
@@ -121,13 +100,6 @@
 - id: sarj-no-limit-offset
   name: 'sarj-lint(sql): no OFFSET pagination (use cursor pagination)'
   entry: sarj-sql-lint check --rule no-limit-offset
-  language: python
-  types: [sql]
-  additional_dependencies: ['sarj-sql-lint']
-
-- id: sarj-index-concurrently
-  name: 'sarj-lint(sql): CREATE INDEX must use CONCURRENTLY'
-  entry: sarj-sql-lint check --rule index-concurrently
   language: python
   types: [sql]
   additional_dependencies: ['sarj-sql-lint']

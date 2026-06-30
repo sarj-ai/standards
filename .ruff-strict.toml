@@ -132,6 +132,11 @@ ignore = [
   # Normal packages legitimately put re-exports, __version__, and small registry
   # wiring in __init__.py. RUF067 (preview) bans any code there — too aggressive.
   "RUF067",
+
+  # PYI024 nudges collections.namedtuple → typing.NamedTuple (still a tuple). The
+  # house style prefers a struct (dataclass/msgspec/pydantic) — enforced by
+  # sarj-python-lint's prefer_struct_over_namedtuple — so silence the conflicting nag.
+  "PYI024",
 ]
 
 [lint.isort]

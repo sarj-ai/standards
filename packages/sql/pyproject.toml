@@ -1,7 +1,7 @@
 [project]
 name = "sarj-sql-lint"
-version = "0.2.0"
-description = "Custom SQL lint rules for Postgres migrations — sqlfluff + pygrep, pre-commit-friendly."
+version = "0.3.0"
+description = "Custom SQL lint rules for Postgres migrations — stdlib, pre-commit-friendly."
 readme = "README.md"
 authors = [{ name = "sarj-ai" }]
 license = { text = "MIT" }
@@ -14,9 +14,7 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
   "Topic :: Software Development :: Quality Assurance",
 ]
-dependencies = [
-  "sqlfluff>=4.2",
-]
+dependencies = []
 
 [project.scripts]
 sarj-sql-lint = "sarj_sql_lint.__main__:main"

@@ -27,29 +27,29 @@ def _run(rule: str, f: Path, capsys: pytest.CaptureFixture[str]) -> tuple[int, l
 
 
 def test_bare_noqa_suppresses(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
-    f = _write(tmp_path, "created_at TIMESTAMP NOT NULL -- sarj-noqa\n")
-    code, lines = _run("enforce-timestamptz", f, capsys)
+    f = _write(tmp_path, "CREATE TYPE x AS ENUM ('a'); -- sarj-noqa\n")
+    code, lines = _run("no-pg-enum", f, capsys)
     assert code == 0
     assert lines == []
 
 
 def test_noqa_with_matching_code_suppresses(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
-    f = _write(tmp_path, "created_at TIMESTAMP NOT NULL -- sarj-noqa: SARJ101\n")
-    code, lines = _run("enforce-timestamptz", f, capsys)
+    f = _write(tmp_path, "CREATE TYPE x AS ENUM ('a'); -- sarj-noqa: SARJ103\n")
+    code, lines = _run("no-pg-enum", f, capsys)
     assert code == 0
     assert lines == []
 
 
 def test_noqa_with_other_code_does_not_suppress(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
-    f = _write(tmp_path, "created_at TIMESTAMP NOT NULL -- sarj-noqa: SARJ999\n")
-    code, lines = _run("enforce-timestamptz", f, capsys)
+    f = _write(tmp_path, "CREATE TYPE x AS ENUM ('a'); -- sarj-noqa: SARJ999\n")
+    code, lines = _run("no-pg-enum", f, capsys)
     assert code == 1
     assert len(lines) == 1
 
 
 def test_no_noqa_reports(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
-    f = _write(tmp_path, "created_at TIMESTAMP NOT NULL\n")
-    code, lines = _run("enforce-timestamptz", f, capsys)
+    f = _write(tmp_path, "CREATE TYPE x AS ENUM ('a');\n")
+    code, lines = _run("no-pg-enum", f, capsys)
     assert code == 1
     assert len(lines) == 1
 
@@ -57,16 +57,16 @@ def test_no_noqa_reports(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
 def test_noqa_only_suppresses_its_own_line(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
     f = _write(
         tmp_path,
-        "CREATE TABLE a (id INT); -- sarj-noqa: SARJ102\nCREATE TABLE b (id INT);\n",
+        "CREATE TYPE a AS ENUM ('x'); -- sarj-noqa: SARJ103\nCREATE TYPE b AS ENUM ('y');\n",
     )
-    code, lines = _run("idempotent-ddl", f, capsys)
+    code, lines = _run("no-pg-enum", f, capsys)
     assert code == 1
     assert len(lines) == 1
     assert ":2:" in lines[0]
 
 
 def test_is_suppressed_unit():
-    source_lines = ["DROP TABLE x; -- sarj-noqa: SARJ102, SARJ108"]
-    assert is_suppressed(source_lines, 1, "SARJ102")
-    assert is_suppressed(source_lines, 1, "sarj108")
-    assert not is_suppressed(source_lines, 1, "SARJ101")
+    source_lines = ["DROP TABLE x; -- sarj-noqa: SARJ103, SARJ107"]
+    assert is_suppressed(source_lines, 1, "SARJ103")
+    assert is_suppressed(source_lines, 1, "sarj107")
+    assert not is_suppressed(source_lines, 1, "SARJ106")
