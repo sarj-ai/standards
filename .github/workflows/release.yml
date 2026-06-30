@@ -1,0 +1,301 @@
+name: release
+
+# Publishing model:
+# - Push to main: the `detect` job finds which package's manifest `version`
+#   changed vs the previous commit, and the matching publish job runs. Because
+#   this workflow runs DIRECTLY on the push (not via workflow_call), PyPI
+#   Trusted Publishing (OIDC) works — reusable workflows are unsupported by PyPI.
+# - Tag `<pkg>-v*` or manual dispatch: publishes the selected package(s).
+# A push with no version bump publishes nothing (no duplicate-version errors).
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'typescript-v*'
+      - 'python-v*'
+      - 'sql-v*'
+      - 'iac-v*'
+      - 'lint-configs-v*'
+      - 'tsconfig-v*'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which package to publish'
+        required: true
+        type: choice
+        options:
+          - typescript
+          - python
+          - sql
+          - iac
+          - lint-configs
+          - tsconfig
+          - all
+
+permissions:
+  contents: read
+
+jobs:
+  # Detects which package versions changed on a push to main. For tag/dispatch
+  # runs it emits all-false (the publish jobs gate on the tag/target instead).
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      typescript: ${{ steps.c.outputs.typescript }}
+      python: ${{ steps.c.outputs.python }}
+      sql: ${{ steps.c.outputs.sql }}
+      iac: ${{ steps.c.outputs.iac }}
+      lint-configs: ${{ steps.c.outputs.lint-configs }}
+      tsconfig: ${{ steps.c.outputs.tsconfig }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: c
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # True iff the manifest's own `version` line changed between BEFORE..AFTER.
+          ver_changed () {
+            if git rev-parse --verify --quiet "${BEFORE}^{commit}" >/dev/null 2>&1; then
+              git diff --no-color "$BEFORE" "$AFTER" -- "$1" | grep -qE "$2"
+            else
+              return 1
+            fi
+          }
+          emit () { echo "$1=$( { ver_changed "$2" "$3"; } && echo true || echo false )" >> "$GITHUB_OUTPUT"; }
+          emit typescript    packages/typescript/package.json     '^\+[[:space:]]*"version":'
+          emit tsconfig      packages/tsconfig/package.json       '^\+[[:space:]]*"version":'
+          emit python        packages/python/pyproject.toml       '^\+version = '
+          emit sql           packages/sql/pyproject.toml          '^\+version = '
+          emit iac           packages/iac/pyproject.toml          '^\+version = '
+          emit lint-configs  packages/lint-configs/pyproject.toml '^\+version = '
+          cat "$GITHUB_OUTPUT"
+
+  publish-typescript:
+    needs: detect
+    if: >-
+      startsWith(github.ref, 'refs/tags/typescript-v') ||
+      github.event.inputs.target == 'typescript' || github.event.inputs.target == 'all' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect.outputs.typescript == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/typescript
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci || npm install
+      - run: npm run build
+      - run: npm test
+      # No --provenance: npm provenance requires a PUBLIC source repo, but this
+      # repo is internal. Publishes via NODE_AUTH_TOKEN instead.
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-python:
+    needs: detect
+    if: >-
+      startsWith(github.ref, 'refs/tags/python-v') ||
+      github.event.inputs.target == 'python' || github.event.inputs.target == 'all' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect.outputs.python == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/python
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: 'packages/**/uv.lock'
+      - run: uv python install 3.14
+      - run: uv sync --dev
+      - run: uv run pytest -q
+      - run: uv build --wheel --sdist
+      - uses: pypa/gh-action-pypi-publish@v1.14.0
+        with:
+          packages-dir: packages/python/dist
+
+  publish-sql:
+    needs: detect
+    if: >-
+      startsWith(github.ref, 'refs/tags/sql-v') ||
+      github.event.inputs.target == 'sql' || github.event.inputs.target == 'all' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect.outputs.sql == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: packages/sql
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: 'packages/**/uv.lock'
+      - run: uv python install 3.14
+      - run: uv sync --dev
+      - run: uv run pytest -q
+      - run: uv build --wheel --sdist
+      - run: uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN_SQL_LINT }}
+
+  publish-iac:
+    needs: detect
+    if: >-
+      startsWith(github.ref, 'refs/tags/iac-v') ||
+      github.event.inputs.target == 'iac' || github.event.inputs.target == 'all' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect.outputs.iac == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/iac
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: 'packages/**/uv.lock'
+      - run: uv python install 3.14
+      - run: uv sync --dev
+      - run: uv run pytest -q
+      - run: uv build --wheel --sdist
+      - uses: pypa/gh-action-pypi-publish@v1.14.0
+        with:
+          packages-dir: packages/iac/dist
+
+  publish-lint-configs:
+    needs: detect
+    if: >-
+      startsWith(github.ref, 'refs/tags/lint-configs-v') ||
+      github.event.inputs.target == 'lint-configs' || github.event.inputs.target == 'all' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect.outputs.lint-configs == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: packages/lint-configs
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: 'packages/**/uv.lock'
+      - run: uv python install 3.14
+      - run: uv build --wheel
+      - name: Test against the built wheel
+        run: |
+          uv venv --python 3.14 --seed
+          uv pip install ./dist/*.whl pytest ruff
+          uv run --no-project pytest -q tests/
+      - run: uv build --sdist
+      - run: uv publish
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN_LINT_CONFIGS }}
+
+  publish-tsconfig:
+    needs: detect
+    if: >-
+      startsWith(github.ref, 'refs/tags/tsconfig-v') ||
+      github.event.inputs.target == 'tsconfig' || github.event.inputs.target == 'all' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect.outputs.tsconfig == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/tsconfig
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Validate JSON
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('base.json','utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('strict.json','utf8'))"
+      # No --provenance: npm provenance requires a PUBLIC source repo, but this
+      # repo is internal. Publishes via NODE_AUTH_TOKEN instead.
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # After a successful publish on push-to-main, stamp the matching `<pkg>-v<version>`
+  # git tag. pre-commit consumers pin Python/SQL rules by git tag (installed from
+  # source), so a PyPI release without a tag leaves them unable to resolve `rev:`.
+  # Idempotent: skips a tag that already exists.
+  tag:
+    needs:
+      - detect
+      - publish-typescript
+      - publish-python
+      - publish-sql
+      - publish-iac
+      - publish-lint-configs
+      - publish-tsconfig
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !cancelled()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Create version tags for newly published packages
+        env:
+          PY_OK: ${{ needs.publish-python.result }}
+          SQL_OK: ${{ needs.publish-sql.result }}
+          IAC_OK: ${{ needs.publish-iac.result }}
+          TS_OK: ${{ needs.publish-typescript.result }}
+          LC_OK: ${{ needs.publish-lint-configs.result }}
+          TSC_OK: ${{ needs.publish-tsconfig.result }}
+          PY_CHG: ${{ needs.detect.outputs.python }}
+          SQL_CHG: ${{ needs.detect.outputs.sql }}
+          IAC_CHG: ${{ needs.detect.outputs.iac }}
+          TS_CHG: ${{ needs.detect.outputs.typescript }}
+          LC_CHG: ${{ needs.detect.outputs.lint-configs }}
+          TSC_CHG: ${{ needs.detect.outputs.tsconfig }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          toml_version () { sed -n 's/^version = "\(.*\)"/\1/p' "$1" | head -1; }
+          json_version () { node -e "process.stdout.write(require('./$1').version)"; }
+          maybe_tag () {
+            local prefix="$1" version="$2"
+            local tag="${prefix}-v${version}"
+            if [ -z "$version" ]; then echo "no version for $prefix, skipping"; return; fi
+            if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+              echo "$tag already exists, skipping"; return
+            fi
+            git tag -a "$tag" -m "$prefix $version"
+            git push origin "$tag"
+            echo "created $tag"
+          }
+          [ "$PY_CHG" = "true" ]  && [ "$PY_OK" = "success" ]  && maybe_tag python       "$(toml_version packages/python/pyproject.toml)" || true
+          [ "$SQL_CHG" = "true" ] && [ "$SQL_OK" = "success" ] && maybe_tag sql          "$(toml_version packages/sql/pyproject.toml)" || true
+          [ "$IAC_CHG" = "true" ] && [ "$IAC_OK" = "success" ] && maybe_tag iac          "$(toml_version packages/iac/pyproject.toml)" || true
+          [ "$LC_CHG" = "true" ]  && [ "$LC_OK" = "success" ]  && maybe_tag lint-configs "$(toml_version packages/lint-configs/pyproject.toml)" || true
+          [ "$TS_CHG" = "true" ]  && [ "$TS_OK" = "success" ]  && maybe_tag typescript   "$(json_version packages/typescript/package.json)" || true
+          [ "$TSC_CHG" = "true" ] && [ "$TSC_OK" = "success" ] && maybe_tag tsconfig     "$(json_version packages/tsconfig/package.json)" || true
+          echo "done"

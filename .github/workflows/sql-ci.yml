@@ -1,0 +1,38 @@
+name: sql CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/sql/**'
+      - '.github/workflows/sql-ci.yml'
+  pull_request:
+    paths:
+      - 'packages/sql/**'
+      - '.github/workflows/sql-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/sql
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: 'packages/**/uv.lock'
+      - run: uv python install 3.14
+      - run: uv sync --dev
+      - run: uv run pytest -q
+      - run: uv run ruff check src/ tests/
+      - run: uv run basedpyright
+      - run: uv build

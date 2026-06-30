@@ -1,0 +1,68 @@
+{
+  "name": "@sarj/eslint-plugin",
+  "version": "2.2.0",
+  "description": "Custom ESLint rules for hypermodern TypeScript / React / Next.js projects",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sarj-ai/standards.git",
+    "directory": "packages/typescript"
+  },
+  "homepage": "https://github.com/sarj-ai/standards/tree/main/packages/typescript",
+  "bugs": {
+    "url": "https://github.com/sarj-ai/standards/issues"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "eslint",
+    "eslintplugin",
+    "eslint-plugin",
+    "sarj",
+    "react",
+    "nextjs",
+    "zod"
+  ],
+  "author": "sarj-ai",
+  "license": "MIT",
+  "dependencies": {
+    "@typescript-eslint/utils": "^8.62.1"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@typescript-eslint/parser": "latest",
+    "@typescript-eslint/rule-tester": "latest",
+    "@typescript-eslint/utils": "latest",
+    "eslint": "latest",
+    "tsup": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  },
+  "peerDependencies": {
+    "eslint": ">=9.39.4"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

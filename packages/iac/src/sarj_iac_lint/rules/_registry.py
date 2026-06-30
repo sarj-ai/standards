@@ -1,0 +1,18 @@
+"""Rule registry — the single source of truth mapping rule id to rule class."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from sarj_iac_lint.rules.no_comment_cruft import NoCommentCruft
+from sarj_iac_lint.rules.require_deletion_protection import RequireDeletionProtection
+
+
+if TYPE_CHECKING:
+    from sarj_iac_lint.rule_base import Rule
+
+
+REGISTRY: dict[str, type[Rule]] = {
+    RequireDeletionProtection.id: RequireDeletionProtection,
+    NoCommentCruft.id: NoCommentCruft,
+}

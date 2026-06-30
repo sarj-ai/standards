@@ -1,0 +1,169 @@
+line-length = 120
+target-version = "py314"
+extend-exclude = ["sdk"]
+
+[format]
+quote-style              = "double"
+indent-style             = "space"
+skip-magic-trailing-comma = false
+line-ending              = "auto"
+
+[lint]
+select = ["ALL"]
+external = ["SARJ"]
+preview = true
+
+extend-select = [
+  "ANN401",
+  "RUF013",
+  "RUF022",
+  "RUF023",
+  "RUF052",
+  "TC001",
+  "TC002",
+  "TC003",
+
+  "UP041",
+  "UP045",
+  "UP046",
+  "UP047",
+  "UP049",
+
+  "FURB101",
+  "FURB103",
+  "FURB113",
+  "FURB118",
+  "FURB148",
+  "FURB152",
+  "FURB154",
+  "FURB163",
+  "FURB166",
+  "FURB171",
+  "FURB177",
+  "FURB180",
+  "FURB192",
+
+  "ASYNC100",
+  "ASYNC105",
+  "ASYNC109",
+
+  "B904",
+  "S112",
+  "TRY400",
+  "TRY401",
+
+  "ASYNC210",
+  "ASYNC220",
+  "ASYNC230",
+  "ASYNC251",
+  "PERF402",
+  "SIM117",
+
+  "PT006",
+  "PT007",
+  "PT009",
+  "PT011",
+  "PT012",
+
+  "FAST001",
+  "FAST002",
+
+  "LOG001",
+  "LOG002",
+  "LOG007",
+  "LOG009",
+  "LOG015",
+  "G010",
+
+  "FBT001",
+  "FBT002",
+  "FBT003",
+]
+
+ignore = [
+  "RUF102",
+
+  "A002",
+  "A003",
+
+  "TRY002",
+  "TRY003",
+
+  # Complexity is a code-smell heuristic, not a correctness rule. We disable the
+  # whole family consistently — counting branches/returns/args/statements just
+  # nags without catching bugs.
+  "C901",
+  "PLR0911",
+  "PLR0912",
+  "PLR0913",
+  "PLR0915",
+
+  # Docstrings are optional here (D100-107 off). Given that, policing the
+  # punctuation, sections, and return/yield/raises documentation of the few
+  # docstrings that DO exist is pure noise — and mandatory copyright headers and
+  # darglint-style return docs are a waste of time, not a quality signal.
+  "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",
+  "D203",
+  "D205",
+  "D209",
+  "D213",
+  "D400",
+  "D401",
+  "D403",
+  "D413",
+  "D415",
+  "DOC201",
+  "DOC402",
+  "DOC501",
+  "CPY001",
+
+  "COM812",
+  "E501",
+  "EM101",
+  "EM102",
+  "INP001",
+  "S101",
+  "S105",
+  "S106",
+
+  "RUF001",
+  "SLF001",
+
+  # Normal packages legitimately put re-exports, __version__, and small registry
+  # wiring in __init__.py. RUF067 (preview) bans any code there — too aggressive.
+  "RUF067",
+]
+
+[lint.isort]
+force-single-line          = false
+lines-after-imports        = 2
+force-sort-within-sections = true
+
+[lint.flake8-tidy-imports.banned-api]
+"unittest.mock.Mock".msg              = "Prefer real fixtures or hand-rolled fakes implementing the relevant ABC. If a mock is genuinely required, import with `# noqa: TID251 — <reason>`."
+"unittest.mock.AsyncMock".msg         = "Same as Mock."
+"unittest.mock.MagicMock".msg         = "Same as Mock."
+"unittest.mock.patch".msg             = "Prefer dependency injection via fixtures over monkey-patching."
+
+"datetime.datetime.utcnow".msg        = "Deprecated in Python 3.12. Use `datetime.now(UTC)`."
+"pickle.load".msg                     = "Pickle deserializes arbitrary objects and is unsafe on untrusted input. Use JSON via Pydantic, or msgspec/orjson."
+"pickle.loads".msg                    = "Same — pickle is unsafe."
+
+"os.environ".msg                      = "Use a Pydantic Settings class instead. If you genuinely need raw os.environ, add `# noqa: TID251 — <reason>` inline."
+"os.getenv".msg                       = "Same — use a Pydantic Settings class instead of os.getenv."
+
+"fastapi.UploadFile".msg              = "Use a pre-signed URL so the client uploads directly to object storage."
+"pydantic.alias_generators.to_camel".msg = "Don't camelCase API contracts in the backend. Keep snake_case; transform on the frontend with Zod."
+"typing.cast".msg                     = "Prefer discriminated unions or `isinstance` narrowing over `cast`."
+"psycopg.sql.Literal".msg             = "Use parameterized queries (psycopg's `%s` placeholders) instead of sql.Literal."
+
+[lint.per-file-ignores]
+# Tests routinely assert, take boolean params, use magic numbers, and shell out
+# to the binary under test (subprocess) — none of that is a smell in a test.
+"**/tests/**"     = ["S101", "FBT001", "FBT002", "FBT003", "PLR2004", "S404", "S603", "S607"]
+"**/test_*.py"    = ["ANN201", "ANN202"]
+"scripts/**"      = ["T201", "S", "BLE001", "TRY002"]
+# CLI entrypoints print to stdout — that's their job, not stray debug output.
+"**/__main__.py"  = ["T201"]
+"__init__.py"     = []
+"**/settings.py"  = []
