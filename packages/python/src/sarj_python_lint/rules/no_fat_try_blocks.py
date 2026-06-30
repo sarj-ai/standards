@@ -1,4 +1,4 @@
-"""SARJ007: `try` block whose body has more than 3 top-level statements.
+"""SARJ007: `try` block with more than 3 top-level statements that can raise.
 
 A fat `try` body obscures which statement is actually expected to raise and
 widens the blast radius of the `except` handlers: unrelated failures get
@@ -6,13 +6,20 @@ caught (and often swallowed or mis-reported) by handlers written for a
 different operation. Keep the `try` skinny — isolate the throwing
 statement(s) and move the non-throwing setup and follow-up work outside.
 
-Only the top-level statements of the `try` body are counted; statements
-nested inside an `if` / `with` / loop within the body count as the single
-compound statement that contains them. Nested `try` blocks are checked
-independently. `try*` (PEP 654 except-groups) is held to the same limit.
+Two refinements keep the count aligned with that intent and avoid the
+false-positive patterns that dominated real-world suppressions:
 
-This is a direct Python port of the org's ESLint restriction
-`TryStatement > BlockStatement[body.length > 3]` in eslint.strict.mjs.
+* Only top-level statements that *can raise* are counted — a statement counts
+  toward the limit only if its subtree contains a call or `await`. Pure
+  assignments / name-rebinds (`self.x = y`, `a = b.c`) don't obscure a throwing
+  statement and are free. Statements nested inside an `if` / `with` / loop
+  count as the single compound statement that contains them. Nested `try`
+  blocks are checked independently. `try*` (PEP 654) is held to the same limit.
+* `try` blocks that carry an `else` or `finally` clause are exempt. Those
+  clauses are a deliberate success/cleanup contract that couples the body to
+  the handler (a `finally` that tears down a resource, an `else`/`finally` that
+  reads a status the body set) — statements can't be freely hoisted out without
+  changing semantics, so the length check is counterproductive there.
 
 Instead of:
     try:
@@ -52,12 +59,18 @@ if TYPE_CHECKING:
 _MAX_TRY_BODY_STATEMENTS = 3
 
 
+def _can_raise(stmt: ast.stmt) -> bool:
+    """True if the statement's subtree contains a call or `await` — i.e. it can
+    plausibly raise. Pure assignments / rebinds with no call do not count."""
+    return any(isinstance(n, (ast.Call, ast.Await)) for n in ast.walk(stmt))
+
+
 class NoFatTryBlocks(Rule):
-    """Try body longer than 3 statements — isolate the throwing statement(s)."""
+    """Try body with too many throwing statements — isolate the one that raises."""
 
     id: str = "no-fat-try-blocks"
     code: str = "SARJ007"
-    description: str = "Try block body exceeds 3 statements — keep try blocks skinny."
+    description: str = "Try block has too many throwing statements — keep try blocks skinny."
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
@@ -69,7 +82,12 @@ class NoFatTryBlocks(Rule):
         for node in ast.walk(tree):
             if not isinstance(node, (ast.Try, ast.TryStar)):
                 continue
-            if len(node.body) <= _MAX_TRY_BODY_STATEMENTS:
+            # An `else`/`finally` clause is a deliberate success/cleanup contract
+            # that couples the body to the handler — don't fight it on length.
+            if node.orelse or node.finalbody:
+                continue
+            throwing = sum(_can_raise(stmt) for stmt in node.body)
+            if throwing <= _MAX_TRY_BODY_STATEMENTS:
                 continue
             diags.append(
                 Diagnostic(
@@ -78,7 +96,7 @@ class NoFatTryBlocks(Rule):
                     col=node.col_offset + 1,
                     code=self.code,
                     message=(
-                        f"try block has {len(node.body)} statements "
+                        f"try block has {throwing} statements that can raise "
                         f"(max {_MAX_TRY_BODY_STATEMENTS}) — try blocks should "
                         "isolate the throwing statement(s); move non-throwing "
                         "work outside the try."
