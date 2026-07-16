@@ -11,7 +11,9 @@ import pytest
 
 from sarj_lint_configs import (
     CONFIGS_DIR,
+    EDITORCONFIG,
     ESLINT_STRICT,
+    GITLEAKS,
     PYRIGHT_STRICT,
     RUFF_STRICT,
     __version__,
@@ -31,10 +33,16 @@ def test_configs_dir_exists() -> None:
     assert CONFIGS_DIR.is_dir(), f"missing: {CONFIGS_DIR}"
 
 
-def test_all_three_configs_bundled() -> None:
-    for path in (RUFF_STRICT, PYRIGHT_STRICT, ESLINT_STRICT):
+def test_all_configs_bundled() -> None:
+    for path in (RUFF_STRICT, PYRIGHT_STRICT, ESLINT_STRICT, GITLEAKS, EDITORCONFIG):
         assert path.is_file(), f"missing bundled config: {path}"
         assert path.stat().st_size > 0
+
+
+def test_gitleaks_config_is_valid_toml() -> None:
+    data = tomllib.loads(GITLEAKS.read_text())
+    assert data["extend"]["useDefault"] is True
+    assert data["allowlists"], "org allowlist must not be empty"
 
 
 def test_ruff_config_is_valid_toml() -> None:
@@ -85,7 +93,9 @@ def test_cli_sync_writes_files(tmp_path: Path) -> None:
     assert (tmp_path / ".ruff-strict.toml").is_file()
     assert (tmp_path / ".pyright-strict.json").is_file()
     assert (tmp_path / "eslint.strict.mjs").is_file()
-    assert "synced 3/3" in proc.stdout
+    assert (tmp_path / ".gitleaks.toml").is_file()
+    assert (tmp_path / ".editorconfig").is_file()
+    assert "synced 5/5" in proc.stdout
 
 
 def test_cli_sync_skips_existing_without_force(tmp_path: Path) -> None:

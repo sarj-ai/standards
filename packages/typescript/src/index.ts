@@ -2,6 +2,7 @@ import enforceFileStructure from "./rules/enforce-file-structure.js";
 import noClientSideDataFetching from "./rules/no-client-side-data-fetching.js";
 import noCommentCruft from "./rules/no-comment-cruft.js";
 import noEnum from "./rules/no-enum.js";
+import noHostInterpolatedFetch from "./rules/no-host-interpolated-fetch.js";
 import noInsecureRandomId from "./rules/no-insecure-random-id.js";
 import noJsonStringifyError from "./rules/no-json-stringify-error.js";
 import noLogOnlyCatch from "./rules/no-log-only-catch.js";
@@ -16,6 +17,7 @@ import preferSemanticColors from "./rules/prefer-semantic-colors.js";
 import preferServerActions from "./rules/prefer-server-actions.js";
 import preferShadcn from "./rules/prefer-shadcn.js";
 import requireAssertNever from "./rules/require-assert-never.js";
+import requireErrorCause from "./rules/require-error-cause.js";
 import requireZodFormValidation from "./rules/require-zod-form-validation.js";
 import zodNamingConvention from "./rules/zod-naming-convention.js";
 
@@ -24,6 +26,7 @@ const rules = {
   "no-client-side-data-fetching": noClientSideDataFetching,
   "no-comment-cruft": noCommentCruft,
   "no-enum": noEnum,
+  "no-host-interpolated-fetch": noHostInterpolatedFetch,
   "no-insecure-random-id": noInsecureRandomId,
   "no-json-stringify-error": noJsonStringifyError,
   "no-log-only-catch": noLogOnlyCatch,
@@ -38,6 +41,7 @@ const rules = {
   "prefer-server-actions": preferServerActions,
   "prefer-shadcn": preferShadcn,
   "require-assert-never": requireAssertNever,
+  "require-error-cause": requireErrorCause,
   "require-zod-form-validation": requireZodFormValidation,
   "zod-naming-convention": zodNamingConvention,
 };
@@ -45,7 +49,7 @@ const rules = {
 const plugin = {
   meta: {
     name: "@sarj/eslint-plugin",
-    version: "2.2.0",
+    version: "2.3.0",
   },
   rules,
   configs: {
@@ -71,6 +75,9 @@ const plugin = {
         "@sarj/no-comment-cruft": "warn",
         // Frontend / styling — distilled from frontend PR-review mining.
         "@sarj/prefer-semantic-colors": "warn",
+        // Security / error-hygiene — lint expansion 2026-07.
+        "@sarj/no-host-interpolated-fetch": "warn",
+        "@sarj/require-error-cause": "warn",
       },
     },
     strict: {
@@ -99,6 +106,9 @@ const plugin = {
         // Frontend / styling — distilled from frontend PR-review mining. Stylistic,
         // no autofix → warn (rollout should prove the FP rate before raising it).
         "@sarj/prefer-semantic-colors": "warn",
+        // Security / error-hygiene — lint expansion 2026-07.
+        "@sarj/no-host-interpolated-fetch": "error",
+        "@sarj/require-error-cause": "error",
       },
     },
   },

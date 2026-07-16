@@ -1,0 +1,53 @@
+# sarj-ai org gitleaks config — extends the built-in ruleset with an allowlist
+# tuned on a 2026-07 scan of 8 org repos (see standards
+# docs/proposals/2026-07-lint-expansion.md, item 3).
+#
+# Consume via `sarj-lint-configs sync --only gitleaks`, then wire a hook:
+#
+#   pre-commit:  - repo: https://github.com/gitleaks/gitleaks
+#                  rev: v8.30.1
+#                  hooks: [{id: gitleaks}]
+#   lefthook:    pre-commit:
+#                  commands:
+#                    gitleaks: {run: "gitleaks protect --staged --config .gitleaks.toml"}
+#
+# and a blocking CI step: `gitleaks detect --config .gitleaks.toml --redact`.
+
+title = "sarj-ai gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public-by-design values that trip the generic-api-key rule"
+regexTarget = "line"
+regexes = [
+  # Clerk publishable keys and other NEXT_PUBLIC_* values ship to the browser.
+  '''NEXT_PUBLIC_[A-Z0-9_]*''',
+  # Cloudflare Access audience tags are identifiers, not credentials.
+  '''[A-Z0-9_]*_AUD\s*[=:]''',
+  # Advisory-lock key constants (bulbul call_scheduler/batch stores).
+  '''[A-Z0-9_]*_LOCK_KEY\s*[=:]''',
+  # PostHog project API keys are client-side by design.
+  '''(POSTHOG_PROJECT_API_KEY|phc_[A-Za-z0-9]{20,})''',
+]
+
+[[allowlists]]
+description = "Files that legitimately contain high-entropy strings"
+paths = [
+  # detect-secrets baseline files enumerate (audited) findings by design.
+  '''\.secrets\.baseline$''',
+  # Android client config; Google API keys here are app-restricted by design.
+  '''google-services\.json$''',
+  # Lockfiles and build metadata.
+  '''(^|/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|uv\.lock|Cargo\.lock)$''',
+  # Test fixtures: fake tokens are the point.
+  '''(^|/)tests?/.*(fixture|conftest|test_)''',
+]
+
+[[allowlists]]
+description = "Documented placeholder markers"
+regexTarget = "line"
+regexes = [
+  '''(?i)(example|sample|dummy|placeholder|changeme|your[_-](api[_-]?key|token|secret))''',
+]

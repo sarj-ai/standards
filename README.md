@@ -25,6 +25,8 @@ Then run any audit, e.g. `/sarj-audit:data-contracts` or `/sarj-audit:concurrenc
 | **pyright** | `uv run sarj-lint-configs sync --only pyright` → in `pyrightconfig.json`: `{"extends": ".pyright-strict.json"}` |
 | **pre-commit (Python)** | `repo: https://github.com/sarj-ai/standards, rev: python-v0.2.0` |
 | **pre-commit (SQL)** | `repo: https://github.com/sarj-ai/standards, rev: sql-v0.1.0` |
+| **gitleaks** | `uv run sarj-lint-configs sync --only gitleaks` → hook + blocking CI step (see `packages/lint-configs/README.md`) |
+| **.editorconfig** | `uv run sarj-lint-configs sync --only editorconfig` |
 
 ## Where things live
 

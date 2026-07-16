@@ -10,9 +10,11 @@ from . import CONFIGS_DIR, __version__
 
 
 CONFIG_NAMES: dict[str, tuple[str, str]] = {
-    "ruff":    ("ruff.strict.toml", ".ruff-strict.toml"),
-    "pyright": ("pyright.strict.json", ".pyright-strict.json"),
-    "eslint":  ("eslint.strict.mjs", "eslint.strict.mjs"),
+    "ruff":         ("ruff.strict.toml", ".ruff-strict.toml"),
+    "pyright":      ("pyright.strict.json", ".pyright-strict.json"),
+    "eslint":       ("eslint.strict.mjs", "eslint.strict.mjs"),
+    "gitleaks":     ("gitleaks.toml", ".gitleaks.toml"),
+    "editorconfig": ("editorconfig", ".editorconfig"),
 }
 
 _NEXT_STEPS = (

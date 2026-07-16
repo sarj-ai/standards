@@ -7,6 +7,7 @@ quote-style              = "double"
 indent-style             = "space"
 skip-magic-trailing-comma = false
 line-ending              = "auto"
+docstring-code-format    = true
 
 [lint]
 select = ["ALL"]
@@ -133,6 +134,11 @@ ignore = [
   # wiring in __init__.py. RUF067 (preview) bans any code there — too aggressive.
   "RUF067",
 ]
+
+[lint.flake8-type-checking]
+# Pydantic models evaluate their annotations at runtime; without this, TC001/
+# TC002 move model field types into TYPE_CHECKING blocks and break validation.
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
 
 [lint.isort]
 force-single-line          = false

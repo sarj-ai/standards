@@ -4,13 +4,53 @@ import reactHooks from "eslint-plugin-react-hooks";
 import unicorn from "eslint-plugin-unicorn";
 import eslintComments from "@eslint-community/eslint-plugin-eslint-comments";
 import zod from "eslint-plugin-zod";
+import security from "eslint-plugin-security";
+import regexp from "eslint-plugin-regexp";
 import sarj from "@sarj/eslint-plugin";
 
+
+const DANGEROUS_HTML = "JSXAttribute[name.name='dangerouslySetInnerHTML']";
+
+const RESTRICTED_SYNTAX = [
+  {
+    selector: "TSEnumDeclaration",
+    message: "Use union types or `as const` objects.",
+  },
+  {
+    selector: "TSModuleDeclaration[kind='namespace']",
+    message: "Use ES modules instead of namespaces.",
+  },
+  {
+    selector: "TryStatement > BlockStatement[body.length > 3]",
+    message: "Try blocks should not contain more than 3 statements. Isolate the throwing statement.",
+  },
+  {
+    selector: "CallExpression[callee.name='useCallback']",
+    message: "Don't memoize by hand — the React Compiler handles it. Remove useCallback.",
+  },
+  {
+    selector: "CallExpression[callee.name='useMemo']",
+    message: "Don't memoize by hand — the React Compiler handles it. Remove useMemo (extract a plain function or compute inline).",
+  },
+  {
+    selector: DANGEROUS_HTML,
+    message: "Raw HTML injection is an XSS vector. Render data as JSX; if you must inject markup (e.g. a diagram renderer), sanitize it and put the component under components/ui/.",
+  },
+  {
+    selector: "CallExpression[callee.property.name='execSync'] > :not(Literal):first-child",
+    message: "execSync with a dynamic command is a shell-injection vector. Use execFileSync with an argument array.",
+  },
+  {
+    selector: "CallExpression[callee.object.name='Buffer'][callee.property.name='allocUnsafe']",
+    message: "Buffer.allocUnsafe returns uninitialized memory that can leak process data. Use Buffer.alloc.",
+  },
+];
 
 /** @type {import("eslint").Linter.Config[]} */
 const config = [
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
+  regexp.configs["flat/recommended"],
 
   {
     plugins: {
@@ -20,6 +60,7 @@ const config = [
       unicorn,
       "@eslint-community/eslint-comments": eslintComments,
       zod,
+      security,
       "@sarj": sarj,
     },
     languageOptions: {
@@ -104,6 +145,17 @@ const config = [
       "unicorn/prefer-logical-operator-over-ternary": "error",
       "unicorn/relative-url-style": ["error", "never"],
       "unicorn/throw-new-error": "error",
+      "unicorn/prefer-at": "error",
+      "unicorn/prefer-array-flat-map": "error",
+      "unicorn/explicit-length-check": "error",
+
+      // Curated security subset. The FP magnets (detect-object-injection: 353
+      // org-wide dry-run hits, detect-non-literal-fs-filename, detect-unsafe-regex)
+      // stay off; ReDoS is covered by regexp/no-super-linear-backtracking above.
+      "security/detect-eval-with-expression": "error",
+      "security/detect-child-process": "error",
+      "security/detect-buffer-noassert": "error",
+      "security/detect-pseudoRandomBytes": "error",
 
       "zod/prefer-enum-over-literal-union": "error",
 
@@ -113,29 +165,7 @@ const config = [
         "react-hooks/exhaustive-deps",
       ],
 
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "TSEnumDeclaration",
-          message: "Use union types or `as const` objects.",
-        },
-        {
-          selector: "TSModuleDeclaration[kind='namespace']",
-          message: "Use ES modules instead of namespaces.",
-        },
-        {
-          selector: "TryStatement > BlockStatement[body.length > 3]",
-          message: "Try blocks should not contain more than 3 statements. Isolate the throwing statement.",
-        },
-        {
-          selector: "CallExpression[callee.name='useCallback']",
-          message: "Don't memoize by hand — the React Compiler handles it. Remove useCallback.",
-        },
-        {
-          selector: "CallExpression[callee.name='useMemo']",
-          message: "Don't memoize by hand — the React Compiler handles it. Remove useMemo (extract a plain function or compute inline).",
-        },
-      ],
+      "no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX],
       "no-restricted-properties": ["error", {
         object: "process",
         property: "env",
@@ -154,7 +184,9 @@ const config = [
       ]}],
 
       "object-shorthand": ["error", "always"],
-      "no-return-await": "error",
+      // Core no-return-await is deprecated and drops the async frame from stack
+      // traces inside try/catch; "always" is the modern inverse and autofixable.
+      "@typescript-eslint/return-await": ["error", "always"],
       eqeqeq: ["error", "always"],
       "no-await-in-loop": "error",
       "no-param-reassign": "error",
@@ -179,6 +211,10 @@ const config = [
       // Frontend / styling — distilled from frontend PR-review mining. Stylistic,
       // no autofix → warn (rollout should prove the FP rate before raising it).
       "@sarj/prefer-semantic-colors": "warn",
+
+      // New in 2.3.0 — warn until org-wide FP rate is proven ≤5% (2026-07 proposal).
+      "@sarj/no-host-interpolated-fetch": "warn",
+      "@sarj/require-error-cause": "warn",
     },
   },
 
@@ -195,6 +231,8 @@ const config = [
     files: ["**/components/ui/**", "**/components/design-system/**"],
     rules: {
       "react/forbid-elements": "off",
+      // Sanitized-markup renderers (charts, diagrams) live here by convention.
+      "no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX.filter((r) => r.selector !== DANGEROUS_HTML)],
     },
   },
 

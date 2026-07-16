@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sarj_python_lint.rules.httpx_timeout_required import HttpxTimeoutRequired
 from sarj_python_lint.rules.inefficient_string_concat_in_loop import (
     InefficientStringConcatInLoop,
 )
@@ -9,6 +10,10 @@ from sarj_python_lint.rules.no_aggregation_in_store_query import (
     NoAggregationInStoreQuery,
 )
 from sarj_python_lint.rules.no_comment_cruft import NoCommentCruft
+from sarj_python_lint.rules.no_credentialed_wildcard_cors import (
+    NoCredentialedWildcardCors,
+)
+from sarj_python_lint.rules.no_disabled_tls_verify import NoDisabledTlsVerify
 from sarj_python_lint.rules.no_fat_try_blocks import NoFatTryBlocks
 from sarj_python_lint.rules.no_fstring_in_log import NoFstringInLog
 from sarj_python_lint.rules.no_isinstance_union_chain import NoIsinstanceUnionChain
@@ -61,6 +66,9 @@ REGISTRY: dict[str, type[Rule]] = {
     NoQueryWithManyJoins.id: NoQueryWithManyJoins,
     NoAggregationInStoreQuery.id: NoAggregationInStoreQuery,
     NoSelectStar.id: NoSelectStar,
+    NoDisabledTlsVerify.id: NoDisabledTlsVerify,
+    HttpxTimeoutRequired.id: HttpxTimeoutRequired,
+    NoCredentialedWildcardCors.id: NoCredentialedWildcardCors,
 }
 
 __all__ = ["REGISTRY"]
