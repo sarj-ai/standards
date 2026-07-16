@@ -1,6 +1,5 @@
 # sarj-ai org gitleaks config — extends the built-in ruleset with an allowlist
-# tuned on a 2026-07 scan of 8 org repos (see standards
-# docs/proposals/2026-07-lint-expansion.md, item 3).
+# tuned on a 2026-07 scan of 8 org repos (evidence in sarj-ai/standards#89).
 #
 # Consume via `sarj-lint-configs sync --only gitleaks`, then wire a hook:
 #

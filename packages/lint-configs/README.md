@@ -36,7 +36,7 @@ export default [...strict];
 pnpm add -D eslint-plugin-security eslint-plugin-regexp
 ```
 
-`.gitleaks.toml` extends the gitleaks default ruleset with the org allowlist (tuned on the 2026-07 eight-repo scan; see `docs/proposals/2026-07-lint-expansion.md`). Wire it as a pre-commit/lefthook hook plus a blocking CI step:
+`.gitleaks.toml` extends the gitleaks default ruleset with the org allowlist (tuned on the 2026-07 eight-repo scan; evidence and per-rule decisions in sarj-ai/standards#89). Wire it as a pre-commit/lefthook hook plus a blocking CI step:
 
 ```yaml
 # .pre-commit-config.yaml
