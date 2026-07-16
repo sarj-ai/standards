@@ -139,3 +139,22 @@
   language: python
   files: '\.(tf|hcl|tfvars)$'
   additional_dependencies: ['sarj-iac-lint']
+
+# New in standards 0.9.0 — Python security
+- id: sarj-no-disabled-tls-verify
+  name: 'sarj-lint: verify=False on httpx/requests defeats TLS — fix or sarj-noqa SARJ022'
+  entry: sarj-python-lint check --rule no-disabled-tls-verify
+  language: python
+  types: [python]
+
+- id: sarj-httpx-timeout-required
+  name: 'sarj-lint: httpx call without explicit timeout= — the 5s default is a policy decision'
+  entry: sarj-python-lint check --rule httpx-timeout-required
+  language: python
+  types: [python]
+
+- id: sarj-no-credentialed-wildcard-cors
+  name: 'sarj-lint: wildcard CORS with credentials (or wildcard fallback) — list explicit origins'
+  entry: sarj-python-lint check --rule no-credentialed-wildcard-cors
+  language: python
+  types: [python]
