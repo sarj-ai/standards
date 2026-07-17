@@ -7,7 +7,22 @@ The single home for Sarj code standards, in two layers:
 
 ## Claude Code plugin (`sarj-audit`)
 
-This repo is a Claude Code plugin marketplace. Install the audit commands with:
+This repo is a Claude Code plugin marketplace. To roll the audit commands out to a whole repo's team, commit this to the repo's `.claude/settings.json` — Claude Code then prompts each engineer once (on folder trust) to install the marketplace and enables the plugin:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "sarj": {
+      "source": { "source": "github", "repo": "sarj-ai/standards" }
+    }
+  },
+  "enabledPlugins": {
+    "sarj-audit@sarj": true
+  }
+}
+```
+
+For a one-off personal install instead:
 
 ```
 /plugin marketplace add sarj-ai/standards
