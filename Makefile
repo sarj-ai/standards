@@ -51,6 +51,7 @@ sync-configs:
 check-configs-synced:
 	@cmp -s $(CONFIG_SRC)/ruff.strict.toml    .ruff-strict.toml    || { echo "error: .ruff-strict.toml out of sync — run 'make sync-configs'"; exit 1; }
 	@cmp -s $(CONFIG_SRC)/pyright.strict.json .pyright-strict.json || { echo "error: .pyright-strict.json out of sync — run 'make sync-configs'"; exit 1; }
+	@root=$$(grep -m1 '^version' pyproject.toml) && pkg=$$(grep -m1 '^version' packages/python/pyproject.toml) && [ "$$root" = "$$pkg" ] || { echo "error: root pyproject.toml version out of sync with packages/python (pre-commit consumers install the root package)"; exit 1; }
 	@echo "root configs in sync with source ✓"
 
 publish-typescript:
