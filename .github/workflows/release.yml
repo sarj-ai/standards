@@ -205,7 +205,7 @@ jobs:
       - run: uv build --wheel
       - name: Test against the built wheel
         run: |
-          uv venv --python 3.14 --seed
+          uv venv --clear --python 3.14 --seed
           uv pip install ./dist/*.whl pytest ruff
           uv run --no-project pytest -q tests/
       - run: uv build --sdist

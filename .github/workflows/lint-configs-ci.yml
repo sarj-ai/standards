@@ -40,7 +40,7 @@ jobs:
         run: uv build --wheel
       - name: Install built wheel + test deps into a fresh venv
         run: |
-          uv venv --python 3.14 --seed
+          uv venv --clear --python 3.14 --seed
           uv pip install ./dist/sarj_lint_configs-*.whl pytest ruff
       - name: Pytest
         run: uv run --no-project pytest -q
