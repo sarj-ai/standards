@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
 from importlib.resources import files
 from pathlib import Path
 
 
-__version__ = "0.1.0"
+try:
+    __version__ = version("sarj-lint-configs")
+except PackageNotFoundError:  # running from an uninstalled source tree
+    __version__ = "0.0.0.dev0"
 
 CONFIGS_DIR: Path = Path(str(files(__name__) / "configs"))
 
