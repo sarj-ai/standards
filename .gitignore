@@ -31,5 +31,6 @@ Thumbs.db
 .zed/
 *.swp
 
-# Claude Code local state
-.claude/
+# Claude Code local state (shared settings.json is tracked)
+.claude/*
+!.claude/settings.json
