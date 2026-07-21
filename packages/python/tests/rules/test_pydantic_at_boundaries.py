@@ -740,26 +740,22 @@ def test_allows_type_alias_return_pure_annotation_limitation():
     assert _check(src) == []
 
 
-# --- Genuine defects (xfail, strict) ----------------------------------------
+# --- Previously-genuine defects (now fixed) ---------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="SARJ008 does not unwrap Annotated[dict[str, Any], ...] returns")
 def test_annotated_dict_return_should_be_flagged():
     src = 'from typing import Annotated, Any\ndef f() -> Annotated[dict[str, Any], "meta"]:\n    return {}\n'
     assert len(_check(src)) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="leading whitespace in a string forward-ref raises SyntaxError → silently unflagged")
 def test_forward_ref_with_leading_space_should_be_flagged():
     assert len(_check('def f() -> " dict[str, Any]":\n    return {}\n')) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="string forward-ref in dict VALUE position not resolved: dict[str, 'Any'] escapes")
 def test_dict_with_string_forward_ref_any_value_should_be_flagged():
     assert len(_check('def f() -> dict[str, "Any"]:\n    return {}\n')) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="@pytest.fixture returning dict[str, Any] is a fixture, not a public data-contract boundary")
 def test_pytest_fixture_returning_dict_is_false_positive():
     src = "import pytest\n@pytest.fixture\ndef sample() -> dict[str, Any]:\n    return {}\n"
     assert _check(src) == []
