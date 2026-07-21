@@ -374,7 +374,7 @@ def _reaches(graph: dict[str, set[str]], start: str, target: str) -> bool:
 
 
 def _is_test_path(path: Path) -> bool:
-    if path.name in {"conftest.py"}:
+    if path.name == "conftest.py":
         return True
     if path.name.startswith("test_"):
         return True
