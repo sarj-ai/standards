@@ -1,23 +1,32 @@
-"""SARJ023: stepdown rule — private helpers must be defined below their callers.
+"""SARJ023: stepdown rule — a single-caller private helper belongs below its caller.
 
 A file should read top-to-bottom like a newspaper: public API first, then the
-private helpers it uses. This rule encodes the deterministic, near-zero-FP core
-of that convention.
+private helpers it uses. This rule encodes only the fully unambiguous core of
+that convention.
+
+The rule is deliberately restricted to helpers with EXACTLY ONE same-scope
+caller. For a single-caller helper there is one canonical stepdown position —
+immediately below its sole caller — so a violation ("helper sits above its only
+caller") has a single, non-arbitrary fix and the reorder is a clear readability
+win. Helpers with two or more callers are OUT OF SCOPE: a shared helper has no
+canonical "below which caller?" answer (stepping below one caller reads wrong
+relative to the others), and the verdict would flip whenever a caller moves.
+That multi-caller arbitrariness is exactly the disputed-churn class this
+redesign removes.
 
 Fires on:
-1. **Module-level helper above its callers** — a private top-level function
-   (`_name`) defined above EVERY top-level function/class that references it
-   at call time. A helper below its first caller is fine even when later
-   callers appear after it (shared helpers step down from the first use).
-2. **Class-level private method above its callers** — a private, non-dunder
-   method defined above every sibling method that references it via
-   `self._name` / `cls._name`. Dunders (`__init__`, …) may sit first and are
-   never flagged.
+1. **Module-level helper above its one caller** — a private top-level function
+   (`_name`) referenced at call time by EXACTLY ONE top-level function/class,
+   and defined above that caller.
+2. **Class-level private method above its one caller** — a private, non-dunder
+   method referenced via `self._name` / `cls._name` by EXACTLY ONE sibling
+   method, and defined above it.
 
 Never fires on:
 - Public defs and private top-level classes (declarations, not helpers).
 - Unused helpers (no same-scope caller).
-- Mutual / indirect recursion — cycles have no valid stepdown order.
+- Helpers with two or more same-scope callers (no canonical stepdown target).
+- Mutual / indirect / two-node recursion — cycles have no valid stepdown order.
 - Names that are position-pinned by an import-time / class-creation-time
   reference: module-level statements, decorator lists, default arguments,
   annotations, class-body attribute values. Moving those breaks runtime.
@@ -53,11 +62,11 @@ _SELF_NAMES = frozenset({"self", "cls"})
 
 
 class Stepdown(Rule):
-    """Private helper defined above all of its callers — callees belong below callers."""
+    """Single-caller private helper defined above its only caller — move it below."""
 
     id: str = "stepdown"
     code: str = "SARJ023"
-    description: str = "Private helper defined above all of its callers — move callees below callers."
+    description: str = "Private helper defined above its only caller — move it below the code that calls it."
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
@@ -97,7 +106,7 @@ def _check_module_scope(path: Path, tree: ast.Module, code: str) -> list[Diagnos
             continue
         if name in pinned or name in shadowed:
             continue
-        diags.extend(_flag_if_above_all_callers(path, code, name, node=d, graph=graph, defs=unique_defs))
+        diags.extend(_flag_if_above_single_caller(path, code, name, node=d, graph=graph, defs=unique_defs))
     return diags
 
 
@@ -129,11 +138,11 @@ def _check_class_scope(path: Path, cls: ast.ClassDef, code: str) -> list[Diagnos
             continue
         if name in pinned or name in shadowed or _has_exempt_decorator(m):
             continue
-        diags.extend(_flag_if_above_all_callers(path, code, name, node=m, graph=graph, defs=unique))
+        diags.extend(_flag_if_above_single_caller(path, code, name, node=m, graph=graph, defs=unique))
     return diags
 
 
-def _flag_if_above_all_callers(
+def _flag_if_above_single_caller(
     path: Path,
     code: str,
     name: str,
@@ -143,12 +152,12 @@ def _flag_if_above_all_callers(
     defs: Mapping[str, ast.stmt],
 ) -> list[Diagnostic]:
     callers = [c for c, callees in graph.items() if name in callees]
-    if not callers:
+    if len(callers) != 1:
         return []
-    if any(_reaches(graph, name, c) for c in callers):
+    (caller,) = callers
+    if _reaches(graph, name, caller):
         return []
-    first = min(callers, key=lambda c: defs[c].lineno)
-    if node.lineno >= defs[first].lineno:
+    if node.lineno >= defs[caller].lineno:
         return []
     return [
         Diagnostic(
@@ -157,9 +166,9 @@ def _flag_if_above_all_callers(
             col=node.col_offset + 1,
             code=code,
             message=(
-                f"private helper `{name}` is defined above all of its callers "
-                f"(first caller `{first}` at line {defs[first].lineno}) — "
-                "move it below the code that calls it (stepdown rule)."
+                f"private helper `{name}` is defined above its only caller "
+                f"`{caller}` (line {defs[caller].lineno}) — "
+                "move it directly below the code that calls it (stepdown rule)."
             ),
         )
     ]

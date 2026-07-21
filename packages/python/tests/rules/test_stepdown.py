@@ -45,7 +45,18 @@ def handle_request(payload: dict) -> str:
     assert "handle_request" in diags[0].message
 
 
-def test_helper_below_first_caller_but_above_second_is_clean():
+def test_single_caller_below_is_clean():
+    src = """
+def handle_request(payload: dict) -> str:
+    return str(_parse(payload))
+
+def _parse(payload: dict) -> dict:
+    return payload
+"""
+    assert _check(src) == []
+
+
+def test_multi_caller_helper_between_callers_skipped():
     src = """
 def first(x: int) -> int:
     return _shared(x)
@@ -55,6 +66,49 @@ def _shared(x: int) -> int:
 
 def second(x: int) -> int:
     return _shared(x)
+"""
+    assert _check(src) == []
+
+
+def test_multi_caller_helper_above_all_callers_skipped():
+    src = """
+def _shared(x: int) -> int:
+    return x + 1
+
+def first(x: int) -> int:
+    return _shared(x)
+
+def second(x: int) -> int:
+    return _shared(x)
+"""
+    assert _check(src) == []
+
+
+def test_two_node_recursion_single_caller_each_skipped():
+    src = """
+def _ping(n: int) -> int:
+    return _pong(n - 1)
+
+def _pong(n: int) -> int:
+    return _ping(n - 1)
+
+def run(n: int) -> int:
+    return _ping(n)
+"""
+    assert _check(src) == []
+
+
+def test_class_method_multi_caller_above_skipped():
+    src = """
+class Handler:
+    def _shared(self) -> int:
+        return 1
+
+    def a(self) -> int:
+        return self._shared()
+
+    def b(self) -> int:
+        return self._shared()
 """
     assert _check(src) == []
 
