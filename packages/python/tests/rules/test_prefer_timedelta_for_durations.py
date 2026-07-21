@@ -465,3 +465,101 @@ def test_diagnostic_code_is_sarj014():
     diags = _check(src)
     assert len(diags) == 1
     assert diags[0].code == "SARJ014"
+
+
+# ---------------------------------------------------------------------------
+# BaseSettings exemption: env-wire fields cannot be timedelta (bare-numeric env
+# strings), so duration fields on a pydantic-settings class are not flagged.
+# Ordinary BaseModel domain fields stay flagged.
+# ---------------------------------------------------------------------------
+
+
+def test_basesettings_field_not_flagged():
+    src = """
+class AppSettings(BaseSettings):
+    timeout_seconds: float
+"""
+    assert _check(src) == []
+
+
+def test_pydantic_settings_import_path_not_flagged():
+    src = """
+class AppSettings(pydantic_settings.BaseSettings):
+    poll_interval_ms: int = 250
+"""
+    assert _check(src) == []
+
+
+def test_settings_subclass_of_settings_not_flagged():
+    src = """
+class DerivedSettings(BaseSettings):
+    ttl: int = 60
+
+class Concrete(DerivedSettings):
+    retry_delay: float = 1.5
+"""
+    assert _check(src) == []
+
+
+def test_basesettings_multiple_duration_fields_all_exempt():
+    src = """
+class AppSettings(BaseSettings):
+    timeout_seconds: float
+    retry_delay_ms: int = 100
+    poll_interval: NonNegativeFloat = 0.5
+"""
+    assert _check(src) == []
+
+
+def test_ordinary_basemodel_domain_field_still_flagged():
+    src = """
+class Config(BaseModel):
+    timeout_seconds: float
+"""
+    assert len(_check(src)) == 1
+
+
+def test_plain_function_param_still_flagged_alongside_settings():
+    src = """
+class AppSettings(BaseSettings):
+    timeout_seconds: float
+
+def schedule(timeout_seconds: int) -> None: ...
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].line == 5
+
+
+def test_settings_via_intermediate_non_settings_named_base_not_flagged():
+    src = """
+class _InstrumentationBase(BaseSettings):
+    x: int = 1
+
+class OtlpConfig(_InstrumentationBase):
+    export_timeout_seconds: float = 30.0
+"""
+    assert _check(src) == []
+
+
+def test_basemodel_intermediate_base_still_flagged():
+    src = """
+class _DomainBase(BaseModel):
+    x: int = 1
+
+class Config(_DomainBase):
+    timeout_seconds: float = 30.0
+"""
+    assert len(_check(src)) == 1
+
+
+def test_basesettings_non_field_method_param_still_flagged():
+    src = """
+class AppSettings(BaseSettings):
+    poll_interval_seconds: int
+
+    def recompute(self, retry_delay: float) -> None: ...
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "retry_delay" in diags[0].message

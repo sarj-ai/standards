@@ -33,7 +33,13 @@ Deliberately NOT flagged:
 - percentages and rates (`*_percentage`, `*_pct`, `*_rate`, `*_ratio`),
 - calendar units that `timedelta` cannot express cleanly (`*_months`, `*_years`),
 - absolute instants (`*_timestamp`, `*_epoch`, `expires_at`, `*_at`),
-- anything already annotated `timedelta`.
+- anything already annotated `timedelta`,
+- fields declared directly on a pydantic-settings class (any base name ending in
+  `Settings`, e.g. `BaseSettings` / `pydantic_settings.BaseSettings` / a
+  `...Settings` subclass): these are populated from environment variables, whose
+  bare-numeric wire values `timedelta` cannot parse, so a raw `int`/`float` is
+  the only workable type at that boundary. Ordinary `BaseModel` domain fields are
+  still flagged.
 
 Suppress an intentional raw-numeric duration with `# sarj-noqa: SARJ014 — <reason>`.
 
@@ -101,6 +107,7 @@ class PreferTimedeltaForDurations(Rule):
         tree = parse_or_none(path, source)
         if tree is None:
             return []
+        settings_fields = _settings_field_ids(tree)
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -108,6 +115,8 @@ class PreferTimedeltaForDurations(Rule):
                 for a in (*args.posonlyargs, *args.args, *args.kwonlyargs):
                     self._consider(a.arg, a.annotation, a, diags, path)
             elif isinstance(node, ast.AnnAssign):
+                if id(node) in settings_fields:
+                    continue
                 name = _target_name(node.target)
                 if name is not None:
                     self._consider(name, node.annotation, node, diags, path)
@@ -140,6 +149,55 @@ class PreferTimedeltaForDurations(Rule):
                 ),
             )
         )
+
+
+def _settings_field_ids(tree: ast.Module) -> frozenset[int]:
+    """`id()` of every `AnnAssign` declared directly on a pydantic-settings class.
+
+    A class is treated as pydantic-settings when it derives from a `...Settings`
+    base — either directly (`BaseSettings`, `pydantic_settings.BaseSettings`, a
+    project `...Settings` class) or transitively through an intermediate base
+    defined in the same module (e.g. `class _Base(BaseSettings)` →
+    `class Foo(_Base)`). Such fields come from environment variables, whose
+    bare-numeric wire form `timedelta` cannot parse, so they are exempt.
+    """
+    classes = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)}
+    settings_classes = _resolve_settings_classes(classes)
+    exempt: set[int] = set()
+    for node in settings_classes:
+        for stmt in node.body:
+            if isinstance(stmt, ast.AnnAssign):
+                exempt.add(id(stmt))
+    return frozenset(exempt)
+
+
+def _resolve_settings_classes(
+    classes: dict[str, ast.ClassDef],
+) -> set[ast.ClassDef]:
+    resolved: dict[str, bool] = {}
+
+    def is_settings(name: str, seen: frozenset[str]) -> bool:
+        if name in resolved:
+            return resolved[name]
+        if name in seen:
+            return False
+        node = classes.get(name)
+        if node is None:
+            return False
+        result = False
+        for base in node.bases:
+            base_name = _trailing_name(base)
+            if base_name is None:
+                continue
+            if base_name.endswith("Settings") or is_settings(
+                base_name, seen | {name}
+            ):
+                result = True
+                break
+        resolved[name] = result
+        return result
+
+    return {node for name, node in classes.items() if is_settings(name, frozenset())}
 
 
 def _target_name(target: ast.expr) -> str | None:
