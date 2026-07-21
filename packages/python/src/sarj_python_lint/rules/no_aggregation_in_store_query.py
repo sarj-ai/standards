@@ -62,6 +62,16 @@ _AGGREGATIONS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("DISTINCT", re.compile(r"\bDISTINCT\b", re.IGNORECASE)),
 )
 
+# A diagnostic needs BOTH a query shape (SELECT/UPDATE/DELETE) and an aggregation
+# (COUNT/GROUP/DISTINCT). Comment-stripping only ever deletes characters (or maps
+# a `/* */` span to one space), so it can never introduce a contiguous keyword the
+# raw literal lacks — a literal missing either substring class can never be
+# flagged. Gate on two cheap linear scans before the expensive comment-strip and
+# backtracking query-shape regex so large non-SQL prompt strings (which often
+# contain "distinct"/"count"/"group" as prose but no query verb) are dismissed.
+_VERB_GATE = re.compile(r"select|update|delete", re.IGNORECASE)
+_AGG_GATE = re.compile(r"count|group|distinct", re.IGNORECASE)
+
 
 def _string_value(node: ast.expr) -> str | None:
     """Reconstruct a (possibly `+`-concatenated) string literal, else None."""
@@ -91,6 +101,13 @@ class NoAggregationInStoreQuery(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
+        # A diagnostic needs some string literal that carries both a query verb
+        # and an aggregation keyword; `source` is a strict superset of every
+        # literal, so if either class is absent from the whole file no diagnostic
+        # is possible — skip the parse and full-tree walk entirely. Most files in
+        # a store-lint sweep are not SQL-bearing, so this is the dominant win.
+        if _AGG_GATE.search(source) is None or _VERB_GATE.search(source) is None:
+            return []
         if _CLICKHOUSE_FILE.search(source):
             return []
         tree = parse_or_none(path, source)
@@ -107,7 +124,17 @@ class NoAggregationInStoreQuery(Rule):
             text = _string_value(node)
             if text is None:
                 continue
-            consumed.update(id(sub) for sub in ast.walk(node))
+            # Only a `+`-concatenated BinOp owns sub-nodes that the walk would
+            # otherwise re-process; mark those consumed. A plain Constant has no
+            # such descendants, and if it is itself a child of a string BinOp the
+            # parent (visited first in this BFS walk) already consumed it — so the
+            # per-Constant subtree walk is pure overhead on large literal-heavy
+            # files (the dominant cost here).
+            if isinstance(node, ast.BinOp):
+                consumed.update(id(sub) for sub in ast.walk(node))
+
+            if _AGG_GATE.search(text) is None or _VERB_GATE.search(text) is None:
+                continue
 
             sql = _strip_sql_comments(text)
             if _QUERY_SHAPE.search(sql) is None or _CLICKHOUSE_SQL.search(sql):
