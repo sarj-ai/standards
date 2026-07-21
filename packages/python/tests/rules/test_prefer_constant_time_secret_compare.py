@@ -104,19 +104,21 @@ def test_flags_comparison_under_not():
     assert _count(src) == 1
 
 
-def test_flags_secret_name_as_substring():
-    """The pattern matches anywhere in the identifier, not just whole words."""
-    src = "def f(subtoken, other):\n    return subtoken == other\n"
-    assert _count(src) == 1
-
-
 @pytest.mark.parametrize(
     "identifier",
-    ["mytokenvalue", "user_password_check", "the_signature_bytes", "x_hmac_y"],
+    ["user_password_check", "the_signature_bytes", "x_hmac_y"],
 )
-def test_flags_embedded_secret_substrings(identifier: str):
+def test_flags_secret_word_as_whole_token(identifier: str):
+    """A secret word present as a whole snake/camel token is flagged."""
     src = f"def f({identifier}, other):\n    return {identifier} == other\n"
     assert _count(src) == 1
+
+
+@pytest.mark.parametrize("identifier", ["subtoken", "mytokenvalue"])
+def test_allows_secret_word_only_as_substring(identifier: str):
+    """A secret word buried mid-word (not a whole token) is NOT a secret."""
+    src = f"def f({identifier}, other):\n    return {identifier} == other\n"
+    assert _check(src) == []
 
 
 def test_message_mentions_compare_digest():
@@ -310,20 +312,53 @@ def test_mixed_flagged_and_clean_lines():
 
 
 # ---------------------------------------------------------------------------
-# False-positive awareness: broad substring matching is intentional.
+# False-positive class: whole-token matching + innocuous-marker denylist.
+# ---------------------------------------------------------------------------
+
+_NON_SECRET_LOOKALIKES = [
+    "token_count",
+    "token_budget",
+    "token_limit",
+    "max_tokens",
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "n_tokens",
+    "num_tokens",
+    "tokenize",
+    "tokenizer",
+    "secretary",
+    "api_key_id",
+    "webhook_key_id",
+    "password_enabled",
+]
+
+
+@pytest.mark.parametrize("name", _NON_SECRET_LOOKALIKES)
+def test_allows_non_secret_lookalike_vs_variable(name: str):
+    """LLM counters, key-row ids, and feature flags are not secrets even vs a variable."""
+    src = f"def f({name}, other):\n    return {name} == other\n"
+    assert _check(src) == []
+
+
+def test_still_flags_password_compound_label():
+    """A real secret word as a whole token is still flagged."""
+    src = 'def f(password_field):\n    return password_field == "Password"\n'
+    assert _count(src) == 1
+
+
+# ---------------------------------------------------------------------------
+# Test-path scope: fixture equality assertions are not a timing surface.
 # ---------------------------------------------------------------------------
 
 
-def test_broad_regex_flags_token_count_vs_variable():
-    """Documented behavior: the substring match flags `token_count == other`.
-
-    The exemption only fires for numeric/None/empty-string literals, so a
-    count-like name compared to another *variable* is still reported.
-    """
-    src = "def f(token_count, other_count):\n    return token_count == other_count\n"
-    assert _count(src) == 1
+@pytest.mark.parametrize("test_path", ["test_auth.py", "svc/tests/test_auth.py", "tests/conftest.py"])
+def test_skips_test_paths(test_path: str):
+    src = 'def f(api_key):\n    return api_key == "known-fixture"\n'
+    assert PreferConstantTimeSecretCompare().check(Path(test_path), src) == []
 
 
-def test_broad_regex_flags_password_field_label():
-    src = 'def f(password_field_label):\n    return password_field_label == "Password"\n'
-    assert _count(src) == 1
+def test_flags_same_compare_in_production_path():
+    """The identical compare in a non-test module is still flagged."""
+    src = 'def f(api_key):\n    return api_key == "expected"\n'
+    assert len(PreferConstantTimeSecretCompare().check(Path("svc/auth.py"), src)) == 1

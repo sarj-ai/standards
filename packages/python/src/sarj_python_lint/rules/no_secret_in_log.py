@@ -19,6 +19,7 @@ import ast
 import re
 from typing import TYPE_CHECKING, override
 
+from sarj_python_lint._secret_names import is_secret_name
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 from sarj_python_lint.rules._logging import is_logger_expr
 
@@ -30,14 +31,8 @@ if TYPE_CHECKING:
 # Logging method names (the `.attr` of the call's func).
 _LOG_METHODS = frozenset({"debug", "info", "warning", "warn", "error", "exception", "critical"})
 
-# A keyword name leaks a secret if it CONTAINS a secret word (so `AuthToken`,
-# `api_key`, `userPassword` all match) UNLESS it also carries a redaction marker
-# (`token_prefix`, `password_hash`, `secret_masked`) — those are the intended
-# safe forms, not the raw value.
-_SECRET_WORD_RE = re.compile(
-    r"token|secret|password|passwd|api_?key|jwt|credential|authorization",
-    re.IGNORECASE,
-)
+# A redaction marker (`token_prefix`, `password_hash`, `secret_masked`) means the
+# keyword carries a masked derivative, not the raw value — the intended safe form.
 _REDACTION_RE = re.compile(
     r"prefix|suffix|redact|mask|hash|hint|_len|length",
     re.IGNORECASE,
@@ -48,7 +43,7 @@ def _is_secret_keyword(name: str) -> bool:
     """True if the keyword name names a raw secret (not a redacted derivative)."""
     if _REDACTION_RE.search(name):
         return False
-    return _SECRET_WORD_RE.search(name) is not None
+    return is_secret_name(name)
 
 
 class NoSecretInLog(Rule):

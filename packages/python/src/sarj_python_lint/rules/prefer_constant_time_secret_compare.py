@@ -12,21 +12,14 @@ References:
 from __future__ import annotations
 
 import ast
-import re
 from typing import TYPE_CHECKING, override
 
+from sarj_python_lint._secret_names import is_secret_name
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-
-# Identifiers that look like secrets. Matched against Name.id / Attribute.attr.
-_SECRET_RE = re.compile(
-    r"token|secret|signature|api_?key|hmac|digest|password|passwd|hash",
-    re.IGNORECASE,
-)
 
 
 class PreferConstantTimeSecretCompare(Rule):
@@ -38,6 +31,10 @@ class PreferConstantTimeSecretCompare(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
+        # Fixture equality assertions in tests (`result.api_key == "known"`) are
+        # not a timing-attack surface — no attacker measures a test's clock.
+        if _is_test_path(path):
+            return []
         tree = parse_or_none(path, source)
         if tree is None:
             return []
@@ -73,12 +70,16 @@ class PreferConstantTimeSecretCompare(Rule):
         return diags
 
 
+def _is_test_path(path: Path) -> bool:
+    return path.name.startswith("test_") or "tests" in path.parts
+
+
 def _is_secret_operand(node: ast.AST) -> bool:
-    """True if the operand's identifier matches the secret-name pattern."""
+    """True if the operand's identifier names a secret."""
     if isinstance(node, ast.Name):
-        return _SECRET_RE.search(node.id) is not None
+        return is_secret_name(node.id)
     if isinstance(node, ast.Attribute):
-        return _SECRET_RE.search(node.attr) is not None
+        return is_secret_name(node.attr)
     return False
 
 

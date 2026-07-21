@@ -45,7 +45,7 @@ SECRET_KEYWORDS = [
     "credential",
     "credentials",
     "authorization",
-    # compound / cased forms — substring + case-insensitive matching
+    # compound / cased forms — whole-token + case-insensitive matching
     "access_token",
     "refresh_token",
     "auth_token",
@@ -361,17 +361,18 @@ def test_handles_syntax_error(src: str):
 
 
 # --------------------------------------------------------------------------- #
-# Family 11: FALSE-POSITIVE guards (rule bug — high friction if it fires)      #
+# Family 11: FALSE-POSITIVE guards — non-secret lookalikes                     #
 # --------------------------------------------------------------------------- #
 #
-# These names contain a secret substring but are NOT secrets: LLM usage
-# metrics (`*token*` counts) and innocent words that merely embed a secret
-# word. The rule matches on substring with no allowlist, so it flags them
-# today. `strict=True` makes these XFAIL now and surfaces loudly (XPASS ->
-# failure) the moment the rule grows an allowlist that fixes them.
+# These names embed a secret *substring* but are NOT secrets: LLM usage
+# metrics (`*tokens*` counts, `token_count`) and innocent words that merely
+# embed a secret word (`secretary`). Whole-token matching plus the innocuous
+# marker denylist (`_secret_names.py`) clears every one.
 
 FALSE_POSITIVE_KEYWORDS = [
     "token_count",
+    "token_budget",
+    "token_limit",
     "max_tokens",
     "prompt_tokens",
     "completion_tokens",
@@ -381,10 +382,11 @@ FALSE_POSITIVE_KEYWORDS = [
     "tokenize",
     "tokenizer",
     "secretary",
+    "api_key_id",
+    "password_enabled",
 ]
 
 
-@pytest.mark.xfail(strict=True, reason="SARJ012 substring match has no usage-metric allowlist; flags non-secrets")
 @pytest.mark.parametrize("kw", FALSE_POSITIVE_KEYWORDS)
 def test_does_not_flag_non_secret_lookalike(kw: str):
     src = f'logger.info("usage", {kw}=n)\n'
