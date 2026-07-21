@@ -276,7 +276,6 @@ class {name}: ...
     assert f"`{expected}.py`" in diags[0].message
 
 
-@pytest.mark.xfail(strict=True, reason="GraphQL is a single-token acronym with no override; regex yields graph_ql_schema")
 def test_graphql_acronym_should_be_single_token():
     src = """
 class GraphQLSchema: ...
@@ -286,7 +285,6 @@ class GraphQLSchema: ...
     assert "`graphql_schema.py`" in diags[0].message
 
 
-@pytest.mark.xfail(strict=True, reason="lowercase-lead gRPC has no override; regex yields g_rpc_server not grpc_server")
 def test_grpc_acronym_should_be_single_token():
     src = """
 class gRPCServer: ...
@@ -296,7 +294,6 @@ class gRPCServer: ...
     assert "`grpc_server.py`" in diags[0].message
 
 
-@pytest.mark.xfail(strict=True, reason="denylist gate is case-sensitive on stem; capitalized junk-drawer module escapes")
 def test_capitalized_junk_drawer_stem_should_fire():
     src = """
 class DataPipelineRunner: ...

@@ -69,7 +69,7 @@ _JUNK_DRAWER_STEMS = frozenset({
 
 # Multi-word acronyms whose community-accepted snake_case is a single token
 # rather than the letter-by-letter split (`OAuth` -> `oauth`, not `o_auth`).
-_ACRONYM_OVERRIDES: dict[str, str] = {"OAuth": "Oauth"}
+_ACRONYM_OVERRIDES: dict[str, str] = {"OAuth": "Oauth", "GraphQL": "Graphql", "gRPC": "Grpc"}
 
 # Split on camelCase boundaries while keeping runs of capitals (acronyms)
 # together: `HTTPServer` -> `HTTP` + `Server`, `JWTHandler` -> `JWT` + `Handler`.
@@ -87,7 +87,7 @@ class SinglePublicExport(Rule):
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         if _is_skipped_path(path):
             return []
-        if path.stem not in _JUNK_DRAWER_STEMS:
+        if path.stem.lower() not in _JUNK_DRAWER_STEMS:
             return []
         tree = parse_or_none(path, source)
         if tree is None:
