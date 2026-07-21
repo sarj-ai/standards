@@ -61,6 +61,25 @@ _EXEMPT_METHOD_DECORATORS = frozenset({"property", "cached_property", "abstractm
 _SELF_NAMES = frozenset({"self", "cls"})
 
 
+def _child_nodes(node: ast.AST) -> Iterator[ast.AST]:
+    for field in node._fields:
+        val = getattr(node, field, None)
+        if isinstance(val, list):
+            for item in val:
+                if isinstance(item, ast.AST):
+                    yield item
+        elif isinstance(val, ast.AST):
+            yield val
+
+
+def _walk(node: ast.AST) -> Iterator[ast.AST]:
+    stack: list[ast.AST] = [node]
+    while stack:
+        n = stack.pop()
+        yield n
+        stack.extend(_child_nodes(n))
+
+
 class Stepdown(Rule):
     """Single-caller private helper defined above its only caller — move it below."""
 
@@ -76,7 +95,7 @@ class Stepdown(Rule):
         if tree is None:
             return []
         diags = _check_module_scope(path, tree, self.code)
-        for node in ast.walk(tree):
+        for node in _walk(tree):
             if isinstance(node, ast.ClassDef):
                 diags.extend(_check_class_scope(path, node, self.code))
         diags.sort(key=lambda d: (d.line, d.col))
@@ -242,9 +261,9 @@ def _runtime_nodes(stmts: list[ast.stmt]) -> Iterator[ast.expr]:
                 stack.extend(node.orelse)
             case ast.expr():
                 yield node
-                stack.extend(ast.iter_child_nodes(node))
+                stack.extend(_child_nodes(node))
             case _:
-                stack.extend(ast.iter_child_nodes(node))
+                stack.extend(_child_nodes(node))
 
 
 def _module_pinned_names(tree: ast.Module) -> set[str]:
@@ -299,7 +318,7 @@ def _immediate_class_header_refs(cls: ast.ClassDef) -> set[str]:
 
 
 def _name_loads(node: ast.AST) -> set[str]:
-    return {n.id for n in ast.walk(node) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+    return {n.id for n in _walk(node) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
 
 
 def _module_assigned_names(tree: ast.Module) -> set[str]:
@@ -307,7 +326,7 @@ def _module_assigned_names(tree: ast.Module) -> set[str]:
     for stmt in tree.body:
         if isinstance(stmt, _SCOPE_NODES):
             continue
-        for n in ast.walk(stmt):
+        for n in _walk(stmt):
             if isinstance(n, ast.Name) and isinstance(n.ctx, (ast.Store, ast.Del)):
                 out.add(n.id)
             elif isinstance(n, ast.alias):
@@ -320,7 +339,7 @@ def _class_attr_names(cls: ast.ClassDef) -> set[str]:
     for stmt in cls.body:
         if isinstance(stmt, _SCOPE_NODES):
             continue
-        for n in ast.walk(stmt):
+        for n in _walk(stmt):
             if isinstance(n, ast.Name) and isinstance(n.ctx, (ast.Store, ast.Del)):
                 out.add(n.id)
     return out
@@ -329,7 +348,7 @@ def _class_attr_names(cls: ast.ClassDef) -> set[str]:
 def _self_attribute_stores(node: ast.stmt) -> set[str]:
     return {
         n.attr
-        for n in ast.walk(node)
+        for n in _walk(node)
         if isinstance(n, ast.Attribute)
         and isinstance(n.ctx, (ast.Store, ast.Del))
         and isinstance(n.value, ast.Name)
@@ -339,7 +358,7 @@ def _self_attribute_stores(node: ast.stmt) -> set[str]:
 
 def _locally_bound_names(node: ast.stmt) -> set[str]:
     bound: set[str] = set()
-    for n in ast.walk(node):
+    for n in _walk(node):
         match n:
             case ast.Name(ctx=ast.Store() | ast.Del()):
                 bound.add(n.id)
