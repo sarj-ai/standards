@@ -1,19 +1,30 @@
-"""SARJ022: a module whose members are all private except ONE public
-top-level definition must be named after that export.
+"""SARJ022: a junk-drawer module stem with a single public export should be
+renamed to describe its responsibility.
+
+This rule is deliberately narrow. It fires ONLY when BOTH hold:
+
+  (a) the module stem is a generic "junk-drawer" name that says nothing about
+      the module's responsibility (`utils`, `base`, `models`, `types`, ...), AND
+  (b) the module has exactly one public top-level `def` / `class`, so the
+      rename target is unambiguous.
+
+When both hold, the sole public export's name is the obvious, information-rich
+replacement for the meaningless stem (`utils.py` exposing `snake_case_text` ->
+`snake_case_text.py`; `enums.py` exposing `IntegrationProvider` ->
+`integration_provider.py`).
+
+Why the denylist gate matters: an informative stem names the module's DOMAIN
+(`pagination.py`, `retry_wrapper.py`, `warmup.py`), which is frequently broader
+than its one current export. Renaming those to the export loses the domain and
+is a regression. A junk-drawer stem carries no domain to lose, so replacing it
+with the export name is strictly an improvement.
 
 Public = a top-level `class` / `def` / `async def` whose name has no leading
-underscore. Constants (ALL_CAPS assignments), `__all__`, and imports are
-ignored — the rule governs behavior definitions, not values.
+underscore. Constants (assignments), `__all__`, and imports are ignored.
 
-Fires only on **filename mismatch**: the module has exactly one public
-def/class and its snake_case form differs from the module stem
-(`MultiprocJanitor` -> `multiproc_janitor.py`, `load_call_data` ->
-`load_call_data.py`). Modules with several public definitions are out of
-scope — the rule rewards the single-export shape, it does not mandate it.
-
-Skipped entirely: `__init__.py`, `conftest.py`, test files (`test_*.py` or
-under a `tests/` directory), and modules with zero public definitions
-(pure-constant/type modules).
+Skipped entirely: `__init__.py`, `conftest.py`, and test files (`test_*.py` or
+under a `tests/` directory). Modules whose single export already snake-cases to
+the stem are not flagged (there is nothing to improve).
 """
 
 from __future__ import annotations
@@ -29,21 +40,54 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-_CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
-
 _SKIPPED_FILENAMES = frozenset({"__init__.py", "conftest.py"})
+
+# Generic module stems that describe no responsibility. Curated conservatively:
+# every entry is a name that, standing alone as a module, tells a reader nothing
+# about what lives inside. Idiomatic domain stems (pagination, retry, warmup,
+# client, service, ...) are deliberately excluded.
+_JUNK_DRAWER_STEMS = frozenset({
+    "base",
+    "common",
+    "constant",
+    "constants",
+    "core",
+    "enum",
+    "enums",
+    "helper",
+    "helpers",
+    "misc",
+    "model",
+    "models",
+    "shared",
+    "stuff",
+    "type",
+    "types",
+    "util",
+    "utils",
+})
+
+# Multi-word acronyms whose community-accepted snake_case is a single token
+# rather than the letter-by-letter split (`OAuth` -> `oauth`, not `o_auth`).
+_ACRONYM_OVERRIDES: dict[str, str] = {"OAuth": "Oauth"}
+
+# Split on camelCase boundaries while keeping runs of capitals (acronyms)
+# together: `HTTPServer` -> `HTTP` + `Server`, `JWTHandler` -> `JWT` + `Handler`.
+_CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
 
 
 class SinglePublicExport(Rule):
-    """Module must expose one public def/class, named after the file."""
+    """Rename a junk-drawer module with a single public def/class after it."""
 
     id: str = "single-public-export"
     code: str = "SARJ022"
-    description: str = "A module with a single public def/class must be named after that export."
+    description: str = "A junk-drawer module with a single public def/class should be renamed after that export."
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         if _is_skipped_path(path):
+            return []
+        if path.stem not in _JUNK_DRAWER_STEMS:
             return []
         tree = parse_or_none(path, source)
         if tree is None:
@@ -57,26 +101,29 @@ class SinglePublicExport(Rule):
         if len(public_defs) != 1:
             return []
 
-        diags: list[Diagnostic] = []
         primary = public_defs[0]
         expected_stem = _snake_case(primary.name)
-        if path.stem != expected_stem:
-            diags.append(
-                Diagnostic(
-                    path=path,
-                    line=primary.lineno,
-                    col=primary.col_offset + 1,
-                    code=self.code,
-                    message=(
-                        f"module is named `{path.name}` but its public export is "
-                        f"`{primary.name}` — rename the file to `{expected_stem}.py`."
-                    ),
-                )
+        if path.stem == expected_stem:
+            return []
+
+        return [
+            Diagnostic(
+                path=path,
+                line=primary.lineno,
+                col=primary.col_offset + 1,
+                code=self.code,
+                message=(
+                    f"module stem `{path.stem}` is a generic junk-drawer name; its sole public "
+                    f"export is `{primary.name}` — rename the file to `{expected_stem}.py` to "
+                    f"describe its responsibility."
+                ),
             )
-        return diags
+        ]
 
 
 def _snake_case(name: str) -> str:
+    for camel, replacement in _ACRONYM_OVERRIDES.items():
+        name = name.replace(camel, replacement)
     return _CAMEL_BOUNDARY_RE.sub("_", name).lower()
 
 
