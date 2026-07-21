@@ -49,7 +49,10 @@ class PreferConstantTimeSecretCompare(Rule):
             if not isinstance(node.ops[0], (ast.Eq, ast.NotEq)):
                 continue
             operands = [node.left, *node.comparators]
-            # Skip presence checks: None/True/False, numbers, empty string "".
+            # Skip presence checks (None/True/False, numbers) and comparisons
+            # against a compile-time str/bytes literal sentinel — an attacker
+            # can't extract a runtime secret by timing a compare to a fixed
+            # literal (ruff S105 covers hardcoded-secret literals separately).
             if any(_is_excluded_operand(op) for op in operands):
                 continue
             if not any(_is_secret_operand(op) for op in operands):
@@ -84,9 +87,10 @@ def _is_secret_operand(node: ast.AST) -> bool:
 
 
 def _is_excluded_operand(node: ast.AST) -> bool:
-    """True for presence/identity-style operands we never want to flag.
+    """True for operands that make the comparison a non-timing-attack surface.
 
-    Covers `None`/`True`/`False`, numeric literals, and the empty string `""`.
+    Covers `None`/`True`/`False`, numeric literals, and any str/bytes literal
+    (a compile-time sentinel/placeholder, not a runtime secret to extract).
     """
     if isinstance(node, ast.Constant):
         value = node.value
@@ -94,6 +98,6 @@ def _is_excluded_operand(node: ast.AST) -> bool:
             return True
         if isinstance(value, (int, float, complex)):
             return True
-        if isinstance(value, str) and not value:
+        if isinstance(value, (str, bytes)):
             return True
     return False

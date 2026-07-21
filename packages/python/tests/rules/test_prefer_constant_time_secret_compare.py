@@ -88,9 +88,9 @@ def test_flags_both_operands_secret_single_diagnostic():
     assert _count(src) == 1
 
 
-def test_flags_secret_vs_nonempty_string_literal():
-    """A non-empty string literal is a real value, so the compare is flagged."""
-    src = 'def f(token):\n    return token == "expected-value"\n'
+def test_flags_secret_vs_runtime_operand():
+    """Two runtime operands (secret vs another name) are a timing surface."""
+    src = "def f(token, expected):\n    return token == expected\n"
     assert _count(src) == 1
 
 
@@ -209,6 +209,69 @@ def test_allows_secret_count_vs_zero():
     """`token_count == 0` is a count check — the numeric literal exempts it."""
     src = "def f(token_count):\n    return token_count == 0\n"
     assert _check(src) == []
+
+
+# ---------------------------------------------------------------------------
+# Literal-sentinel exemption: a secret compared to a compile-time str/bytes
+# literal is a placeholder/state check, not a timing-attack surface.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("op", _OPERATORS)
+@pytest.mark.parametrize(
+    "literal",
+    ['"PLACEHOLDER"', '"SENTINEL"', '"none"', "b'\\x00'", 'b"expected"', "'expected-value'"],
+)
+def test_allows_secret_vs_string_or_bytes_literal(op: str, literal: str):
+    src = f"def f(password):\n    return password {op} {literal}\n"
+    assert _check(src) == []
+
+
+def test_allows_password_vs_placeholder_sentinel():
+    """The real noura-be case: `password == "PLACEHOLDER"` is a sentinel check."""
+    src = 'def f(password, password_confirmation):\n    return password == "PLACEHOLDER" or password_confirmation == "PLACEHOLDER"\n'
+    assert _check(src) == []
+
+
+def test_allows_token_vs_sentinel_literal():
+    src = 'def f(token):\n    return token == "SENTINEL"\n'
+    assert _check(src) == []
+
+
+def test_allows_api_key_vs_bytes_literal():
+    src = 'def f(api_key):\n    return api_key == b"\\x00\\x01"\n'
+    assert _check(src) == []
+
+
+def test_allows_secret_vs_string_literal_left_operand():
+    src = 'def f(secret):\n    return "none" != secret\n'
+    assert _check(src) == []
+
+
+# ---------------------------------------------------------------------------
+# Still fires: two runtime operands (Name/Attribute both sides).
+# ---------------------------------------------------------------------------
+
+
+def test_flags_two_runtime_hash_names():
+    """`cached_hash != token_hash` compares two runtime secrets — still fires."""
+    src = "def f(cached_hash, token_hash):\n    return cached_hash != token_hash\n"
+    assert _count(src) == 1
+
+
+def test_flags_secret_vs_stored_secret_name():
+    src = "def f(password, stored_password):\n    return password == stored_password\n"
+    assert _count(src) == 1
+
+
+def test_flags_api_key_vs_request_key_name():
+    src = "def f(api_key, req_key):\n    return api_key == req_key\n"
+    assert _count(src) == 1
+
+
+def test_flags_secret_vs_attribute_operand():
+    src = "def f(secret, req):\n    return secret != req.stored_secret\n"
+    assert _count(src) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -342,8 +405,8 @@ def test_allows_non_secret_lookalike_vs_variable(name: str):
 
 
 def test_still_flags_password_compound_label():
-    """A real secret word as a whole token is still flagged."""
-    src = 'def f(password_field):\n    return password_field == "Password"\n'
+    """A real secret word as a whole token, vs a runtime value, is still flagged."""
+    src = "def f(password_field, submitted):\n    return password_field == submitted\n"
     assert _count(src) == 1
 
 
@@ -354,11 +417,11 @@ def test_still_flags_password_compound_label():
 
 @pytest.mark.parametrize("test_path", ["test_auth.py", "svc/tests/test_auth.py", "tests/conftest.py"])
 def test_skips_test_paths(test_path: str):
-    src = 'def f(api_key):\n    return api_key == "known-fixture"\n'
+    src = "def f(api_key, fixture_key):\n    return api_key == fixture_key\n"
     assert PreferConstantTimeSecretCompare().check(Path(test_path), src) == []
 
 
 def test_flags_same_compare_in_production_path():
-    """The identical compare in a non-test module is still flagged."""
-    src = 'def f(api_key):\n    return api_key == "expected"\n'
+    """The identical runtime compare in a non-test module is still flagged."""
+    src = "def f(api_key, provided):\n    return api_key == provided\n"
     assert len(PreferConstantTimeSecretCompare().check(Path("svc/auth.py"), src)) == 1
