@@ -61,6 +61,8 @@ class Stepdown(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
+        if _is_test_path(path):
+            return []
         tree = parse_or_none(path, source)
         if tree is None:
             return []
@@ -369,3 +371,11 @@ def _reaches(graph: dict[str, set[str]], start: str, target: str) -> bool:
                 seen.add(nxt)
                 stack.append(nxt)
     return False
+
+
+def _is_test_path(path: Path) -> bool:
+    if path.name in {"conftest.py"}:
+        return True
+    if path.name.startswith("test_"):
+        return True
+    return "tests" in path.parts

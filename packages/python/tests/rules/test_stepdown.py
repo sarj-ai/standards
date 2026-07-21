@@ -360,3 +360,14 @@ def run() -> _State:
 
 def test_syntax_error_returns_empty():
     assert _check("def broken(:\n") == []
+
+
+def test_test_paths_skipped():
+    src = """
+def _helper() -> int: ...
+
+def test_x():
+    _helper()
+"""
+    assert _check(src, path="test_things.py") == []
+    assert _check(src, path="pkg/tests/helpers.py") == []
