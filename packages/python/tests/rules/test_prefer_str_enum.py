@@ -1092,10 +1092,9 @@ def route(role: str) -> int:
     assert len(_check(src)) == 1
 
 
-# --- Adversarial: known defects (xfail, strict) ------------------------------
+# --- match/case string patterns cluster on the subject ----------------------
 
 
-@pytest.mark.xfail(strict=True, reason="FN: match/case string patterns are not Compare nodes")
 def test_match_case_string_patterns_should_cluster():
     src = """
 def handle(status: str) -> int:
@@ -1109,16 +1108,57 @@ def handle(status: str) -> int:
     assert len(_check(src)) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="FP: metric/log field-name keys are not a value enum")
-def test_metric_field_name_membership_should_not_cluster():
+def test_match_case_or_patterns_cluster():
     src = """
-def prune(k: str) -> bool:
-    return k not in ["diff_ms", "total_ms"]
+def handle(status: str) -> int:
+    match status:
+        case "active" | "pending":
+            return 1
+        case "closed":
+            return 2
+    return 0
+"""
+    assert len(_check(src)) == 1
+
+
+def test_match_case_single_string_pattern_does_not_cluster():
+    src = """
+def handle(status: str) -> int:
+    match status:
+        case "active":
+            return 1
+        case _:
+            return 0
 """
     assert _check(src) == []
 
 
-@pytest.mark.xfail(strict=True, reason="FN: stringized `\"str\"` annotation unparses to `'str'`, not `str`")
+def test_match_case_class_patterns_do_not_cluster():
+    src = """
+def handle(event: object) -> int:
+    match event:
+        case Foo():
+            return 1
+        case Bar():
+            return 2
+    return 0
+"""
+    assert _check(src) == []
+
+
+def test_match_case_combines_with_compare_on_same_subject():
+    src = """
+def handle(status: str) -> int:
+    if status == "active":
+        return 3
+    match status:
+        case "inactive":
+            return 2
+    return 0
+"""
+    assert len(_check(src)) == 1
+
+
 def test_stringized_str_annotation_choice_field_should_flag():
     src = """
 from pydantic import BaseModel
@@ -1127,3 +1167,15 @@ class Rec(BaseModel):
     status: "str"
 """
     assert len(_check(src)) == 1
+
+
+# --- Adversarial: known defects (xfail, strict) ------------------------------
+
+
+@pytest.mark.xfail(strict=True, reason="FP: metric/log field-name keys are not a value enum")
+def test_metric_field_name_membership_should_not_cluster():
+    src = """
+def prune(k: str) -> bool:
+    return k not in ["diff_ms", "total_ms"]
+"""
+    assert _check(src) == []

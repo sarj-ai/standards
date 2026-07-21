@@ -114,8 +114,11 @@ class PreferStrEnum(Rule):
                 child_active = None
             else:
                 child_active = active
-                if active is not None and isinstance(node, ast.Compare):
-                    _accumulate_compare(active, node)
+                if active is not None:
+                    if isinstance(node, ast.Compare):
+                        _accumulate_compare(active, node)
+                    elif isinstance(node, ast.Match):
+                        _accumulate_match(active, node)
             stack.extend((child, child_active) for child in ast.iter_child_nodes(node))
 
         for clusters in all_clusters:
@@ -159,7 +162,7 @@ class PreferStrEnum(Rule):
                 continue
             if not isinstance(stmt.target, ast.Name):
                 continue
-            ann_text = ast.unparse(stmt.annotation) if stmt.annotation else ""
+            ann_text = _annotation_text(stmt.annotation)
             if ann_text.strip() != "str":
                 continue  # Literal[...] etc. is fine per user L234
             # Heuristic: there's a nearby choices list OR the field name
@@ -213,8 +216,25 @@ def _accumulate_compare(clusters: dict[str, _ClusterEntry], node: ast.Compare) -
     if extracted is None:
         return
     key, literals = extracted
+    _merge_cluster(clusters, key, literals, (node.lineno, node.col_offset + 1))
+
+
+def _accumulate_match(clusters: dict[str, _ClusterEntry], node: ast.Match) -> None:
+    key = _ref_key(node.subject)
+    if key is None:
+        return
+    literals: list[str] = []
+    for case in node.cases:
+        literals.extend(_match_pattern_literals(case.pattern))
+    if not literals:
+        return
+    _merge_cluster(clusters, key, literals, (node.lineno, node.col_offset + 1))
+
+
+def _merge_cluster(
+    clusters: dict[str, _ClusterEntry], key: str, literals: list[str], pos: tuple[int, int]
+) -> None:
     all_tokens = all(_LOWER_TOKEN_RE.fullmatch(lit) for lit in literals)
-    pos = (node.lineno, node.col_offset + 1)
     entry = clusters.get(key)
     if entry is not None:
         line, col, ok, seen = entry
@@ -222,6 +242,28 @@ def _accumulate_compare(clusters: dict[str, _ClusterEntry], node: ast.Compare) -
         clusters[key] = (line, col, ok and all_tokens, seen | set(literals))
     else:
         clusters[key] = (*pos, all_tokens, set(literals))
+
+
+def _match_pattern_literals(pattern: ast.pattern) -> list[str]:
+    """String-constant literals from a `case` pattern (`MatchValue` / `MatchOr`)."""
+    if isinstance(pattern, ast.MatchValue):
+        value = _str_const(pattern.value)
+        return [value] if value is not None else []
+    if isinstance(pattern, ast.MatchOr):
+        literals: list[str] = []
+        for sub in pattern.patterns:
+            literals.extend(_match_pattern_literals(sub))
+        return literals
+    return []
+
+
+def _annotation_text(annotation: ast.expr | None) -> str:
+    """Unparsed annotation, unwrapping a stringized forward-ref (`x: "str"`)."""
+    if annotation is None:
+        return ""
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        return annotation.value
+    return ast.unparse(annotation)
 
 
 def _extract_compare(node: ast.Compare) -> tuple[str, list[str]] | None:
