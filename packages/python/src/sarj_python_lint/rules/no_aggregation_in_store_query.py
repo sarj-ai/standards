@@ -18,6 +18,11 @@ any query (a string containing `FROM`) that uses `COUNT(`, `GROUP BY`, or
     # preferred
     point/bounded reads in Postgres; aggregate in ClickHouse/BigQuery.
 
+Queries against the columnar mirrors are exempt: a file importing the ClickHouse
+or BigQuery SDK, or a single query using ClickHouse-only functions or BigQuery
+syntax (backtick-quoted table identifiers, BQ-only functions), is not a Postgres
+store query and is out of scope.
+
 If an aggregate genuinely must run on Postgres (e.g. a tiny bounded admin
 count), suppress with `# sarj-noqa: SARJ020 — <reason>`.
 """
@@ -54,6 +59,28 @@ _CLICKHOUSE_FILE = re.compile(
 _CLICKHOUSE_SQL = re.compile(
     r"\barg(?:Max|Min)\b|\b_peerdb|\bJSONExtract|\buniqExact\b|\bgroupArray\b"
     r"|\barrayJoin\b|\bquantile\w*\(",
+)
+
+# BigQuery IS also a place for aggregation. Analytics/reporting services read the
+# columnar BigQuery mirror, where COUNT / GROUP BY / DISTINCT are the whole point —
+# only Postgres store queries are in scope. Mirror the ClickHouse exemption exactly:
+# a file that imports the BigQuery SDK is exempt.
+_BIGQUERY_FILE = re.compile(
+    r"\bfrom\s+google\.cloud\s+import\s+bigquery\b"
+    r"|\bfrom\s+google\.cloud\.bigquery\b"
+    r"|\bimport\s+google\.cloud\.bigquery\b",
+    re.MULTILINE,
+)
+# Belt-and-braces: a single query with a BigQuery-only signal is BigQuery. Backtick-
+# quoted table identifiers (`project.dataset.table` / `{table}`) are BQ syntax — a
+# Postgres/OLTP query never uses backticks — as are BQ-only functions. ARRAY_AGG /
+# UNNEST / DATE_TRUNC are deliberately EXCLUDED: they exist in Postgres too, so they
+# are not BigQuery signals.
+_BIGQUERY_SQL = re.compile(
+    r"\b(?:FROM|JOIN)\s+`"
+    r"|\bAPPROX_COUNT_DISTINCT\s*\(|\bGENERATE_ARRAY\s*\(|\b_PARTITIONTIME\b"
+    r"|\bSAFE_CAST\s*\(|\bPARSE_TIMESTAMP\s*\(|\bCOUNTIF\s*\(|\bSTRUCT\s*\(",
+    re.IGNORECASE,
 )
 
 _AGGREGATIONS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -108,7 +135,7 @@ class NoAggregationInStoreQuery(Rule):
         # a store-lint sweep are not SQL-bearing, so this is the dominant win.
         if _AGG_GATE.search(source) is None or _VERB_GATE.search(source) is None:
             return []
-        if _CLICKHOUSE_FILE.search(source):
+        if _CLICKHOUSE_FILE.search(source) or _BIGQUERY_FILE.search(source):
             return []
         tree = parse_or_none(path, source)
         if tree is None:
@@ -137,7 +164,11 @@ class NoAggregationInStoreQuery(Rule):
                 continue
 
             sql = _strip_sql_comments(text)
-            if _QUERY_SHAPE.search(sql) is None or _CLICKHOUSE_SQL.search(sql):
+            if (
+                _QUERY_SHAPE.search(sql) is None
+                or _CLICKHOUSE_SQL.search(sql)
+                or _BIGQUERY_SQL.search(sql)
+            ):
                 continue
             found = [label for label, pat in _AGGREGATIONS if pat.search(sql)]
             if not found:

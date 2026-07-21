@@ -320,6 +320,102 @@ def test_clickhouse_flavored_query_is_exempt(source: str) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Exempt: BigQuery analytics files and BigQuery-flavored queries — analytics and
+# reporting reads against the columnar mirror LEGITIMATELY aggregate. Mirrors the
+# ClickHouse exemption above. (FP class found on noura-be's inline analytics
+# services, e.g. `SELECT id AS session_id FROM \`{source_table}\``.)
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(
+            "from google.cloud import bigquery\n"
+            'q = "SELECT status, COUNT(*) FROM call GROUP BY status"\n',
+            id="from-import",
+        ),
+        pytest.param(
+            "from google.cloud.bigquery import Client\n"
+            'q = "SELECT status, COUNT(*) FROM call GROUP BY status"\n',
+            id="from-submodule",
+        ),
+        pytest.param(
+            "import google.cloud.bigquery\n"
+            'q = "SELECT DISTINCT org_id FROM call"\n',
+            id="import-dotted",
+        ),
+    ],
+)
+def test_bigquery_file_is_exempt(source: str) -> None:
+    assert _check(source) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(
+            'q = f"SELECT id AS session_id, COUNT(*) FROM `{source_table}` GROUP BY id"\n',
+            id="backtick-braced-table",
+        ),
+        pytest.param(
+            'q = "SELECT status, COUNT(*) FROM `proj.ds.call` GROUP BY status"\n',
+            id="backtick-qualified-table",
+        ),
+        pytest.param(
+            'q = "SELECT DISTINCT id FROM `proj.ds.call` cs JOIN `proj.ds.x` x ON cs.id = x.id"\n',
+            id="backtick-join",
+        ),
+        pytest.param(
+            'q = "SELECT APPROX_COUNT_DISTINCT(id), COUNT(*) FROM call GROUP BY org"\n',
+            id="approx-count-distinct",
+        ),
+        pytest.param(
+            'q = "SELECT COUNTIF(ok), COUNT(*) FROM call GROUP BY org"\n',
+            id="countif",
+        ),
+        pytest.param(
+            'q = "SELECT SAFE_CAST(x AS INT64), COUNT(*) FROM call GROUP BY x"\n',
+            id="safe-cast",
+        ),
+        pytest.param(
+            'q = "SELECT PARSE_TIMESTAMP(\'%Y\', y), COUNT(*) FROM call GROUP BY y"\n',
+            id="parse-timestamp",
+        ),
+        pytest.param(
+            'q = "SELECT STRUCT(a, b), COUNT(*) FROM call GROUP BY a"\n',
+            id="struct-constructor",
+        ),
+    ],
+)
+def test_bigquery_flavored_query_is_exempt(source: str) -> None:
+    assert _check(source) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(
+            'q = "SELECT COUNT(*) FROM users WHERE org_id = %s GROUP BY status"\n',
+            id="plain-postgres-count-group-by",
+        ),
+        pytest.param('q = "SELECT DISTINCT org_id FROM account"\n', id="plain-distinct"),
+        pytest.param('q = "SELECT s FROM account GROUP BY s"\n', id="plain-group-by"),
+        pytest.param(
+            'q = "SELECT ARRAY_AGG(id), COUNT(*) FROM account GROUP BY org"\n',
+            id="array-agg-is-postgres-too",
+        ),
+        pytest.param(
+            'q = "SELECT UNNEST(ids), COUNT(*) FROM account GROUP BY org"\n',
+            id="unnest-is-postgres-too",
+        ),
+    ],
+)
+def test_plain_postgres_aggregation_still_fires(source: str) -> None:
+    assert len(_check(source)) == 1
+
+
+# --------------------------------------------------------------------------- #
 # Scope note: the rule is content-based, not filename-based. It gates only on
 # ClickHouse markers in the source, NOT on the file being `*_store.py`. So an
 # aggregating query in any .py file is flagged when checked directly; the CLI
