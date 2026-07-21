@@ -25,7 +25,6 @@ from sarj_python_lint.rules.prefer_constant_time_secret_compare import (
     PreferConstantTimeSecretCompare,
 )
 from sarj_python_lint.rules.prefer_str_enum import PreferStrEnum
-from sarj_python_lint.rules.single_public_export import SinglePublicExport
 from sarj_python_lint.rules.prefer_struct_over_namedtuple import (
     PreferStructOverNamedtuple,
 )
@@ -33,6 +32,8 @@ from sarj_python_lint.rules.prefer_timedelta_for_durations import (
     PreferTimedeltaForDurations,
 )
 from sarj_python_lint.rules.pydantic_at_boundaries import PydanticAtBoundaries
+from sarj_python_lint.rules.single_public_export import SinglePublicExport
+from sarj_python_lint.rules.stepdown import Stepdown
 from sarj_python_lint.rules.store_insert_requires_on_conflict import (
     StoreInsertRequiresOnConflict,
 )
@@ -63,6 +64,7 @@ REGISTRY: dict[str, type[Rule]] = {
     NoAggregationInStoreQuery.id: NoAggregationInStoreQuery,
     NoSelectStar.id: NoSelectStar,
     SinglePublicExport.id: SinglePublicExport,
+    Stepdown.id: Stepdown,
 }
 
 __all__ = ["REGISTRY"]
