@@ -698,12 +698,6 @@ def test_non_bare_yield_after_terminal_is_flagged(label: str, src: str):
     assert diags[0].code == "SARJ010"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: an exempt `yield` immediately after a terminal makes the rule "
-    "`break` the whole list, so a genuinely-dead non-yield statement that "
-    "follows the yield is silently swallowed (false negative).",
-)
 @pytest.mark.parametrize(
     "src",
     [
@@ -717,12 +711,6 @@ def test_dead_code_after_exempt_yield_should_still_flag(src: str):
     assert diags[0].code == "SARJ010"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: `x = yield` / `x += yield` after a terminal is load-bearing "
-    "(it still forces the function to be a generator) but the exemption only "
-    "matches a bare Expr yield, so the assignment form is wrongly flagged.",
-)
 @pytest.mark.parametrize(
     "src",
     [

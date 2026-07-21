@@ -35,10 +35,19 @@ def _is_generator_marker(stmt: ast.stmt) -> bool:
     # `yield` / `yield from` after a terminal is the idiom that forces a
     # function to be a generator even when the yielding path is unreachable
     # (e.g. `return` then `yield` makes an async generator). Removing it would
-    # change the function's type, so it is load-bearing, not dead code.
-    return isinstance(stmt, ast.Expr) and isinstance(
-        stmt.value, (ast.Yield, ast.YieldFrom)
-    )
+    # change the function's type, so it is load-bearing, not dead code. The
+    # assignment forms (`x = yield`, `x += yield from ()`) are equally
+    # load-bearing generator markers, so match them too.
+    match stmt:
+        case (
+            ast.Expr(value=value)
+            | ast.Assign(value=value)
+            | ast.AugAssign(value=value)
+            | ast.AnnAssign(value=value)
+        ):
+            return isinstance(value, (ast.Yield, ast.YieldFrom))
+        case _:
+            return False
 
 
 class NoUnreachableAfterTerminal(Rule):
@@ -63,13 +72,18 @@ class NoUnreachableAfterTerminal(Rule):
                 # statements; annotating keeps the `.lineno`/`.col_offset`
                 # access below well-typed under strict checking.
                 stmts: list[ast.stmt] = raw
-                # Find the first terminal that is not the last element; the
-                # statement immediately after it is unreachable.
+                # Find the first terminal that is not the last element. The
+                # statement after it is unreachable, but a generator-marker
+                # `yield` is load-bearing and exempt per-statement: skip any
+                # markers and flag the first genuinely-dead statement that
+                # follows, so a non-yield dead statement after an exempt yield
+                # still fires.
                 for i in range(len(stmts) - 1):
-                    if isinstance(stmts[i], _TERMINALS):
-                        unreachable = stmts[i + 1]
+                    if not isinstance(stmts[i], _TERMINALS):
+                        continue
+                    for unreachable in stmts[i + 1 :]:
                         if _is_generator_marker(unreachable):
-                            break
+                            continue
                         diags.append(
                             Diagnostic(
                                 path=path,
@@ -83,5 +97,6 @@ class NoUnreachableAfterTerminal(Rule):
                                 ),
                             )
                         )
-                        break  # one diag per statement list (the first)
+                        break
+                    break  # one diag per statement list (the first terminal)
         return diags
