@@ -527,15 +527,13 @@ def test_skips_fstring_secret_with_safe_keyword():
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.xfail(strict=True, reason="SARJ012 defect: redaction regex matches `tag` as a substring, so `staging_*` raw env-secret kwargs are wrongly exempted")
 @pytest.mark.parametrize("kw", ["staging_secret", "staging_token"])
 def test_staging_secret_should_be_flagged(kw: str):
-    # `_REDACTION_RE` finds "tag" inside "staging" and treats a raw env secret as redacted.
+    """`tag` is a whole-token redaction marker, so `staging_*` raw env secrets still fire."""
     assert _codes(f'logger.info("boot", {kw}=v)\n') == ["SARJ012"]
 
 
-@pytest.mark.xfail(strict=True, reason="SARJ012 defect: plural `secrets`/`passwords` are missing from _SECRET_WORDS (asymmetric with `credentials`), so a logged secret bundle is missed")
 @pytest.mark.parametrize("kw", ["secrets", "passwords"])
 def test_plural_secret_bundle_should_be_flagged(kw: str):
-    # A bundle like `secrets=all_secrets` is a genuine leak but the plural whole-token misses it.
+    """A logged bundle like `secrets=all_secrets` is a genuine leak."""
     assert _codes(f'logger.info("loaded", {kw}=v)\n') == ["SARJ012"]

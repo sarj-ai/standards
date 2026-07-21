@@ -23,9 +23,11 @@ We fix this with two changes:
    splitting), never a substring. This alone clears `tokenize`, `tokenizer`,
    `secretary`, and every *pluralized* `tokens` counter (plural `tokens` is not
    the singular secret word `token`).
-2. Disqualify any identifier whose tokens include a counter / row-id / flag
+2. Disqualify an identifier whose TRAILING token is a counter / row-id / flag
    marker (`count`, `budget`, `id`, `enabled`, ...) even when a secret word is
-   also present — this clears `token_count`, `api_key_id`, `password_enabled`.
+   also present — this clears `token_count`, `api_key_id`, `password_enabled`,
+   while still catching a credential that merely leads with such a word
+   (`valid_token`, `present_token` are secrets, not flags).
 """
 
 from __future__ import annotations
@@ -41,6 +43,8 @@ _SECRET_WORDS = frozenset(
         "password",
         "passwd",
         "jwt",
+        "secrets",
+        "passwords",
         "credential",
         "credentials",
         "authorization",
@@ -53,10 +57,11 @@ _SECRET_WORDS = frozenset(
 )
 
 # Tokens that mark a counter, row-id, feature flag, or boolean presence/state
-# marker. Their presence means the identifier is metadata *about* a secret, not
-# the secret itself, so it is not a leak / timing surface even when a secret word
-# is also present: `token_present`, `password_set`, and `password_configured` are
-# booleans, not credentials.
+# marker. As the TRAILING token they mean the identifier is metadata *about* a
+# secret, not the secret itself, so it is not a leak / timing surface even when a
+# secret word is also present: `token_present`, `password_set`, and
+# `password_configured` are booleans, not credentials. Leading such a word does
+# not disqualify — `valid_token` / `present_token` are credentials.
 _INNOCUOUS_WORDS = frozenset(
     {
         "count",
@@ -109,7 +114,7 @@ def _tokens(identifier: str) -> list[str]:
 def is_secret_name(identifier: str) -> bool:
     """True if `identifier` names raw secret material (a credential, not metadata)."""
     tokens = _tokens(identifier)
-    if any(tok in _INNOCUOUS_WORDS for tok in tokens):
+    if tokens and tokens[-1] in _INNOCUOUS_WORDS:
         return False
     if any(tok in _SECRET_WORDS for tok in tokens):
         return True

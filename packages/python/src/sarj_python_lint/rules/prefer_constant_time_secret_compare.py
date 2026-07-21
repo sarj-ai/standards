@@ -79,6 +79,8 @@ def _is_test_path(path: Path) -> bool:
 
 def _is_secret_operand(node: ast.AST) -> bool:
     """True if the operand's identifier names a secret."""
+    if isinstance(node, ast.NamedExpr):
+        node = node.target
     if isinstance(node, ast.Name):
         return is_secret_name(node.id)
     if isinstance(node, ast.Attribute):

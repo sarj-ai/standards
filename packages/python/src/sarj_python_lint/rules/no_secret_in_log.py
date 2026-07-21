@@ -19,7 +19,7 @@ import ast
 import re
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint._secret_names import is_secret_name
+from sarj_python_lint._secret_names import _tokens, is_secret_name
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 from sarj_python_lint.rules._logging import is_logger_expr
 
@@ -33,17 +33,24 @@ _LOG_METHODS = frozenset({"debug", "info", "warning", "warn", "error", "exceptio
 
 # A redaction marker (`token_prefix`, `password_hash`, `secret_masked`,
 # `api_key_tag`) means the keyword carries a masked/derived value, not the raw
-# secret — the intended safe form. `tag` covers redaction tags derived purely for
-# logging (`api_key_tag=_api_key_log_tag(api_key)`).
+# secret — the intended safe form.
 _REDACTION_RE = re.compile(
-    r"prefix|suffix|redact|mask|hash|hint|tag|_len|length",
+    r"prefix|suffix|redact|mask|hash|hint|_len|length",
     re.IGNORECASE,
 )
+
+# `tag` marks a redaction tag derived purely for logging
+# (`api_key_tag=_api_key_log_tag(api_key)`), but only as a WHOLE token — matched
+# as a substring it wrongly exempts raw env secrets like `staging_secret`
+# (`s·tag·ing`), which is a leak.
+_WHOLE_TOKEN_REDACTION_MARKERS = frozenset({"tag"})
 
 
 def _is_secret_keyword(name: str) -> bool:
     """True if the keyword name names a raw secret (not a redacted derivative)."""
     if _REDACTION_RE.search(name):
+        return False
+    if any(tok in _WHOLE_TOKEN_REDACTION_MARKERS for tok in _tokens(name)):
         return False
     return is_secret_name(name)
 

@@ -485,13 +485,11 @@ def test_flags_token_tag_tag_absent_from_denylist():
 # --- Genuine defects: xfail(strict=True) ----------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="NamedExpr (walrus) operand isn't inspected — secret compare via `(secret := f()) == x` is missed")
 def test_flags_secret_in_walrus_operand():
     src = "def f(expected):\n    return (secret := load()) == expected\n"
     assert _count(src) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="Order-insensitive innocuous denylist: `valid` disqualifies `valid_token`, a credential, not a flag")
 def test_flags_valid_token_credential():
     src = "def f(valid_token, provided):\n    return valid_token == provided\n"
     assert _count(src) == 1
