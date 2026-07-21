@@ -85,11 +85,29 @@ class NoRepeatedStringLiteral(Rule):
         if tree is None:
             return []
 
-        excluded = _fstring_fragments(tree) | _docstring_nodes(tree) | _scaffolding_values(tree)
-        scope_of = _scope_map(tree)
         occurrences: dict[str, list[ast.Constant]] = defaultdict(list)
-        for node in ast.walk(tree):
-            if (
+        scope_of: dict[int, int] = {}
+        excluded: set[int] = set()
+
+        def visit(node: ast.AST, scope: int) -> None:
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                body = node.body
+                if (
+                    body
+                    and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)
+                ):
+                    excluded.add(id(body[0].value))
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    scope = id(node)
+            elif isinstance(node, ast.JoinedStr):
+                excluded.update(id(value) for value in node.values)
+            elif isinstance(node, ast.Call):
+                for kw in node.keywords:
+                    if kw.arg in _SCAFFOLDING_KWARGS:
+                        excluded.update(id(child) for child in ast.walk(kw.value) if isinstance(child, ast.Constant))
+            elif (
                 isinstance(node, ast.Constant)
                 and isinstance(node.value, str)
                 and len(node.value) >= _MIN_LENGTH
@@ -97,6 +115,11 @@ class NoRepeatedStringLiteral(Rule):
                 and _is_structured(node.value)
             ):
                 occurrences[node.value].append(node)
+                scope_of[id(node)] = scope
+            for child in ast.iter_child_nodes(node):
+                visit(child, scope)
+
+        visit(tree, _MODULE_SCOPE)
 
         diags: list[Diagnostic] = []
         for value, nodes in occurrences.items():
@@ -126,53 +149,6 @@ class NoRepeatedStringLiteral(Rule):
 
 def _is_structured(value: str) -> bool:
     return "\n" in value or _SQL_KEYWORD_RE.search(value) is not None or _IDENTIFIER_RE.match(value) is not None
-
-
-def _scope_map(tree: ast.Module) -> dict[int, int]:
-    """Map id(Constant) -> a key identifying its nearest enclosing function (or module scope)."""
-    scope: dict[int, int] = {}
-
-    def visit(node: ast.AST, current: int) -> None:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            current = id(node)
-        elif isinstance(node, ast.Constant):
-            scope[id(node)] = current
-        for child in ast.iter_child_nodes(node):
-            visit(child, current)
-
-    visit(tree, _MODULE_SCOPE)
-    return scope
-
-
-def _fstring_fragments(tree: ast.Module) -> set[int]:
-    return {id(value) for node in ast.walk(tree) if isinstance(node, ast.JoinedStr) for value in node.values}
-
-
-def _scaffolding_values(tree: ast.Module) -> set[int]:
-    nodes: set[int] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        for kw in node.keywords:
-            if kw.arg in _SCAFFOLDING_KWARGS:
-                nodes.update(id(child) for child in ast.walk(kw.value) if isinstance(child, ast.Constant))
-    return nodes
-
-
-def _docstring_nodes(tree: ast.Module) -> set[int]:
-    nodes: set[int] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        body = node.body
-        if (
-            body
-            and isinstance(body[0], ast.Expr)
-            and isinstance(body[0].value, ast.Constant)
-            and isinstance(body[0].value.value, str)
-        ):
-            nodes.add(id(body[0].value))
-    return nodes
 
 
 def _preview(value: str) -> str:
