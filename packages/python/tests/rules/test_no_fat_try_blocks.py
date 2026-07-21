@@ -327,6 +327,102 @@ finally:
     assert _check(src) == []
 
 
+# ---- Re-raising except handlers exempt the block (wrapping, not swallowing) ----
+
+
+def test_bare_reraise_handler_exempts_fat_block():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except ValueError:
+    log()
+    raise
+"""
+    assert _check(src) == []
+
+
+def test_raise_from_wrapped_handler_exempts_fat_block():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except ValueError as e:
+    raise Wrapped("context") from e
+"""
+    assert _check(src) == []
+
+
+def test_all_handlers_reraise_across_multiple_excepts_exempts():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except ValueError as e:
+    raise Wrapped() from e
+except KeyError:
+    raise
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize(
+    "tail",
+    ["return None", "pass", "continue", "log_error()"],
+    ids=["return", "pass", "continue", "log-no-raise"],
+)
+def test_swallowing_handler_still_fires(tail: str):
+    src = f"""
+def outer():
+    for _ in items():
+        try:
+            a = one()
+            b = two()
+            c = three()
+            d = four()
+        except ValueError:
+            {tail}
+"""
+    assert len(_check(src)) == 1
+
+
+def test_mixed_handlers_one_reraises_one_swallows_still_fires():
+    src = """
+def outer():
+    try:
+        a = one()
+        b = two()
+        c = three()
+        d = four()
+    except ValueError as e:
+        raise Wrapped() from e
+    except KeyError:
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_reraise_not_at_handler_tail_still_fires():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except ValueError:
+    if fatal():
+        raise
+    recovered()
+"""
+    assert len(_check(src)) == 1
+
+
 # ---- Nested try blocks are checked independently ----
 
 
@@ -414,17 +510,7 @@ def test_two_sibling_fat_trys_report_both_in_order():
     assert lines == sorted(lines)
 
 
-@pytest.mark.xfail(
-    reason=(
-        "BUG: NoFatTryBlocks returns diagnostics in ast.walk (breadth-first) order "
-        "and never calls diags.sort((line, col)) — every peer rule (stepdown, "
-        "no_select_star, no_sequential_await, ...) sorts. When a fat try is nested "
-        "inside another fat try that has a later fat sibling, the sibling's "
-        "diagnostic precedes the deeper nested one, so output is not position-sorted."
-    ),
-    strict=True,
-)
-def test_multi_violation_should_be_position_sorted():
+def test_multi_violation_is_position_sorted():
     src = """
 try:
     a = one()

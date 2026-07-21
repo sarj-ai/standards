@@ -20,6 +20,12 @@ false-positive patterns that dominated real-world suppressions:
   the handler (a `finally` that tears down a resource, an `else`/`finally` that
   reads a status the body set) — statements can't be freely hoisted out without
   changing semantics, so the length check is counterproductive there.
+* `try` blocks whose every `except` handler re-raises (bare `raise`, or
+  `raise Wrapped from e`) are exempt. The fat-try smell is over-broad
+  *swallowing*; when no handler swallows, the width is deliberate uniform
+  error-context / metric wrapping and isolating one call would change which
+  failures are reported. A handler that returns / continues / passes /
+  logs-without-raise is swallowing and keeps the block in scope.
 
 Instead of:
     try:
@@ -65,6 +71,16 @@ def _can_raise(stmt: ast.stmt) -> bool:
     return any(isinstance(n, (ast.Call, ast.Await)) for n in ast.walk(stmt))
 
 
+def _all_handlers_reraise(handlers: list[ast.ExceptHandler]) -> bool:
+    """True if every `except` handler's body ends in a `raise`. Such a `try` is
+    doing uniform error-context/metric wrapping, not swallowing — its width is
+    intentional. A handler that returns / continues / passes / logs-without-raise
+    is swallowing and makes this False, so the block still fires."""
+    return bool(handlers) and all(
+        bool(h.body) and isinstance(h.body[-1], ast.Raise) for h in handlers
+    )
+
+
 class NoFatTryBlocks(Rule):
     """Try body with too many throwing statements — isolate the one that raises."""
 
@@ -85,6 +101,10 @@ class NoFatTryBlocks(Rule):
             # that couples the body to the handler — don't fight it on length.
             if node.orelse or node.finalbody:
                 continue
+            # When every `except` re-raises, the wide body is a deliberate
+            # error-context/metric wrapper, not an over-broad swallow — exempt.
+            if _all_handlers_reraise(node.handlers):
+                continue
             throwing = sum(_can_raise(stmt) for stmt in node.body)
             if throwing <= _MAX_TRY_BODY_STATEMENTS:
                 continue
@@ -102,4 +122,5 @@ class NoFatTryBlocks(Rule):
                     ),
                 )
             )
+        diags.sort(key=lambda d: (d.line, d.col))
         return diags
