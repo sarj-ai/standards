@@ -1,17 +1,15 @@
-"""SARJ022: a module opted into this rule must expose exactly one public
-top-level definition, and the filename must be that export's snake_case name.
+"""SARJ022: a module whose members are all private except ONE public
+top-level definition must be named after that export.
 
 Public = a top-level `class` / `def` / `async def` whose name has no leading
-underscore. Everything else in the module (helpers, constants, regexes) should
-be underscore-private or live on the exported class. Constants (ALL_CAPS
-assignments), `__all__`, and imports are ignored — the rule governs behavior
-definitions, not values.
+underscore. Constants (ALL_CAPS assignments), `__all__`, and imports are
+ignored — the rule governs behavior definitions, not values.
 
-Fires on:
-1. **Extra public definition** — every public def/class beyond the first.
-2. **Filename mismatch** — the single public export's snake_case form differs
-   from the module stem (`MultiprocJanitor` -> `multiproc_janitor.py`,
-   `load_call_data` -> `load_call_data.py`).
+Fires only on **filename mismatch**: the module has exactly one public
+def/class and its snake_case form differs from the module stem
+(`MultiprocJanitor` -> `multiproc_janitor.py`, `load_call_data` ->
+`load_call_data.py`). Modules with several public definitions are out of
+scope — the rule rewards the single-export shape, it does not mandate it.
 
 Skipped entirely: `__init__.py`, `conftest.py`, test files (`test_*.py` or
 under a `tests/` directory), and modules with zero public definitions
@@ -41,7 +39,7 @@ class SinglePublicExport(Rule):
 
     id: str = "single-public-export"
     code: str = "SARJ022"
-    description: str = "One public top-level def/class per module; filename must be its snake_case name."
+    description: str = "A module with a single public def/class must be named after that export."
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
@@ -56,25 +54,11 @@ class SinglePublicExport(Rule):
             for node in tree.body
             if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_")
         ]
-        if not public_defs:
+        if len(public_defs) != 1:
             return []
 
         diags: list[Diagnostic] = []
-        primary, *extras = public_defs
-        for node in extras:
-            diags.append(
-                Diagnostic(
-                    path=path,
-                    line=node.lineno,
-                    col=node.col_offset + 1,
-                    code=self.code,
-                    message=(
-                        f"`{node.name}` is a second public definition — this module already "
-                        f"exports `{primary.name}`. Make it private or move it to its own module."
-                    ),
-                )
-            )
-
+        primary = public_defs[0]
         expected_stem = _snake_case(primary.name)
         if path.stem != expected_stem:
             diags.append(

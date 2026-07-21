@@ -27,15 +27,13 @@ def load_call_data() -> None: ...
     assert _check(src, path="load_call_data.py") == []
 
 
-def test_second_public_def_flagged():
+def test_multiple_public_defs_out_of_scope():
     src = """
 class MultiprocJanitor: ...
 
 def gc_once() -> None: ...
 """
-    diags = _check(src)
-    assert len(diags) == 1
-    assert "gc_once" in diags[0].message
+    assert _check(src, path="anything.py") == []
 
 
 def test_filename_mismatch_flagged():
