@@ -32,7 +32,10 @@ Never fires on:
   annotations, class-body attribute values. Moving those breaks runtime.
 - Names referenced inside `if TYPE_CHECKING:` blocks (pinned, not call sites).
 - Names defined more than once in the scope (`@overload`, `@x.setter`,
-  conditional defs) or shadowed by a same-name assignment / local binding.
+  conditional defs), reassigned at module/class scope, or locally rebound
+  inside the calling function itself — the reference there resolves to the
+  local, so that function is not counted as a caller. A local binding in some
+  OTHER (non-calling) function does not suppress the helper.
 - Methods decorated `@property` / `@cached_property` (read as attributes) and
   `@abstractmethod` (interface contracts conventionally sit together).
 """
@@ -109,15 +112,13 @@ def _check_module_scope(path: Path, tree: ast.Module, code: str) -> list[Diagnos
 
     pinned = _module_pinned_names(tree)
     shadowed = _module_assigned_names(tree)
-    for d in defs:
-        shadowed |= _locally_bound_names(d)
 
     graph: dict[str, set[str]] = {}
     for name, d in unique_defs.items():
         refs = {
             n.id for n in _runtime_nodes(_deferred_body(d)) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
         }
-        graph[name] = (refs & unique_defs.keys()) - {name}
+        graph[name] = (refs & unique_defs.keys()) - {name} - _locally_bound_names(d)
 
     diags: list[Diagnostic] = []
     for name, d in unique_defs.items():
@@ -147,7 +148,7 @@ def _check_class_scope(path: Path, cls: ast.ClassDef, code: str) -> list[Diagnos
             if isinstance(n, ast.Attribute)
             and isinstance(n.ctx, ast.Load)
             and isinstance(n.value, ast.Name)
-            and n.value.id in _SELF_NAMES
+            and (n.value.id in _SELF_NAMES or n.value.id == cls.name)
         }
         graph[name] = (refs & unique.keys()) - {name}
 
@@ -318,7 +319,25 @@ def _immediate_class_header_refs(cls: ast.ClassDef) -> set[str]:
 
 
 def _name_loads(node: ast.AST) -> set[str]:
-    return {n.id for n in _walk(node) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+    """Load-context bare names evaluated where `node` sits at import/def time.
+
+    A lambda body is deferred — it runs only when the lambda is later invoked,
+    not at the point the lambda literal is created — so names inside it are not
+    import-time pins. Lambda argument defaults DO evaluate at creation time and
+    are kept.
+    """
+    out: set[str] = set()
+    stack: list[ast.AST] = [node]
+    while stack:
+        n = stack.pop()
+        if isinstance(n, ast.Lambda):
+            stack.extend(n.args.defaults)
+            stack.extend(d for d in n.args.kw_defaults if d is not None)
+            continue
+        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load):
+            out.add(n.id)
+        stack.extend(_child_nodes(n))
+    return out
 
 
 def _module_assigned_names(tree: ast.Module) -> set[str]:
@@ -357,10 +376,18 @@ def _self_attribute_stores(node: ast.stmt) -> set[str]:
 
 
 def _locally_bound_names(node: ast.stmt) -> set[str]:
+    comp_targets = {
+        id(t)
+        for n in _walk(node)
+        if isinstance(n, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp))
+        for gen in n.generators
+        for t in _walk(gen.target)
+        if isinstance(t, ast.Name)
+    }
     bound: set[str] = set()
     for n in _walk(node):
         match n:
-            case ast.Name(ctx=ast.Store() | ast.Del()):
+            case ast.Name(ctx=ast.Store() | ast.Del()) if id(n) not in comp_targets:
                 bound.add(n.id)
             case ast.arg():
                 bound.add(n.arg)

@@ -3,8 +3,6 @@ from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pytest
-
 from sarj_python_lint.rules.stepdown import (
     Stepdown,
     _walk,  # ruff:ignore[import-private-name] — parity test for the rule's inlined AST walker vs ast.walk
@@ -356,11 +354,8 @@ def test_shadowing_local_binding_skipped():
 def _config() -> dict:
     return {}
 
-def setup() -> None:
-    _config = {"a": 1}
-    print(_config)
-
 def run() -> dict:
+    _config = {"a": 1}
     return _config()
 """
     assert _check(src) == []
@@ -663,10 +658,6 @@ type Alias[T] = list[T]
     assert actual == expected
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="comprehension target is a separate scope in py3; _locally_bound_names collects its Store and wrongly suppresses the real body-level call",
-)
 def test_comprehension_target_wrongly_shadows_helper():
     src = """
 def _x() -> int:
@@ -682,10 +673,6 @@ def caller(xs) -> int:
     assert "_x" in diags[0].message
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="shadow set is module-global; a local binding in an unrelated non-calling function suppresses a real violation elsewhere",
-)
 def test_unrelated_local_binding_suppresses_violation():
     src = """
 def _item() -> int:
@@ -704,10 +691,6 @@ def other() -> int:
     assert "other" in diags[0].message
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="module-level lambda body reference is deferred, not import-time; treating it as a position pin misses a real violation",
-)
 def test_module_lambda_reference_over_pins_helper():
     src = """
 def _h() -> int:
@@ -724,10 +707,6 @@ def caller() -> int:
     assert "caller" in diags[0].message
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="same-class call via the class name (H._m) is a real same-scope caller but only self./cls. references are tracked",
-)
 def test_same_class_call_via_class_name_missed():
     src = """
 class H:
