@@ -9,9 +9,11 @@ application code.
 
 This rule walks SQL string literals embedded in `.py` (the raw queries in
 `*_store.py`) and flags any single query string containing **3 or more** `JOIN`
-keywords. `LEFT/RIGHT/INNER/FULL/CROSS JOIN` each count as one. `--` and
-`/* */` SQL comments are stripped first. Only strings that actually look like a
-query (they contain a `FROM`) are considered, keeping false positives low.
+keywords. `LEFT/RIGHT/INNER/FULL/CROSS JOIN` each count as one. SQL string-literal
+values and `--` / `/* */` comments are neutralized first, so a `'join'` value or
+a `--` inside a quoted value never affects the count. Only strings that actually
+look like a query (they contain a `FROM`) are considered, keeping false positives
+low.
 
 If a join-heavy read is genuinely the right call, suppress with
 `# sarj-noqa: SARJ019 — <reason>`.
@@ -24,14 +26,13 @@ import re
 from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
+from sarj_python_lint.rules._sql import sql_string_value, strip_sql_noise
 
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-_LINE_COMMENT = re.compile(r"--.*?$", re.MULTILINE)
-_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 # A real query shape, so prose with the bare words "from"/"join" isn't matched.
 _QUERY_SHAPE = re.compile(
     r"\bSELECT\b[\s\S]*?\bFROM\b|\bUPDATE\b[\s\S]*?\bSET\b|\bDELETE\b\s+FROM\b",
@@ -40,22 +41,6 @@ _QUERY_SHAPE = re.compile(
 _JOIN = re.compile(r"\bJOIN\b", re.IGNORECASE)
 
 _MAX_JOINS = 2
-
-
-def _string_value(node: ast.expr) -> str | None:
-    """Reconstruct a (possibly `+`-concatenated) string literal, else None."""
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node.value
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left = _string_value(node.left)
-        right = _string_value(node.right)
-        if left is not None and right is not None:
-            return left + right
-    return None
-
-
-def _strip_sql_comments(text: str) -> str:
-    return _BLOCK_COMMENT.sub(" ", _LINE_COMMENT.sub("", text))
 
 
 class NoQueryWithManyJoins(Rule):
@@ -80,12 +65,12 @@ class NoQueryWithManyJoins(Rule):
                 continue
             if id(node) in consumed:
                 continue
-            text = _string_value(node)
+            text = sql_string_value(node)
             if text is None:
                 continue
             consumed.update(id(sub) for sub in ast.walk(node))
 
-            sql = _strip_sql_comments(text)
+            sql = strip_sql_noise(text)
             if _QUERY_SHAPE.search(sql) is None:
                 continue
             join_count = len(_JOIN.findall(sql))

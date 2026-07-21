@@ -496,17 +496,13 @@ def test_underscore_prefixed_join_identifier_not_counted() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Adversarial NEW DEFECTS (xfail): the rule counts JOIN by lexical keyword     #
-# only, so string values, `+`-variable splits, and `--` inside literals fool   #
-# it. Distinct from the existing f-string-interpolation-between-FROM-and-JOINs  #
-# limitation.                                                                   #
+# Adversarial cases: string-literal `'join'` values and a `--` inside a quoted  #
+# value no longer fool the JOIN count (masked before scanning). The remaining   #
+# `+`-concatenated-variable split stays xfail — masking a single literal cannot #
+# rejoin keywords spread across separate Constant segments.                     #
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SARJ019 FP: string VALUES equal to 'join' are counted as JOIN keywords (this query has 0 real joins).",
-)
 def test_string_literal_join_values_false_positive() -> None:
     src = "q = \"SELECT x FROM a WHERE p = 'join' AND q = 'join' AND r = 'join'\""
     assert _check(src) == []
@@ -521,10 +517,6 @@ def test_plus_concat_variable_between_joins_false_negative() -> None:
     assert len(_check(src)) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="SARJ019 FN: a literal `--` inside a SQL string value makes line-comment stripping eat the trailing real joins.",
-)
 def test_double_dash_in_string_value_truncates_joins_false_negative() -> None:
     src = "q = \"SELECT * FROM a JOIN b ON x = '--' JOIN c ON 1 JOIN d ON 1\""
     assert len(_check(src)) == 1

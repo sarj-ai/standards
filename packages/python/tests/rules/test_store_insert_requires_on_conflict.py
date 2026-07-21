@@ -302,27 +302,17 @@ def test_new_fires_once(src: str) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# New known limitations (xfail) — genuine false negatives / positives.         #
+# String-literal awareness: an ON CONFLICT / `--` inside a quoted VALUE no       #
+# longer excuses or falsely trips a finding. The remaining `+`-concat split      #
+# stays xfail (keywords span separate Constant segments).                        #
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.xfail(
-    reason="ON CONFLICT text living inside an inserted single-quoted VALUE is "
-    "counted as a real clause (no SQL-string awareness), wrongly excusing a bare "
-    "insert.",
-    strict=True,
-)
 def test_on_conflict_inside_inserted_string_value_wrongly_excuses() -> None:
     src = "q = \"INSERT INTO t (msg) VALUES ('ON CONFLICT DO NOTHING')\""
     assert _count(src) == 1
 
 
-@pytest.mark.xfail(
-    reason="A `--` inside a single-quoted VALUE on the ON CONFLICT line is stripped "
-    "as a SQL comment, deleting the real ON CONFLICT clause and producing a false "
-    "positive.",
-    strict=True,
-)
 def test_double_dash_in_string_value_strips_real_on_conflict() -> None:
     src = "q = \"INSERT INTO t (c) VALUES ('a--b') ON CONFLICT DO NOTHING\""
     assert _count(src) == 0

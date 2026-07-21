@@ -9,7 +9,9 @@ point lookups and small bounded reads.
 
 This rule walks SQL string literals embedded in `.py` (`*_store.py`) and flags
 any query (a string containing `FROM`) that uses `COUNT(`, `GROUP BY`, or
-`DISTINCT`. `--` and `/* */` comments are stripped first.
+`DISTINCT`. SQL string-literal values and `--` / `/* */` comments are neutralized
+first, so an aggregate keyword or a backtick living inside a quoted value never
+affects the result.
 
     # flagged
     "SELECT status, COUNT(*) FROM call GROUP BY status"
@@ -19,9 +21,11 @@ any query (a string containing `FROM`) that uses `COUNT(`, `GROUP BY`, or
     point/bounded reads in Postgres; aggregate in ClickHouse/BigQuery.
 
 Queries against the columnar mirrors are exempt: a file importing the ClickHouse
-or BigQuery SDK, or a single query using ClickHouse-only functions or BigQuery
-syntax (backtick-quoted table identifiers, BQ-only functions), is not a Postgres
-store query and is out of scope.
+SDK, or a single query using ClickHouse-only functions or BigQuery syntax
+(backtick-quoted table identifiers, BQ-only functions), is not a Postgres store
+query and is out of scope. A file-level BigQuery-SDK import exempts only queries
+that carry no Postgres-specific signal — a psycopg `%s` placeholder marks a real
+Postgres store query even in a mixed analytics module.
 
 If an aggregate genuinely must run on Postgres (e.g. a tiny bounded admin
 count), suppress with `# sarj-noqa: SARJ020 — <reason>`.
@@ -34,14 +38,13 @@ import re
 from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
+from sarj_python_lint.rules._sql import sql_string_value, strip_sql_noise
 
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-_LINE_COMMENT = re.compile(r"--.*?$", re.MULTILINE)
-_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 # A real SQL query shape — not just the word "from", so prose/LLM-prompt strings
 # (e.g. "distinct from unexpected exceptions") are not mistaken for queries.
 _QUERY_SHAPE = re.compile(
@@ -62,9 +65,10 @@ _CLICKHOUSE_SQL = re.compile(
 )
 
 # BigQuery IS also a place for aggregation. Analytics/reporting services read the
-# columnar BigQuery mirror, where COUNT / GROUP BY / DISTINCT are the whole point —
-# only Postgres store queries are in scope. Mirror the ClickHouse exemption exactly:
-# a file that imports the BigQuery SDK is exempt.
+# columnar BigQuery mirror, where COUNT / GROUP BY / DISTINCT are the whole point.
+# A file that imports the BigQuery SDK exempts its queries — but only those with no
+# Postgres-specific signal, so a mixed module's real Postgres store query is still
+# flagged (see _POSTGRES_SQL below).
 _BIGQUERY_FILE = re.compile(
     r"\bfrom\s+google\.cloud\s+import\s+bigquery\b"
     r"|\bfrom\s+google\.cloud\.bigquery\b"
@@ -82,6 +86,11 @@ _BIGQUERY_SQL = re.compile(
     r"|\bSAFE_CAST\s*\(|\bPARSE_TIMESTAMP\s*\(|\bCOUNTIF\s*\(|\bSTRUCT\s*\(",
     re.IGNORECASE,
 )
+# A psycopg parameter placeholder (`%s` / `%(name)s`) is Postgres-specific — BigQuery
+# parameterizes with `@name`. Its presence marks a real Postgres store query, defeating
+# the file-level BigQuery-import exemption. String values are masked before this scan,
+# so a literal `%` inside a `LIKE` pattern can't false-signal.
+_POSTGRES_SQL = re.compile(r"%\(\w+\)s|%s")
 
 _AGGREGATIONS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("COUNT(", re.compile(r"\bCOUNT\s*\(", re.IGNORECASE)),
@@ -90,30 +99,14 @@ _AGGREGATIONS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 # A diagnostic needs BOTH a query shape (SELECT/UPDATE/DELETE) and an aggregation
-# (COUNT/GROUP/DISTINCT). Comment-stripping only ever deletes characters (or maps
-# a `/* */` span to one space), so it can never introduce a contiguous keyword the
-# raw literal lacks — a literal missing either substring class can never be
-# flagged. Gate on two cheap linear scans before the expensive comment-strip and
-# backtracking query-shape regex so large non-SQL prompt strings (which often
-# contain "distinct"/"count"/"group" as prose but no query verb) are dismissed.
+# (COUNT/GROUP/DISTINCT). Noise-stripping only ever blanks characters to spaces, so
+# it can never introduce a contiguous keyword the raw literal lacks — a literal
+# missing either substring class can never be flagged. Gate on two cheap linear
+# scans before the expensive noise-strip and backtracking query-shape regex so
+# large non-SQL prompt strings (which often contain "distinct"/"count"/"group" as
+# prose but no query verb) are dismissed.
 _VERB_GATE = re.compile(r"select|update|delete", re.IGNORECASE)
 _AGG_GATE = re.compile(r"count|group|distinct", re.IGNORECASE)
-
-
-def _string_value(node: ast.expr) -> str | None:
-    """Reconstruct a (possibly `+`-concatenated) string literal, else None."""
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node.value
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left = _string_value(node.left)
-        right = _string_value(node.right)
-        if left is not None and right is not None:
-            return left + right
-    return None
-
-
-def _strip_sql_comments(text: str) -> str:
-    return _BLOCK_COMMENT.sub(" ", _LINE_COMMENT.sub("", text))
 
 
 class NoAggregationInStoreQuery(Rule):
@@ -135,8 +128,9 @@ class NoAggregationInStoreQuery(Rule):
         # a store-lint sweep are not SQL-bearing, so this is the dominant win.
         if _AGG_GATE.search(source) is None or _VERB_GATE.search(source) is None:
             return []
-        if _CLICKHOUSE_FILE.search(source) or _BIGQUERY_FILE.search(source):
+        if _CLICKHOUSE_FILE.search(source):
             return []
+        bigquery_file = _BIGQUERY_FILE.search(source) is not None
         tree = parse_or_none(path, source)
         if tree is None:
             return []
@@ -148,7 +142,7 @@ class NoAggregationInStoreQuery(Rule):
                 continue
             if id(node) in consumed:
                 continue
-            text = _string_value(node)
+            text = sql_string_value(node)
             if text is None:
                 continue
             # Only a `+`-concatenated BinOp owns sub-nodes that the walk would
@@ -163,12 +157,10 @@ class NoAggregationInStoreQuery(Rule):
             if _AGG_GATE.search(text) is None or _VERB_GATE.search(text) is None:
                 continue
 
-            sql = _strip_sql_comments(text)
-            if (
-                _QUERY_SHAPE.search(sql) is None
-                or _CLICKHOUSE_SQL.search(sql)
-                or _BIGQUERY_SQL.search(sql)
-            ):
+            sql = strip_sql_noise(text)
+            if _QUERY_SHAPE.search(sql) is None or _CLICKHOUSE_SQL.search(sql) or _BIGQUERY_SQL.search(sql):
+                continue
+            if bigquery_file and _POSTGRES_SQL.search(sql) is None:
                 continue
             found = [label for label, pat in _AGGREGATIONS if pat.search(sql)]
             if not found:

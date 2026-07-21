@@ -176,11 +176,6 @@ def test_syntax_error_returns_empty(source: str):
     assert _check(source) == []
 
 
-@pytest.mark.xfail(
-    reason="FN: multi-part qualified star like `public.call.*` is not matched by "
-    "_SELECT_STAR (only a single `<alias>.` prefix is allowed before `*`).",
-    strict=True,
-)
 def test_schema_qualified_star_should_fire():
     assert len(_check('q = "SELECT public.call.* FROM call"\n')) == 1
 
@@ -218,20 +213,10 @@ def test_earlier_exists_does_not_exempt_later_real_star_in_union():
     assert len(_check(src)) == 1
 
 
-@pytest.mark.xfail(
-    reason="FN: `SELECT DISTINCT ON (cols) *` (Postgres) — _SELECT_STAR only allows an "
-    "ALL/DISTINCT keyword then one alias-dot, not `DISTINCT ON (...)` before the star.",
-    strict=True,
-)
 def test_distinct_on_star_should_fire():
     assert len(_check('q = "SELECT DISTINCT ON (id) * FROM call"\n')) == 1
 
 
-@pytest.mark.xfail(
-    reason="FN: a bare `*` in any but the first projection position (`SELECT id, *`) is "
-    "missed — _SELECT_STAR anchors the star directly to SELECT with no leading columns.",
-    strict=True,
-)
 def test_star_in_non_first_projection_should_fire():
     assert len(_check('q = "SELECT id, * FROM call"\n')) == 1
 

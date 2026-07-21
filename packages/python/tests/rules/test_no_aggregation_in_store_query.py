@@ -573,28 +573,17 @@ def test_bq_signal_only_in_comment_does_not_exempt(source: str) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Adversarial defects in the BigQuery exemption.
+# BigQuery exemption, tightened: a backtick inside a Postgres string VALUE is    #
+# masked (not read as a table quote), and a file-level BigQuery import no longer #
+# exempts a query carrying a Postgres `%s` placeholder.                          #
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: `_BIGQUERY_SQL` matches `FROM|JOIN` + whitespace + backtick anywhere "
-    "in the literal — including inside a Postgres string VALUE (`... = 'from `x`'`). "
-    "The backtick is data, not a table ident, so this real Postgres COUNT is wrongly "
-    "exempted.",
-)
 def test_backtick_inside_string_value_wrongly_exempts_postgres_query() -> None:
     src = "q = \"SELECT COUNT(*) FROM call WHERE note = 'imported from `legacy`'\"\n"
     assert len(_check(src)) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: the BigQuery-SDK-import heuristic exempts the WHOLE file. A mixed "
-    "module that imports bigquery for one analytics helper but also runs a real "
-    "Postgres store query has that Postgres COUNT silently exempted.",
-)
 def test_bigquery_import_file_with_real_postgres_query_is_over_broad() -> None:
     src = (
         "from google.cloud import bigquery\n"

@@ -6,9 +6,13 @@ column is added or reordered, and hides which columns a query actually depends
 on. The recurring review ask is to name the columns explicitly.
 
 This rule walks SQL string literals embedded in `.py` (`*_store.py`) and flags
-any query (a string containing `FROM`) that selects `*` or `<alias>.*`. `--` and
-`/* */` comments are stripped first. `COUNT(*)` is NOT flagged (the star is not a
-projection), and `EXISTS (SELECT * ...)` is exempt (the columns are unused).
+any query (a string containing `FROM`) whose projection list holds a `*` in any
+position — bare (`SELECT *`, `SELECT id, *`), qualified (`c.*`, `public.call.*`),
+or after `DISTINCT ON (...)`. SQL string-literal values and `--` / `/* */`
+comments are neutralized first, so a `'*'` value is never mistaken for a star.
+`COUNT(*)` is NOT flagged (the star is a function argument, not a projection),
+`a * b` arithmetic is NOT flagged, and `EXISTS (SELECT * ...)` is exempt (the
+columns are unused).
 
     # flagged
     "SELECT * FROM call WHERE id = %s"
@@ -27,41 +31,54 @@ import re
 from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
+from sarj_python_lint.rules._sql import sql_string_value, strip_sql_noise
 
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-_LINE_COMMENT = re.compile(r"--.*?$", re.MULTILINE)
-_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 # A real SQL query shape, so prose strings with the bare word "from" aren't matched.
 _QUERY_SHAPE = re.compile(r"\bSELECT\b[\s\S]*?\bFROM\b", re.IGNORECASE)
-_SELECT_STAR = re.compile(
-    r"\bSELECT\s+(?:ALL\s+|DISTINCT\s+)?(?:[A-Za-z_]\w*\.)?\*",
-    re.IGNORECASE,
-)
+_SELECT_KW = re.compile(r"\bSELECT\b", re.IGNORECASE)
+_FROM_KW = re.compile(r"FROM\b", re.IGNORECASE)
 _EXISTS_BEFORE = re.compile(r"\bEXISTS\s*\(\s*$", re.IGNORECASE)
+# A `word.` immediately preceding a `*` marks a qualified star (`c.*`, `public.call.*`).
+_QUALIFIED_PREFIX = re.compile(r"\w\.$")
 
 
-def _string_value(node: ast.expr) -> str | None:
-    """Reconstruct a (possibly `+`-concatenated) string literal, else None."""
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node.value
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left = _string_value(node.left)
-        right = _string_value(node.right)
-        if left is not None and right is not None:
-            return left + right
-    return None
+def _is_projection_star(sql: str, pos: int) -> bool:
+    """Is the `*` at `pos` a column-projection star?
 
-
-def _strip_sql_comments(text: str) -> str:
-    return _BLOCK_COMMENT.sub(" ", _LINE_COMMENT.sub("", text))
+    A projection star expands columns: bare (`SELECT *`, `id, *`), qualified
+    (`c.*`, `public.call.*`), or after `DISTINCT ON (...)`. It is NOT a
+    `COUNT(*)` argument (`(*)`) nor an `a * b` multiply (an operand follows).
+    """
+    if _QUALIFIED_PREFIX.search(sql[:pos]) is not None:
+        return True
+    before = pos - 1
+    while before >= 0 and sql[before].isspace():
+        before -= 1
+    after = pos + 1
+    while after < len(sql) and sql[after].isspace():
+        after += 1
+    before_char = sql[before] if before >= 0 else ""
+    after_char = sql[after] if after < len(sql) else ""
+    terminates = after_char in {"", ",", ")"} or _FROM_KW.match(sql, after) is not None
+    if not terminates:
+        return False
+    return not (before_char == "(" and after_char == ")")
 
 
 def _has_real_select_star(sql: str) -> bool:
-    return any(_EXISTS_BEFORE.search(sql[: m.start()]) is None for m in _SELECT_STAR.finditer(sql))
+    selects = [m.start() for m in _SELECT_KW.finditer(sql)]
+    for pos, ch in enumerate(sql):
+        if ch != "*" or not _is_projection_star(sql, pos):
+            continue
+        owning = max((s for s in selects if s < pos), default=None)
+        if owning is not None and _EXISTS_BEFORE.search(sql[:owning]) is None:
+            return True
+    return False
 
 
 class NoSelectStar(Rule):
@@ -87,12 +104,12 @@ class NoSelectStar(Rule):
                 continue
             if id(node) in consumed:
                 continue
-            text = _string_value(node)
+            text = sql_string_value(node)
             if text is None:
                 continue
             consumed.update(id(sub) for sub in ast.walk(node))
 
-            sql = _strip_sql_comments(text)
+            sql = strip_sql_noise(text)
             if _QUERY_SHAPE.search(sql) is None or not _has_real_select_star(sql):
                 continue
 

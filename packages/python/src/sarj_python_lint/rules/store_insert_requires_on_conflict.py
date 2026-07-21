@@ -10,10 +10,12 @@ SARJ105 enforces for `.sql` migrations, applied to the raw SQL embedded in
 This rule walks string literals (including `a + b` concatenations and adjacent
 implicitly-concatenated literals, which Python already folds into one constant)
 and flags any that contain a genuine `INSERT INTO ... VALUES` / `INSERT INTO
-... SELECT` write with no `ON CONFLICT` clause. `--` and `/* */` SQL comments
-are stripped first so commented-out keywords neither trigger nor excuse a
-finding. Pure reads (`SELECT`), `RETURNING`-only tails, and statements that
-already carry `ON CONFLICT` are left alone.
+... SELECT` write with no `ON CONFLICT` clause. SQL string-literal values and
+`--` / `/* */` comments are neutralized first, so an `ON CONFLICT` living inside
+a quoted value never excuses a bare insert, a `--` inside a value never eats a
+real clause, and commented-out keywords neither trigger nor excuse a finding.
+Pure reads (`SELECT`), `RETURNING`-only tails, and statements that already carry
+`ON CONFLICT` are left alone.
 
 ClickHouse has no `ON CONFLICT`; for a genuine ClickHouse insert (or any other
 deliberate non-upsert write) suppress with `# sarj-noqa: SARJ018 — <reason>`.
@@ -26,36 +28,18 @@ import re
 from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
+from sarj_python_lint.rules._sql import sql_string_value, strip_sql_noise
 
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-_LINE_COMMENT = re.compile(r"--.*?$", re.MULTILINE)
-_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-_INSERT_INTO = re.compile(r"\bINSERT\s+INTO\b", re.IGNORECASE)
 _INSERT_WRITE = re.compile(
     r"\bINSERT\s+INTO\b.*?\b(VALUES|SELECT|DEFAULT\s+VALUES)\b",
     re.IGNORECASE | re.DOTALL,
 )
 _ON_CONFLICT = re.compile(r"\bON\s+CONFLICT\b", re.IGNORECASE)
-
-
-def _string_value(node: ast.expr) -> str | None:
-    """Reconstruct a (possibly `+`-concatenated) string literal, else None."""
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node.value
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left = _string_value(node.left)
-        right = _string_value(node.right)
-        if left is not None and right is not None:
-            return left + right
-    return None
-
-
-def _strip_sql_comments(text: str) -> str:
-    return _BLOCK_COMMENT.sub(" ", _LINE_COMMENT.sub("", text))
 
 
 class StoreInsertRequiresOnConflict(Rule):
@@ -80,12 +64,12 @@ class StoreInsertRequiresOnConflict(Rule):
                 continue
             if id(node) in consumed:
                 continue
-            text = _string_value(node)
+            text = sql_string_value(node)
             if text is None:
                 continue
             consumed.update(id(sub) for sub in ast.walk(node))
 
-            sql = _strip_sql_comments(text)
+            sql = strip_sql_noise(text)
             if _INSERT_WRITE.search(sql) is None or _ON_CONFLICT.search(sql):
                 continue
 
