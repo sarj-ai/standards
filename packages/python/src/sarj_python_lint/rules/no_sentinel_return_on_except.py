@@ -14,7 +14,7 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
@@ -26,16 +26,12 @@ class NoSentinelReturnOnExcept(Rule):
 
     id: str = "no-sentinel-return-on-except"
     code: str = "SARJ009"
-    description: str = (
-        "`except` handler returns a sentinel and never re-raises — "
-        "the exception is silently swallowed."
-    )
+    description: str = "`except` handler returns a sentinel and never re-raises — the exception is silently swallowed."
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):
@@ -90,12 +86,7 @@ def _is_sentinel(value: ast.expr) -> bool:
     # `set()` call with no args.
     if isinstance(value, ast.Call):
         func = value.func
-        return (
-            isinstance(func, ast.Name)
-            and func.id == "set"
-            and not value.args
-            and not value.keywords
-        )
+        return isinstance(func, ast.Name) and func.id == "set" and not value.args and not value.keywords
     return False
 
 

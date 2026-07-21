@@ -19,7 +19,7 @@ import ast
 import re
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 from sarj_python_lint.rules._logging import is_logger_expr
 
 
@@ -28,9 +28,7 @@ if TYPE_CHECKING:
 
 
 # Logging method names (the `.attr` of the call's func).
-_LOG_METHODS = frozenset(
-    {"debug", "info", "warning", "warn", "error", "exception", "critical"}
-)
+_LOG_METHODS = frozenset({"debug", "info", "warning", "warn", "error", "exception", "critical"})
 
 # A keyword name leaks a secret if it CONTAINS a secret word (so `AuthToken`,
 # `api_key`, `userPassword` all match) UNLESS it also carries a redaction marker
@@ -62,9 +60,8 @@ class NoSecretInLog(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):

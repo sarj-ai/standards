@@ -88,9 +88,7 @@ _CODE_HEADER_RE = re.compile(
     r"^(?:def |class |async def |if |elif |else:|for |while |with |"
     r"try:|except|finally:)"
 )
-_ASSIGN_OR_CALL_RE = re.compile(
-    r"^[A-Za-z_][\w.\[\]]*\s*(?:=|:=|\+=|-=|\*=|/=)\s*\S|^[A-Za-z_][\w.]*\("
-)
+_ASSIGN_OR_CALL_RE = re.compile(r"^[A-Za-z_][\w.\[\]]*\s*(?:=|:=|\+=|-=|\*=|/=)\s*\S|^[A-Za-z_][\w.]*\(")
 
 
 def _comment_body(raw: str) -> str:
@@ -172,9 +170,7 @@ class NoCommentCruft(Rule):
                 continue
             msg = self._classify(body)
             if msg is not None:
-                diags[line] = Diagnostic(
-                    path=path, line=line, col=col + 1, code=self.code, message=msg
-                )
+                diags[line] = Diagnostic(path=path, line=line, col=col + 1, code=self.code, message=msg)
         self._flag_leading_preamble(standalone, first_code_line, path, diags)
         return [diags[k] for k in sorted(diags)]
 
@@ -223,13 +219,9 @@ class NoCommentCruft(Rule):
                 )
 
 
-_LAYOUT_TOKENS = frozenset(
-    {tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT}
-)
+_LAYOUT_TOKENS = frozenset({tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT})
 
-_NON_CODE_TOKENS = _LAYOUT_TOKENS | frozenset(
-    {tokenize.COMMENT, tokenize.ENCODING, tokenize.ENDMARKER}
-)
+_NON_CODE_TOKENS = _LAYOUT_TOKENS | frozenset({tokenize.COMMENT, tokenize.ENCODING, tokenize.ENDMARKER})
 
 
 def _standalone_comments(source: str) -> tuple[list[tuple[int, int, str]], int]:

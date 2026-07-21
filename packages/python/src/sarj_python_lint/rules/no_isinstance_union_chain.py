@@ -42,7 +42,7 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
@@ -106,9 +106,8 @@ class NoIsinstanceUnionChain(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         elif_nodes = _collect_elif_nodes(tree)
         diags: list[Diagnostic] = []
@@ -162,11 +161,7 @@ def _qualifying_chain_length(head: ast.If) -> int:
         elif dumped != target_dump:
             return 0
         count += 1
-        current = (
-            current.orelse[0]
-            if len(current.orelse) == 1 and isinstance(current.orelse[0], ast.If)
-            else None
-        )
+        current = current.orelse[0] if len(current.orelse) == 1 and isinstance(current.orelse[0], ast.If) else None
     return count
 
 

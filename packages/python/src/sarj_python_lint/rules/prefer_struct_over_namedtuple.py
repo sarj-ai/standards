@@ -31,7 +31,7 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
@@ -50,25 +50,19 @@ class PreferStructOverNamedtuple(Rule):
     id: str = "prefer-struct-over-namedtuple"
     code: str = "SARJ015"
     description: str = (
-        "collections.namedtuple is untyped/positional — prefer typing.NamedTuple "
-        "or a frozen pydantic model."
+        "collections.namedtuple is untyped/positional — prefer typing.NamedTuple or a frozen pydantic model."
     )
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         collections_names = _collections_bindings(tree)
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module == "collections":
-                diags.extend(
-                    self._diag(path, node)
-                    for alias in node.names
-                    if alias.name == "namedtuple"
-                )
+                diags.extend(self._diag(path, node) for alias in node.names if alias.name == "namedtuple")
             elif (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Attribute)

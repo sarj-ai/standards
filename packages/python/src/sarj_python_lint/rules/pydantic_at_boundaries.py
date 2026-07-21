@@ -49,7 +49,7 @@ import ast
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
@@ -76,18 +76,14 @@ class PydanticAtBoundaries(Rule):
 
     id: str = "pydantic-at-boundaries"
     code: str = "SARJ008"
-    description: str = (
-        "Public function/route returns an untyped dict — "
-        "define a pydantic model (or frozen dataclass)."
-    )
+    description: str = "Public function/route returns an untyped dict — define a pydantic model (or frozen dataclass)."
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         if _is_test_path(path):
             return []
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):

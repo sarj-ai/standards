@@ -36,7 +36,7 @@ import ast
 import re
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
@@ -87,9 +87,8 @@ class PreferStrEnum(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         diags: list[Diagnostic] = []
         diags.extend(self._check_class_fields(path, tree))
@@ -178,10 +177,7 @@ class PreferStrEnum(Rule):
                         line=line,
                         col=col,
                         code=self.code,
-                        message=(
-                            f"`{key}` is compared against a closed set of "
-                            "string literals — define a StrEnum"
-                        ),
+                        message=(f"`{key}` is compared against a closed set of string literals — define a StrEnum"),
                     )
                 )
         return diags
@@ -198,10 +194,7 @@ def _base_name(base: ast.AST) -> str | None:
 def _is_string_collection(node: ast.AST | None) -> bool:
     if not isinstance(node, (ast.List, ast.Tuple, ast.Set)):
         return False
-    return all(
-        isinstance(elt, ast.Constant) and isinstance(elt.value, str)
-        for elt in node.elts
-    )
+    return all(isinstance(elt, ast.Constant) and isinstance(elt.value, str) for elt in node.elts)
 
 
 def _is_choice_like_name(name: str) -> bool:

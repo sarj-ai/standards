@@ -17,7 +17,7 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
@@ -36,16 +36,12 @@ class NoUnreachableAfterTerminal(Rule):
 
     id: str = "no-unreachable-after-terminal"
     code: str = "SARJ010"
-    description: str = (
-        "Unreachable code after a terminal statement "
-        "(`return`/`raise`/`break`/`continue`)."
-    )
+    description: str = "Unreachable code after a terminal statement (`return`/`raise`/`break`/`continue`)."
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):

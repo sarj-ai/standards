@@ -24,7 +24,7 @@ import ast
 import re
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
@@ -47,16 +47,14 @@ class SinglePublicExport(Rule):
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         if _is_skipped_path(path):
             return []
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
 
         public_defs = [
             node
             for node in tree.body
-            if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
-            and not node.name.startswith("_")
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_")
         ]
         if not public_defs:
             return []
