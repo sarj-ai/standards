@@ -13,6 +13,7 @@ from sarj_python_lint.rules.no_fat_try_blocks import NoFatTryBlocks
 from sarj_python_lint.rules.no_fstring_in_log import NoFstringInLog
 from sarj_python_lint.rules.no_isinstance_union_chain import NoIsinstanceUnionChain
 from sarj_python_lint.rules.no_query_with_many_joins import NoQueryWithManyJoins
+from sarj_python_lint.rules.no_repeated_string_literal import NoRepeatedStringLiteral
 from sarj_python_lint.rules.no_secret_in_log import NoSecretInLog
 from sarj_python_lint.rules.no_select_star import NoSelectStar
 from sarj_python_lint.rules.no_sentinel_return_on_except import NoSentinelReturnOnExcept
@@ -65,6 +66,7 @@ REGISTRY: dict[str, type[Rule]] = {
     NoSelectStar.id: NoSelectStar,
     SinglePublicExport.id: SinglePublicExport,
     Stepdown.id: Stepdown,
+    NoRepeatedStringLiteral.id: NoRepeatedStringLiteral,
 }
 
 __all__ = ["REGISTRY"]
