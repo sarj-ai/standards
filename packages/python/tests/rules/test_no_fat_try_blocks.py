@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 from sarj_python_lint.rules.no_fat_try_blocks import NoFatTryBlocks
 
 
@@ -8,39 +10,126 @@ if TYPE_CHECKING:
     from sarj_python_lint.rule_base import Diagnostic
 
 
-def _check(source: str) -> list[Diagnostic]:
-    return NoFatTryBlocks().check(Path("<t>.py"), source)
+THRESHOLD = 3
 
 
-def test_flags_try_with_four_throwing_statements():
+def _check(source: str, path: str = "<t>.py") -> list[Diagnostic]:
+    return NoFatTryBlocks().check(Path(path), source)
+
+
+def _try_with_n_calls(n: int, *, indent: str = "") -> str:
+    body = "\n".join(f"{indent}    v{i} = call{i}()" for i in range(n))
+    return f"{indent}try:\n{body}\n{indent}except ValueError:\n{indent}    pass\n"
+
+
+# ---- Positive: try bodies at/above the throwing-statement threshold fire ----
+
+
+@pytest.mark.parametrize("n", [4, 5, 6, 10])
+def test_fires_when_throwing_statements_exceed_threshold(n: int):
+    diags = _check(_try_with_n_calls(n))
+    assert len(diags) == 1
+    assert diags[0].code == "SARJ007"
+
+
+def test_message_reports_actual_count_and_max():
+    diags = _check(_try_with_n_calls(5))
+    assert len(diags) == 1
+    msg = diags[0].message
+    assert "5 statements that can raise" in msg
+    assert f"max {THRESHOLD}" in msg
+
+
+@pytest.mark.parametrize(
+    "stmt",
+    [
+        "vN = callN()",
+        "callN()",
+        "raise ErrN()",
+        "assert probeN()",
+        "total += addN()",
+        'label = f"{fmtN()}"',
+        "items = [x for x in genN()]",
+        "with mgrN() as h:\n        pass",
+    ],
+    ids=[
+        "assign-call",
+        "bare-expr-call",
+        "raise-with-call",
+        "assert-call",
+        "augassign-call",
+        "fstring-call",
+        "comprehension-call",
+        "with-call-ctx",
+    ],
+)
+def test_each_throwing_statement_form_counts_toward_limit(stmt: str):
+    body = "\n".join("    " + stmt.replace("N", str(i)) for i in range(4))
+    src = f"try:\n{body}\nexcept ValueError:\n    pass\n"
+    assert len(_check(src)) == 1
+
+
+def test_await_statements_count_in_async_function():
+    src = """
+async def handler():
+    try:
+        a = await one()
+        b = await two()
+        c = await three()
+        d = await four()
+    except ValueError:
+        pass
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].code == "SARJ007"
+
+
+def test_async_with_body_counts_and_fires():
+    src = """
+async def handler():
+    try:
+        async with a() as p:
+            pass
+        async with b() as q:
+            pass
+        async with c() as r:
+            pass
+        async with d() as s:
+            pass
+    except ValueError:
+        pass
+"""
+    assert len(_check(src)) == 1
+
+
+def test_try_star_held_to_same_limit():
     src = """
 try:
     a = one()
     b = two()
     c = three()
     d = four()
-except ValueError:
+except* ValueError:
     pass
 """
-    diags = _check(src)
-    assert len(diags) == 1
-    assert diags[0].code == "SARJ007"
-    assert diags[0].line == 2
+    assert len(_check(src)) == 1
 
 
-def test_allows_try_with_exactly_three_throwing_statements():
-    src = """
-try:
-    a = one()
-    b = two()
-    c = three()
-except ValueError:
-    pass
-"""
+# ---- Negative: at/below threshold, or throwing work outside node.body ----
+
+
+@pytest.mark.parametrize("n", [1, 2, 3])
+def test_clean_when_throwing_statements_at_or_below_threshold(n: int):
+    assert _check(_try_with_n_calls(n)) == []
+
+
+def test_try_with_no_throwing_statements_is_clean():
+    src = "try:\n    pass\nexcept ValueError:\n    pass\n"
     assert _check(src) == []
 
 
-def test_allows_skinny_try():
+def test_single_statement_try_is_clean():
     src = """
 try:
     result = risky()
@@ -50,8 +139,7 @@ except ValueError:
     assert _check(src) == []
 
 
-def test_plain_assignments_do_not_count():
-    """A body of only non-throwing rebinds has no statement to isolate."""
+def test_pure_assignments_are_free():
     src = """
 try:
     self.a = 1
@@ -65,7 +153,7 @@ except ValueError:
     assert _check(src) == []
 
 
-def test_non_throwing_statements_are_free_around_one_call():
+def test_non_throwing_statements_free_around_calls():
     src = """
 try:
     a = 1
@@ -78,7 +166,123 @@ except ValueError:
     assert _check(src) == []
 
 
-def test_else_clause_exempts_the_block():
+def test_bare_raise_without_call_does_not_count():
+    src = """
+try:
+    raise A
+    raise B
+    raise C
+    raise D
+except Exception:
+    pass
+"""
+    assert _check(src) == []
+
+
+def test_statements_in_except_body_are_not_counted():
+    src = """
+try:
+    x = risky()
+except ValueError:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+    e = five()
+"""
+    assert _check(src) == []
+
+
+def test_statements_in_multiple_excepts_not_counted():
+    src = """
+try:
+    x = risky()
+except ValueError:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except KeyError:
+    e = five()
+    f = six()
+    g = seven()
+    h = eight()
+"""
+    assert _check(src) == []
+
+
+# ---- Compound statements count as a single top-level statement ----
+
+
+def test_throwing_if_counts_as_one_statement():
+    src = """
+try:
+    a = load()
+    if cond():
+        b = build()
+        c = extend(b)
+        d = persist(c)
+        e = log(d)
+    f = save()
+except ValueError:
+    pass
+"""
+    assert _check(src) == []
+
+
+def test_throwing_for_loop_counts_as_one_statement():
+    src = """
+try:
+    for i in items():
+        a = p(i)
+        b = q(i)
+        c = r(i)
+        d = s(i)
+    z = t()
+except ValueError:
+    pass
+"""
+    assert _check(src) == []
+
+
+def test_match_statement_counts_as_one():
+    src = """
+try:
+    a = load()
+    match probe():
+        case 1:
+            b = one()
+            c = two()
+            d = three()
+        case _:
+            e = four()
+except ValueError:
+    pass
+"""
+    assert _check(src) == []
+
+
+def test_four_compound_statements_each_count_once_and_fire():
+    src = """
+try:
+    with a() as p:
+        pass
+    with b() as q:
+        pass
+    with c() as r:
+        pass
+    with d() as s:
+        pass
+except ValueError:
+    pass
+"""
+    assert len(_check(src)) == 1
+
+
+# ---- else / finally exempt the block regardless of body size ----
+
+
+def test_else_clause_exempts_fat_block():
     src = """
 try:
     a = one()
@@ -93,7 +297,7 @@ else:
     assert _check(src) == []
 
 
-def test_finally_clause_exempts_the_block():
+def test_finally_clause_exempts_fat_block():
     src = """
 try:
     a = one()
@@ -106,8 +310,27 @@ finally:
     assert _check(src) == []
 
 
-def test_nested_try_counted_independently():
-    """Outer try has 1 throwing statement (the inner try); only the inner is fat."""
+def test_else_and_finally_together_exempt_fat_block():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except ValueError:
+    pass
+else:
+    ok()
+finally:
+    cleanup()
+"""
+    assert _check(src) == []
+
+
+# ---- Nested try blocks are checked independently ----
+
+
+def test_only_inner_try_fat_flags_inner():
     src = """
 try:
     try:
@@ -142,56 +365,192 @@ try:
 except ValueError:
     pass
 """
-    diags = _check(src)
-    assert len(diags) == 2
+    assert len(_check(src)) == 2
 
 
-def test_compound_statement_inside_try_counts_as_one():
-    """A throwing `if` is one statement, not its inner statement count."""
-    src = """
-try:
-    a = load()
-    if cond():
-        b = build()
-        c = extend(b)
-        d = persist(c)
-        e = log(d)
-    f = save()
-except ValueError:
-    pass
-"""
-    assert _check(src) == []
+# ---- Line / column reporting ----
 
 
-def test_flags_fat_try_in_async_function():
-    src = """
-async def handler():
-    try:
-        a = await one()
-        b = await two()
-        c = await three()
-        d = await four()
-    except ValueError:
-        pass
-"""
-    diags = _check(src)
-    assert len(diags) == 1
-    assert diags[0].code == "SARJ007"
-
-
-def test_flags_fat_try_star():
+def test_reports_line_and_col_for_top_level_try():
     src = """
 try:
     a = one()
     b = two()
     c = three()
     d = four()
-except* ValueError:
+except ValueError:
     pass
 """
     diags = _check(src)
     assert len(diags) == 1
+    assert (diags[0].line, diags[0].col) == (2, 1)
+
+
+def test_reports_line_and_col_for_indented_try():
+    src = """
+def outer():
+    if flag:
+        try:
+            a = one()
+            b = two()
+            c = three()
+            d = four()
+        except ValueError:
+            pass
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert (diags[0].line, diags[0].col) == (4, 9)
+
+
+# ---- Multiple violations ----
+
+
+def test_two_sibling_fat_trys_report_both_in_order():
+    src = _try_with_n_calls(4) + "\n" + _try_with_n_calls(5)
+    diags = _check(src)
+    lines = [d.line for d in diags]
+    assert len(diags) == 2
+    assert lines == sorted(lines)
+
+
+@pytest.mark.xfail(
+    reason=(
+        "BUG: NoFatTryBlocks returns diagnostics in ast.walk (breadth-first) order "
+        "and never calls diags.sort((line, col)) — every peer rule (stepdown, "
+        "no_select_star, no_sequential_await, ...) sorts. When a fat try is nested "
+        "inside another fat try that has a later fat sibling, the sibling's "
+        "diagnostic precedes the deeper nested one, so output is not position-sorted."
+    ),
+    strict=True,
+)
+def test_multi_violation_should_be_position_sorted():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+    try:
+        e = n1()
+        f = n2()
+        g = n3()
+        h = n4()
+    except KeyError:
+        pass
+except ValueError:
+    pass
+try:
+    i = s1()
+    j = s2()
+    k = s3()
+    l = s4()
+except ValueError:
+    pass
+"""
+    lines = [d.line for d in _check(src)]
+    assert lines == sorted(lines)
+
+
+# ---- False-positive guards ----
+
+
+def test_small_try_with_large_except_is_clean():
+    src = """
+try:
+    x = risky()
+except ValueError:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+    e = five()
+"""
+    assert _check(src) == []
+
+
+def test_small_try_with_large_finally_is_clean():
+    src = """
+try:
+    x = risky()
+finally:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+    e = five()
+"""
+    assert _check(src) == []
+
+
+def test_comments_and_blank_lines_are_not_statements():
+    src = """
+try:
+    a = one()
+
+    # setup finished
+
+    b = two()
+    # follow-up
+    c = three()
+except ValueError:
+    pass
+"""
+    assert _check(src) == []
+
+
+def test_comments_between_four_calls_still_fires():
+    src = """
+try:
+    a = one()
+
+    # a comment
+    b = two()
+    c = three()
+    # another
+    d = four()
+except ValueError:
+    pass
+"""
+    assert len(_check(src)) == 1
+
+
+# ---- Parse edge cases ----
+
+
+def test_empty_source_returns_empty():
+    assert _check("") == []
+
+
+def test_whitespace_only_source_returns_empty():
+    assert _check("\n\n   \n") == []
+
+
+def test_module_without_try_returns_empty():
+    src = """
+def f():
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+"""
+    assert _check(src) == []
 
 
 def test_syntax_error_returns_empty():
     assert _check("def broken(:\n    pass") == []
+
+
+def test_try_with_multiple_excepts_and_fat_body_fires_once():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except ValueError:
+    pass
+except KeyError:
+    pass
+"""
+    assert len(_check(src)) == 1

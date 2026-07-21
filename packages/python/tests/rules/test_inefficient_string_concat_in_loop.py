@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 from sarj_python_lint.rules.inefficient_string_concat_in_loop import (
     InefficientStringConcatInLoop,
 )
@@ -10,55 +12,122 @@ if TYPE_CHECKING:
     from sarj_python_lint.rule_base import Diagnostic
 
 
-def _check(source: str) -> list[Diagnostic]:
-    return InefficientStringConcatInLoop().check(Path("<t>.py"), source)
+def _check(source: str, path: str = "<t>.py") -> list[Diagnostic]:
+    return InefficientStringConcatInLoop().check(Path(path), source)
 
 
-def test_flags_string_concat_in_for():
+def _count(source: str) -> int:
+    return len(_check(source))
+
+
+# --------------------------------------------------------------------------- #
+# Positive — `s += <string-ish>` inside a loop fires exactly once.            #
+# --------------------------------------------------------------------------- #
+
+
+_STRINGISH_RHS = [
+    pytest.param('"literal"', id="rhs-str-constant"),
+    pytest.param('f"row {x}"', id="rhs-fstring"),
+    pytest.param("str(x)", id="rhs-str-call"),
+    pytest.param("repr(x)", id="rhs-repr-call"),
+    pytest.param("format(x)", id="rhs-format-builtin"),
+    pytest.param('"{}".format(x)', id="rhs-format-method"),
+    pytest.param('dt.strftime("%Y")', id="rhs-strftime-method"),
+    pytest.param('",".join(bits)', id="rhs-join-method"),
+    pytest.param('"prefix " + str(x)', id="rhs-binop-const-left"),
+    pytest.param('str(x) + " suffix"', id="rhs-binop-const-right"),
+    pytest.param('"a" + "b" + str(x)', id="rhs-binop-nested"),
+    pytest.param('prefix + "x"', id="rhs-binop-name-plus-const"),
+]
+
+
+@pytest.mark.parametrize("rhs", _STRINGISH_RHS)
+def test_flags_stringish_rhs_in_for(rhs: str):
+    src = f"""
+def f(items, dt, bits, prefix):
+    s = ""
+    for x in items:
+        s += {rhs}
+"""
+    assert _count(src) == 1
+
+
+@pytest.mark.parametrize("rhs", _STRINGISH_RHS)
+def test_flags_stringish_rhs_in_while(rhs: str):
+    src = f"""
+def f(items, dt, bits, prefix):
+    s = ""
+    x = 0
+    while x < 10:
+        s += {rhs}
+        x += 1
+"""
+    assert _count(src) == 1
+
+
+_TARGETS = [
+    pytest.param("s", id="target-name"),
+    pytest.param("self.buf", id="target-attribute"),
+    pytest.param('acc["k"]', id="target-subscript"),
+    pytest.param("obj.rows[i]", id="target-attr-subscript"),
+]
+
+
+@pytest.mark.parametrize("target", _TARGETS)
+def test_flags_regardless_of_target_shape(target: str):
+    src = f"""
+def f(self, items, acc, obj, i):
+    for x in items:
+        {target} += str(x)
+"""
+    assert _count(src) == 1
+
+
+def test_flags_for_over_comprehension_iterable():
+    src = """
+def f(items):
+    s = ""
+    for x in [i for i in items]:
+        s += str(x)
+    return s
+"""
+    assert _count(src) == 1
+
+
+def test_flags_concat_in_for_else_clause():
+    """The `else` block is visited at loop depth, so a concat there fires.
+
+    Documents current behaviour; the else runs once, so this is arguably a
+    borderline false positive worth revisiting if the rule tightens.
+    """
     src = """
 def f(items):
     s = ""
     for x in items:
-        s += "prefix " + str(x)
+        pass
+    else:
+        s += "done"
 """
-    assert len(_check(src)) == 1
+    assert _count(src) == 1
 
 
-def test_flags_fstring_concat_in_while():
+def test_flags_concat_after_walrus_condition():
     src = """
-def f(n):
+def f(it):
     s = ""
-    i = 0
-    while i < n:
-        s += f"row {i}"
-        i += 1
+    while (n := next(it, None)) is not None:
+        s += str(n)
+    return s
 """
-    assert len(_check(src)) == 1
+    assert _count(src) == 1
 
 
-def test_allows_integer_accumulator():
-    src = """
-def f(items):
-    total = 0
-    for x in items:
-        total += x
-"""
-    assert _check(src) == []
+# --------------------------------------------------------------------------- #
+# Nesting — each concat is flagged once, never once per ancestor loop.        #
+# --------------------------------------------------------------------------- #
 
 
-def test_allows_list_append():
-    src = """
-def f(items):
-    parts = []
-    for x in items:
-        parts.append(str(x))
-    return "".join(parts)
-"""
-    assert _check(src) == []
-
-
-def test_nested_loops_report_each_concat_once():
-    """A concat in nested loops is reported once, not once per ancestor loop."""
+def test_nested_for_for_reports_once():
     src = """
 def f(rows):
     s = ""
@@ -70,3 +139,289 @@ def f(rows):
     diags = _check(src)
     assert len(diags) == 1
     assert diags[0].code == "SARJ002"
+
+
+def test_nested_while_for_reports_once():
+    src = """
+def f(rows, n):
+    s = ""
+    while n > 0:
+        for cell in rows:
+            s += str(cell)
+        n -= 1
+"""
+    assert _count(src) == 1
+
+
+def test_deeply_nested_three_levels_reports_once():
+    src = """
+def f(a):
+    s = ""
+    for i in a:
+        for j in a:
+            for k in a:
+                s += str(k)
+    return s
+"""
+    assert _count(src) == 1
+
+
+def test_two_sibling_loops_report_two_diagnostics():
+    src = """
+def f(a, b):
+    s = ""
+    for x in a:
+        s += str(x)
+    for y in b:
+        s += repr(y)
+    return s
+"""
+    assert _count(src) == 2
+
+
+def test_multiple_concats_in_one_loop_flag_each():
+    src = """
+def f(items):
+    s = ""
+    t = ""
+    for x in items:
+        s += str(x)
+        t += repr(x)
+    return s, t
+"""
+    assert _count(src) == 2
+
+
+# --------------------------------------------------------------------------- #
+# Diagnostic content — line, col (1-based), code, message.                    #
+# --------------------------------------------------------------------------- #
+
+
+def test_reports_line_and_one_based_column():
+    src = 'def f(it):\n    s = ""\n    for x in it:\n        s += str(x)\n'
+    (diag,) = _check(src)
+    assert (diag.line, diag.col) == (4, 9)
+    assert diag.code == "SARJ002"
+    assert "O(n" in diag.message
+
+
+def test_reports_distinct_positions_in_source_order():
+    src = 'def f(a, b):\n    s = ""\n    for x in a:\n        s += str(x)\n    for y in b:\n        s += repr(y)\n'
+    positions = [(d.line, d.col) for d in _check(src)]
+    assert positions == [(4, 9), (6, 9)]
+
+
+# --------------------------------------------------------------------------- #
+# Negative / exempt — the correct patterns and out-of-scope shapes.           #
+# --------------------------------------------------------------------------- #
+
+
+def test_allows_concat_outside_any_loop():
+    src = """
+def f(a, b):
+    s = ""
+    s += str(a)
+    s += str(b)
+    return s
+"""
+    assert _check(src) == []
+
+
+def test_allows_module_level_concat():
+    assert _check('s = "a"\ns += "b"\n') == []
+
+
+def test_allows_list_append_in_loop():
+    src = """
+def f(items):
+    parts = []
+    for x in items:
+        parts.append(str(x))
+    return "".join(parts)
+"""
+    assert _check(src) == []
+
+
+def test_allows_set_add_in_loop():
+    src = """
+def f(items):
+    seen = set()
+    for x in items:
+        seen.add(str(x))
+    return seen
+"""
+    assert _check(src) == []
+
+
+_NON_STRING_AUGASSIGN = [
+    pytest.param("total += 1", id="int-literal"),
+    pytest.param("total += x", id="name-rhs"),
+    pytest.param("total += len(x)", id="len-call-rhs"),
+    pytest.param("total += x * 2", id="binop-mult-rhs"),
+    pytest.param("acc += [x]", id="list-literal-rhs"),
+    pytest.param('buf += b"x"', id="bytes-literal-rhs"),
+    pytest.param("acc += (x,)", id="tuple-rhs"),
+    pytest.param("total += 1.5", id="float-literal"),
+]
+
+
+@pytest.mark.parametrize("stmt", _NON_STRING_AUGASSIGN)
+def test_allows_non_string_augassign_in_loop(stmt: str):
+    src = f"""
+def f(items):
+    total = 0
+    acc = []
+    buf = b""
+    for x in items:
+        {stmt}
+    return total
+"""
+    assert _check(src) == []
+
+
+def test_allows_string_repeat_augassign():
+    """`s *= 2` is Mult, not Add — not the concat antipattern."""
+    src = """
+def f(items):
+    s = "-"
+    for _ in items:
+        s *= 2
+    return s
+"""
+    assert _check(src) == []
+
+
+def test_allows_fresh_binop_assignment_each_iteration():
+    """A plain (non-augmented) assignment to a fresh local is not accumulation."""
+    src = """
+def f(items):
+    for x in items:
+        line = "row " + str(x)
+        emit(line)
+"""
+    assert _check(src) == []
+
+
+def test_allows_string_augassign_from_name_only():
+    """RHS is a bare Name — the conservative heuristic does not assume it is a str."""
+    src = """
+def f(items, chunk):
+    s = ""
+    for x in items:
+        s += chunk
+    return s
+"""
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Edge — parse failures, empty input, comments-only.                          #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param("", id="empty"),
+        pytest.param("   \n\t\n", id="whitespace-only"),
+        pytest.param("# just a comment\n", id="comment-only"),
+        pytest.param("def f(:\n    pass\n", id="syntax-error-signature"),
+        pytest.param("for x in items\n    s += str(x)\n", id="syntax-error-missing-colon"),
+        pytest.param("s += (\n", id="syntax-error-unclosed"),
+    ],
+)
+def test_non_parseable_or_trivial_sources_yield_no_diagnostics(source: str):
+    assert _check(source) == []
+
+
+# --------------------------------------------------------------------------- #
+# False-positive guards — accumulators that only look adjacent to strings.    #
+# --------------------------------------------------------------------------- #
+
+
+def test_numeric_accumulation_alongside_string_append_is_clean():
+    src = """
+def f(items):
+    total = 0
+    parts = []
+    for x in items:
+        total += len(x)
+        parts.append(str(x))
+    return total, "".join(parts)
+"""
+    assert _check(src) == []
+
+
+def test_list_building_with_plus_equals_list_is_clean():
+    src = """
+def f(chunks):
+    out = []
+    for c in chunks:
+        out += list(c)
+    return out
+"""
+    assert _check(src) == []
+
+
+def test_bytes_accumulation_is_clean():
+    src = """
+def f(frames):
+    buf = b""
+    for frame in frames:
+        buf += frame.data
+    return buf
+"""
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Known gaps / suspected bugs — documented via xfail so the suite stays green #
+# while surfacing behaviour that likely warrants a rule fix.                  #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.xfail(
+    reason="async for is not treated as a loop; same O(n^2) concat goes undetected",
+    strict=False,
+)
+def test_flags_string_concat_in_async_for():
+    src = """
+async def f(stream):
+    s = ""
+    async for chunk in stream:
+        s += str(chunk)
+    return s
+"""
+    assert _count(src) == 1
+
+
+@pytest.mark.xfail(
+    reason="`s = s + x` (plain assign) is the same antipattern but only `+=` is handled",
+    strict=False,
+)
+def test_flags_plain_reassignment_concat_in_loop():
+    src = """
+def f(items):
+    s = ""
+    for x in items:
+        s = s + str(x)
+    return s
+"""
+    assert _count(src) == 1
+
+
+@pytest.mark.xfail(
+    reason="concat inside a def nested in a loop runs per-call, not per-iteration",
+    strict=False,
+)
+def test_ignores_concat_in_function_nested_in_loop():
+    src = """
+def f(items):
+    for x in items:
+        def build():
+            s = ""
+            s += str(x)
+            return s
+        build()
+"""
+    assert _check(src) == []

@@ -1,24 +1,169 @@
 from pathlib import Path
 
+import pytest
+
 from sarj_python_lint.rule_base import is_suppressed
 from sarj_python_lint.rules.store_insert_requires_on_conflict import (
     StoreInsertRequiresOnConflict,
 )
 
 
-def _check(source: str) -> list:
-    return StoreInsertRequiresOnConflict().check(Path("foo_store.py"), source)
+def _check(source: str, path: str = "foo_store.py") -> list:
+    return StoreInsertRequiresOnConflict().check(Path(path), source)
 
 
-def test_flags_bare_insert_values_in_execute():
-    src = 'await cur.execute("INSERT INTO task (id) VALUES (%s)", (task_id,))'
+def _count(source: str, path: str = "foo_store.py") -> int:
+    return len(_check(source, path))
+
+
+# --------------------------------------------------------------------------- #
+# Positive — a bare write with no ON CONFLICT must fire exactly once.          #
+# --------------------------------------------------------------------------- #
+
+FIRES = [
+    pytest.param('q = "INSERT INTO t (id) VALUES (%s)"', id="bare_values"),
+    pytest.param(
+        'await cur.execute("INSERT INTO task (id) VALUES (%s)", (x,))',
+        id="in_execute_call",
+    ),
+    pytest.param('q = "INSERT INTO t DEFAULT VALUES"', id="default_values"),
+    pytest.param(
+        'q = "INSERT INTO archive (id) SELECT id FROM task WHERE done"',
+        id="insert_select",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t (id) VALUES (%s) RETURNING id"',
+        id="returning_without_conflict_still_fires",
+    ),
+    pytest.param(
+        'q = "insert into t (id) values (%s)"',
+        id="all_lowercase",
+    ),
+    pytest.param(
+        'q = "InSeRt InTo t (id) VaLuEs (%s)"',
+        id="mixed_case",
+    ),
+    pytest.param(
+        'q = "INSERT   INTO   t (id)   VALUES (%s)"',
+        id="extra_whitespace_between_keywords",
+    ),
+    pytest.param(
+        'q = "INSERT\\tINTO t (id)\\nVALUES (%s)"',
+        id="tab_newline_between_keywords",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t ({}) VALUES ({})".format(a, b)',
+        id="format_braces_are_literal_text",
+    ),
+    pytest.param(
+        'q = f"INSERT INTO t (id) VALUES ({value})"',
+        id="fstring_interpolation_after_values",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t (id) " + "VALUES (%s)"',
+        id="explicit_plus_concat",
+    ),
+    pytest.param(
+        'q = ("INSERT INTO t (id) " "VALUES (%s)")',
+        id="implicit_adjacent_concat",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t (id) VALUES (%s) -- ON CONFLICT DO NOTHING"',
+        id="on_conflict_in_line_comment_does_not_excuse",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t (id) VALUES (%s) /* ON CONFLICT DO NOTHING */"',
+        id="on_conflict_in_block_comment_does_not_excuse",
+    ),
+    pytest.param(
+        '''q = """
+    INSERT INTO t (id) VALUES (%s)
+    -- ON CONFLICT (id) DO NOTHING would go here
+    """''',
+        id="on_conflict_commented_out_multiline",
+    ),
+]
+
+
+@pytest.mark.parametrize("src", FIRES)
+def test_fires_once(src: str) -> None:
     diags = _check(src)
     assert len(diags) == 1
     assert diags[0].code == "SARJ018"
     assert "upsert" in diags[0].message.lower()
 
 
-def test_flags_multiline_triple_quoted_insert():
+# --------------------------------------------------------------------------- #
+# Negative — legitimate / exempt SQL must not fire.                           #
+# --------------------------------------------------------------------------- #
+
+CLEAN = [
+    pytest.param(
+        'q = "INSERT INTO t (id) VALUES (%s) ON CONFLICT DO NOTHING"',
+        id="on_conflict_do_nothing",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t (id) VALUES (%s) ON CONFLICT (id) DO UPDATE SET id=EXCLUDED.id"',
+        id="on_conflict_do_update",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t (id) VALUES (%s) On Conflict Do Nothing"',
+        id="on_conflict_mixed_case",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t (id) VALUES (%s)\\nON CONFLICT DO NOTHING"',
+        id="on_conflict_on_next_line",
+    ),
+    pytest.param(
+        'q = ("INSERT INTO t (id) VALUES (%s) " "ON CONFLICT (id) DO NOTHING")',
+        id="on_conflict_on_concatenated_chunk",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t (id) " + "VALUES (%s) ON CONFLICT DO NOTHING"',
+        id="on_conflict_on_plus_concat_chunk",
+    ),
+    pytest.param('await cur.execute("SELECT id FROM task WHERE id = %s")', id="select_only"),
+    pytest.param('q = "WITH x AS (SELECT 1) SELECT * FROM task"', id="cte_select"),
+    pytest.param('q = "UPDATE t SET id = %s WHERE id = %s"', id="update_only"),
+    pytest.param('q = "DELETE FROM t WHERE id = %s"', id="delete_only"),
+    pytest.param(
+        'q = "INSERT INTO t"',
+        id="insert_into_without_values_is_incomplete",
+    ),
+    pytest.param(
+        'q = "SELECT id FROM t -- INSERT INTO t (id) VALUES (1)"',
+        id="insert_in_line_comment",
+    ),
+    pytest.param(
+        'q = "/* INSERT INTO t (id) VALUES (1) */ SELECT 1 FROM t"',
+        id="insert_in_block_comment",
+    ),
+    pytest.param("mylist.insert(0, x)", id="python_list_insert_method"),
+    pytest.param("self.buffer.insert(idx, row)", id="python_insert_method_call"),
+    pytest.param('msg = "Please insert your card"', id="prose_insert_word"),
+    pytest.param(
+        'doc = "See the docs about INSERT INTO tables in general"',
+        id="prose_insert_into_no_values",
+    ),
+    pytest.param('"""Module docstring mentioning insert semantics."""', id="docstring_prose"),
+    pytest.param("", id="empty_file"),
+    pytest.param("   \n\n\t", id="whitespace_only"),
+    pytest.param("def (:::", id="syntax_error"),
+    pytest.param("x = 1 +", id="syntax_error_incomplete_binop"),
+]
+
+
+@pytest.mark.parametrize("src", CLEAN)
+def test_does_not_fire(src: str) -> None:
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Multiline reporting                                                          #
+# --------------------------------------------------------------------------- #
+
+
+def test_multiline_triple_quoted_reports_string_start_line() -> None:
     src = '''
 async def create(self):
     await cur.execute(
@@ -35,94 +180,91 @@ async def create(self):
     assert diags[0].line == 4
 
 
-def test_allows_insert_with_on_conflict():
-    src = '''
-await cur.execute(SQL("""
-    INSERT INTO organization (id, name)
-    VALUES (%s, %s)
-    ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
-    RETURNING id
-"""))
-'''
-    assert _check(src) == []
+def test_line_and_col_reported_one_based() -> None:
+    src = 'q = "INSERT INTO t VALUES (1)"'
+    diags = _check(src)
+    assert (diags[0].line, diags[0].col) == (1, 5)
 
 
-def test_allows_insert_with_on_conflict_do_nothing():
-    src = 'q = "INSERT INTO t (id) VALUES (%s) ON CONFLICT DO NOTHING"'
-    assert _check(src) == []
-
-
-def test_ignores_select_only_query():
-    src = 'await cur.execute("SELECT id FROM task WHERE id = %s", (x,))'
-    assert _check(src) == []
-
-
-def test_ignores_returning_select_without_insert():
-    src = 'q = "WITH x AS (SELECT 1) SELECT * FROM task"'
-    assert _check(src) == []
-
-
-def test_flags_insert_select_write():
-    src = 'q = "INSERT INTO archive (id) SELECT id FROM task WHERE done"'
+def test_plus_concat_reports_left_operand_position() -> None:
+    src = 'q = (\n    "INSERT INTO t "\n    + "VALUES (1)"\n)'
     diags = _check(src)
     assert len(diags) == 1
+    assert diags[0].line == 2
+    assert diags[0].col == 5
 
 
-def test_on_conflict_in_sql_comment_does_not_excuse():
-    src = '''q = """
-    INSERT INTO t (id) VALUES (%s)
-    -- ON CONFLICT (id) DO NOTHING would go here
-    """'''
-    assert len(_check(src)) == 1
+# --------------------------------------------------------------------------- #
+# Multiple findings                                                            #
+# --------------------------------------------------------------------------- #
 
 
-def test_insert_in_sql_comment_does_not_trigger():
-    src = '''q = """
-    SELECT id FROM t
-    -- INSERT INTO t (id) VALUES (1)
-    """'''
-    assert _check(src) == []
+def test_each_insert_flagged_separately_and_sorted() -> None:
+    src = (
+        'a = "INSERT INTO b (id) VALUES (2)"\n'
+        'b = "INSERT INTO a (id) VALUES (1)"\n'
+        'c = "INSERT INTO c (id) VALUES (3)"\n'
+    )
+    diags = _check(src)
+    assert len(diags) == 3
+    assert [d.line for d in diags] == [1, 2, 3]
 
 
-def test_insert_in_block_comment_does_not_trigger():
-    src = 'q = "/* INSERT INTO t (id) VALUES (1) */ SELECT 1 FROM t"'
-    assert _check(src) == []
-
-
-def test_concatenated_string_keeps_insert_and_on_conflict_together():
-    src = """q = (
-    "INSERT INTO t (id) VALUES (%s) "
-    "ON CONFLICT (id) DO NOTHING"
-)"""
-    assert _check(src) == []
-
-
-def test_explicit_plus_concatenation_is_flagged_when_no_on_conflict():
-    src = 'q = "INSERT INTO t (id) " + "VALUES (%s)"'
+def test_mixed_clean_and_dirty_only_flags_dirty() -> None:
+    src = 'good = "INSERT INTO t (id) VALUES (1) ON CONFLICT DO NOTHING"\nbad = "INSERT INTO t (id) VALUES (2)"\n'
     diags = _check(src)
     assert len(diags) == 1
+    assert diags[0].line == 2
 
 
-def test_case_insensitive():
-    src = 'q = "insert into t (id) values (%s)"'
-    assert len(_check(src)) == 1
+# --------------------------------------------------------------------------- #
+# Suppression                                                                 #
+# --------------------------------------------------------------------------- #
 
 
-def test_suppressed_by_sarj_noqa():
+def test_diagnostic_line_is_suppressible_by_sarj_noqa() -> None:
     src = 'q = "INSERT INTO ch_events (id) VALUES (%s)"  # sarj-noqa: SARJ018 — ClickHouse has no upsert'
-
     diags = _check(src)
     assert len(diags) == 1
     assert is_suppressed(src.splitlines(), diags[0].line, diags[0].code)
 
 
-def test_each_insert_flagged_separately():
-    src = """
-a = "INSERT INTO t (id) VALUES (1)"
-b = "INSERT INTO u (id) VALUES (2)"
-"""
-    assert len(_check(src)) == 2
+# --------------------------------------------------------------------------- #
+# Path behavior — the rule does NOT gate on `*_store.py`; store-file scoping   #
+# happens at the CLI/invocation layer, so any path with a bare INSERT fires.   #
+# --------------------------------------------------------------------------- #
 
 
-def test_syntax_error_returns_empty():
-    assert _check("def (:::") == []
+@pytest.mark.parametrize(
+    "path",
+    ["foo_store.py", "not_a_store.py", "services/handler.py", "random.py"],
+)
+def test_fires_regardless_of_filename(path: str) -> None:
+    assert _count('q = "INSERT INTO t (id) VALUES (1)"', path) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Known limitations (xfail) — documented false negatives.                      #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.xfail(
+    reason="f-string interpolation between INSERT INTO and VALUES splits the "
+    "literal into fragments, so neither AST Constant matches INSERT...VALUES; "
+    "the write is silently missed.",
+    strict=True,
+)
+def test_fstring_interpolation_between_keywords_is_missed() -> None:
+    src = 'q = f"INSERT INTO {table} (id) VALUES (%s)"'
+    assert _count(src) == 1
+
+
+@pytest.mark.xfail(
+    reason="ON CONFLICT is searched across the whole literal, not per-statement, "
+    "so an ON CONFLICT in one statement excuses a bare INSERT in another "
+    "within the same string.",
+    strict=True,
+)
+def test_on_conflict_in_unrelated_statement_wrongly_excuses() -> None:
+    src = 'q = "UPDATE x SET y = 1 ON CONFLICT DO NOTHING; INSERT INTO t (id) VALUES (%s)"'
+    assert _count(src) == 1

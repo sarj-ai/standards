@@ -1,6 +1,20 @@
+"""Exhaustive suite for SARJ012 `no-secret-in-log`.
+
+The rule is deliberately precise: it flags ONLY a keyword argument whose *name*
+matches a secret word (token/secret/password/passwd/api_key/jwt/credential/
+authorization) on a logging call (`<logger>.<level>(...)`), unless the name also
+carries a redaction marker (prefix/suffix/redact/mask/hash/hint/_len/length).
+The *value* is never inspected — positional args, f-strings, and attribute/
+subscript values are out of scope by design. Suppression is applied by the
+shared `is_suppressed` helper (the rule's `check` never filters noqa itself).
+"""
+
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
+from sarj_python_lint.rule_base import is_suppressed
 from sarj_python_lint.rules.no_secret_in_log import NoSecretInLog
 
 
@@ -12,136 +26,399 @@ def _check(source: str) -> list[Diagnostic]:
     return NoSecretInLog().check(Path("<test>.py"), source)
 
 
-def test_flags_token_keyword():
-    src = """
-logger.info("auth", token=token)
-"""
+def _codes(source: str) -> list[str]:
+    return [d.code for d in _check(source)]
+
+
+# --------------------------------------------------------------------------- #
+# Family 1: every secret word is flagged as a logging keyword                  #
+# --------------------------------------------------------------------------- #
+
+SECRET_KEYWORDS = [
+    "token",
+    "secret",
+    "password",
+    "passwd",
+    "api_key",
+    "apikey",
+    "jwt",
+    "credential",
+    "credentials",
+    "authorization",
+    # compound / cased forms — substring + case-insensitive matching
+    "access_token",
+    "refresh_token",
+    "auth_token",
+    "AuthToken",
+    "userPassword",
+    "client_secret",
+    "my_secret",
+    "bearer_jwt",
+    "APIKey",
+    "user_credential",
+    "authorization_header",
+]
+
+
+@pytest.mark.parametrize("kw", SECRET_KEYWORDS)
+def test_flags_secret_keyword(kw: str):
+    src = f'logger.info("msg", {kw}=v)\n'
     diags = _check(src)
     assert len(diags) == 1
     assert diags[0].code == "SARJ012"
+    assert kw in diags[0].message
 
 
-def test_flags_api_key_keyword_on_error():
-    src = """
-log.error("x", api_key=k)
-"""
-    diags = _check(src)
-    assert len(diags) == 1
-    assert diags[0].code == "SARJ012"
+# --------------------------------------------------------------------------- #
+# Family 2: every log-level method is a logging call                           #
+# --------------------------------------------------------------------------- #
+
+LOG_METHODS = ["debug", "info", "warning", "warn", "error", "exception", "critical"]
 
 
-def test_flags_each_secret_keyword():
-    src = """
-logger.warning("auth", token=token, password=pw)
-"""
-    assert len(_check(src)) == 2
+@pytest.mark.parametrize("method", LOG_METHODS)
+def test_flags_on_each_log_method(method: str):
+    src = f'logger.{method}("m", token=t)\n'
+    assert _codes(src) == ["SARJ012"]
 
 
-def test_flags_apikey_without_underscore():
-    src = """
-logger.debug("x", apikey=k)
-"""
-    assert len(_check(src)) == 1
+NON_LOG_METHODS = ["send", "write", "log", "emit", "handle", "flush", "trace", "notice"]
 
 
-def test_flags_case_insensitive_keyword():
-    src = """
-logger.critical("x", AuthToken=t)
-"""
-    assert len(_check(src)) == 1
-
-
-def test_flags_self_logger():
-    src = """
-self.logger.info("auth", secret=s)
-"""
-    assert len(_check(src)) == 1
-
-
-def test_flags_logging_module_call():
-    src = """
-logging.error("boom", credential=c)
-"""
-    assert len(_check(src)) == 1
-
-
-def test_flags_getlogger_factory_receiver():
-    """`logging.getLogger(__name__).info(...)` is now recognised (SARJ017 parity)."""
-    src = """
-logging.getLogger(__name__).info("auth", token=token)
-"""
-    assert len(_check(src)) == 1
-
-
-def test_flags_bind_builder_receiver():
-    """`logger.bind(...).info(...)` adapter chain resolves to a logger."""
-    src = """
-logger.bind(request_id=rid).warning("auth", password=pw)
-"""
-    assert len(_check(src)) == 1
-
-
-def test_flags_module_logger_attribute_chain():
-    src = """
-app.logging.getLogger("svc").error("x", secret=s)
-"""
-    assert len(_check(src)) == 1
-
-
-def test_allows_token_prefix():
-    """A redacted prefix name doesn't match the secret pattern."""
-    src = """
-logger.info("auth", token_prefix=token[:6])
-"""
+@pytest.mark.parametrize("method", NON_LOG_METHODS)
+def test_skips_non_log_method(method: str):
+    """`log`/`trace`/`send`/... are not in the recognised level set."""
+    src = f'logger.{method}("m", token=t)\n'
     assert _check(src) == []
 
 
-def test_allows_no_keywords():
-    src = """
-logger.info("ok")
-"""
+# --------------------------------------------------------------------------- #
+# Family 3: logger receiver resolution                                         #
+# --------------------------------------------------------------------------- #
+
+LOGGER_RECEIVERS = [
+    "logger",
+    "log",
+    "logging",
+    "loguru",
+    "_logger",
+    "_log",
+    "LOGGER",
+    "Log",
+    "self.logger",
+    "self._log",
+    "self.logging",
+    "cls.logger",
+    "app.log",
+    "app.logging.getLogger('svc')",
+    "logging.getLogger(__name__)",
+    "logging.getLogger(__name__).getChild('x')",
+    "logger.bind(request_id=rid)",
+    "logger.opt(lazy=True)",
+    "logger.bind(a=1).bind(b=2)",
+    "parent.getChild('c')",
+]
+
+
+@pytest.mark.parametrize("recv", LOGGER_RECEIVERS)
+def test_flags_across_logger_receivers(recv: str):
+    src = f'{recv}.error("m", secret=s)\n'
+    assert _codes(src) == ["SARJ012"]
+
+
+NON_LOGGER_RECEIVERS = [
+    "foo",
+    "response",
+    "resp",
+    "client",
+    "service",
+    "db",
+    "self.client",
+    "self.db.session",
+    "request",
+    "metrics",
+    "tracer",
+    "obj.build()",
+    "get_logger()",
+]
+
+
+@pytest.mark.parametrize("recv", NON_LOGGER_RECEIVERS)
+def test_skips_non_logger_receiver(recv: str):
+    src = f'{recv}.info("m", token=t)\n'
     assert _check(src) == []
 
 
-def test_allows_non_secret_keyword():
-    src = """
-logger.info("done", user_id=uid, count=n)
-"""
+# --------------------------------------------------------------------------- #
+# Family 4: case insensitivity of the secret word                             #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("kw", ["TOKEN", "Token", "ToKeN", "PASSWORD", "Secret", "Api_Key", "JWT", "Jwt"])
+def test_flags_case_insensitive_secret(kw: str):
+    src = f'logger.info("m", {kw}=v)\n'
+    assert _codes(src) == ["SARJ012"]
+
+
+# --------------------------------------------------------------------------- #
+# Family 5: redaction markers exempt the keyword                              #
+# --------------------------------------------------------------------------- #
+
+REDACTED_KEYWORDS = [
+    "token_prefix",
+    "token_suffix",
+    "token_redacted",
+    "secret_masked",
+    "password_hash",
+    "password_hint",
+    "token_len",
+    "token_length",
+    "api_key_length",
+    "secret_prefix",
+    "jwt_hash",
+    "authorization_length",
+    "credential_mask",
+    "PasswordHash",
+    "tokenPrefix",
+]
+
+
+@pytest.mark.parametrize("kw", REDACTED_KEYWORDS)
+def test_allows_redacted_keyword(kw: str):
+    src = f'logger.info("m", {kw}=v)\n'
     assert _check(src) == []
 
 
-def test_skips_non_logger_object():
-    """`foo.info(...)` isn't a logger — object name doesn't look like one."""
-    src = """
-foo.info("x", token=t)
-"""
+def test_redaction_wins_when_both_present():
+    """A name containing both a secret word and a redaction marker is exempt."""
+    src = 'logger.info("m", token_prefix=token[:6], password_hash=h)\n'
     assert _check(src) == []
 
 
-def test_skips_non_log_method():
-    """`logger.send(...)` isn't a log-level method."""
-    src = """
-logger.send("x", token=t)
-"""
+# --------------------------------------------------------------------------- #
+# Family 6: only the NAME matters — the value is never inspected               #
+# --------------------------------------------------------------------------- #
+
+
+def test_flags_secret_name_even_with_redacted_value():
+    """`token=token[:6]` is still flagged — the keyword name is the raw secret."""
+    src = 'logger.info("m", token=token[:6])\n'
+    assert _codes(src) == ["SARJ012"]
+
+
+def test_flags_secret_name_with_attribute_value():
+    src = 'logger.info("m", secret=obj.value)\n'
+    assert _codes(src) == ["SARJ012"]
+
+
+def test_allows_safe_name_with_secret_attribute_value():
+    """A secret read as a *value* under a safe keyword is out of scope."""
+    src = 'logger.info("m", data=obj.password)\n'
+    assert _check(src) == []
+
+
+def test_allows_safe_name_with_secret_subscript_value():
+    src = 'logger.info("m", value=d["token"])\n'
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Family 7: forms the rule intentionally does NOT flag                         #
+# --------------------------------------------------------------------------- #
+
+
+def test_skips_positional_secret_argument():
+    """Positional args carry no keyword name to inspect."""
+    src = 'logger.info("token=%s", token)\n'
+    assert _check(src) == []
+
+
+def test_skips_fstring_with_secret():
+    """F-strings are explicitly out of scope for this rule."""
+    src = 'logger.info(f"token={token}")\n'
+    assert _check(src) == []
+
+
+def test_skips_secret_word_in_message_literal():
+    src = 'logger.info("the password was rejected")\n'
     assert _check(src) == []
 
 
 def test_skips_double_star_kwargs():
-    src = """
-logger.info("x", **secrets)
-"""
+    src = 'logger.info("m", **secrets)\n'
     assert _check(src) == []
 
 
-def test_handles_syntax_error():
-    src = "def broken(:\n"
+def test_skips_double_star_alongside_flagged_keyword():
+    src = 'logger.info("m", **extra, token=t)\n'
+    assert _codes(src) == ["SARJ012"]
+
+
+NON_SECRET_KEYWORDS = [
+    "user_id",
+    "count",
+    "duration_ms",
+    "request_id",
+    "status",
+    "correlation_id",
+    "org_id",
+    "call_id",
+    "latency",
+    "attempt",
+    "level",
+    "name",
+]
+
+
+@pytest.mark.parametrize("kw", NON_SECRET_KEYWORDS)
+def test_allows_ordinary_keyword(kw: str):
+    src = f'logger.info("done", {kw}=v)\n'
     assert _check(src) == []
 
 
-def test_diagnostic_points_at_value():
-    src = """
-logger.info("auth", token=token)
-"""
+def test_comment_mentioning_secret_is_ignored():
+    """A comment naming a secret is not a keyword argument."""
+    src = 'logger.info("ok")  # do not log the password here\n'
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Family 8: nested / multiple calls                                            #
+# --------------------------------------------------------------------------- #
+
+
+def test_two_secret_keywords_in_one_call():
+    src = 'logger.warning("auth", token=token, password=pw)\n'
+    assert _codes(src) == ["SARJ012", "SARJ012"]
+
+
+def test_mixed_secret_and_redacted_keywords():
+    src = 'logger.info("auth", token=token, token_prefix=token[:6])\n'
+    assert _codes(src) == ["SARJ012"]
+
+
+def test_multiple_calls_each_flagged():
+    src = 'logger.info("a", token=t)\nlog.error("b", secret=s)\nlogger.debug("c", api_key=k)\n'
+    assert _codes(src) == ["SARJ012", "SARJ012", "SARJ012"]
+
+
+def test_nested_logging_call_is_flagged():
+    """`ast.walk` reaches a logging call nested inside another call's args."""
+    src = 'logger.info("outer", data=log.error("inner", token=t))\n'
+    assert _codes(src) == ["SARJ012"]
+
+
+def test_nested_non_logger_keyword_not_flagged():
+    """`wrap(token=t)` is a keyword to a non-logger — only the outer call counts."""
+    src = 'logger.info("m", data=wrap(token=t))\n'
+    assert _check(src) == []
+
+
+def test_secret_keyword_on_outer_with_nested_non_logger():
+    src = 'logger.info("m", token=other.build(secret=s))\n'
+    assert _codes(src) == ["SARJ012"]
+
+
+# --------------------------------------------------------------------------- #
+# Family 9: diagnostic location points at the value                           #
+# --------------------------------------------------------------------------- #
+
+
+def test_diagnostic_line_col_single_line():
+    src = 'logger.info("auth", token=token)\n'
+    diag = _check(src)[0]
+    assert (diag.line, diag.col) == (1, 27)
+
+
+def test_diagnostic_line_col_multiline_call():
+    src = 'logger.info(\n    "auth",\n    password=pw,\n)\n'
+    diag = _check(src)[0]
+    assert (diag.line, diag.col) == (3, 14)
+
+
+def test_diagnostics_ordered_by_source_position():
+    src = 'logger.info("a", token=t)\nlog.error("b", secret=s)\n'
     diags = _check(src)
-    assert len(diags) == 1
-    assert diags[0].line == 2
+    assert [(d.line, d.col) for d in diags] == [(1, 24), (2, 23)]
+
+
+# --------------------------------------------------------------------------- #
+# Family 10: parse edge cases                                                  #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "src",
+    ["", "\n", "   \n\t\n", "# only a comment\n", "x = 1\n", '"""module docstring"""\n'],
+)
+def test_no_findings_on_trivial_sources(src: str):
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize("src", ["def broken(:\n", "logger.info('x',\n", "class C(:\n", "  return =\n"])
+def test_handles_syntax_error(src: str):
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Family 11: FALSE-POSITIVE guards (rule bug — high friction if it fires)      #
+# --------------------------------------------------------------------------- #
+#
+# These names contain a secret substring but are NOT secrets: LLM usage
+# metrics (`*token*` counts) and innocent words that merely embed a secret
+# word. The rule matches on substring with no allowlist, so it flags them
+# today. `strict=True` makes these XFAIL now and surfaces loudly (XPASS ->
+# failure) the moment the rule grows an allowlist that fixes them.
+
+FALSE_POSITIVE_KEYWORDS = [
+    "token_count",
+    "max_tokens",
+    "prompt_tokens",
+    "completion_tokens",
+    "n_tokens",
+    "total_tokens",
+    "num_tokens",
+    "tokenize",
+    "tokenizer",
+    "secretary",
+]
+
+
+@pytest.mark.xfail(strict=True, reason="SARJ012 substring match has no usage-metric allowlist; flags non-secrets")
+@pytest.mark.parametrize("kw", FALSE_POSITIVE_KEYWORDS)
+def test_does_not_flag_non_secret_lookalike(kw: str):
+    src = f'logger.info("usage", {kw}=n)\n'
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Family 12: suppression via the shared is_suppressed helper                   #
+# --------------------------------------------------------------------------- #
+
+
+def _unsuppressed(source: str) -> list[Diagnostic]:
+    lines = source.splitlines()
+    return [d for d in _check(source) if not is_suppressed(lines, d.line, d.code)]
+
+
+def test_sarj_noqa_with_code_suppresses():
+    src = 'logger.info("auth", token=token)  # sarj-noqa: SARJ012 — redacted downstream\n'
+    assert _check(src)  # rule still reports
+    assert _unsuppressed(src) == []  # helper filters it
+
+
+def test_bare_sarj_noqa_suppresses():
+    src = 'logger.info("auth", token=token)  # sarj-noqa\n'
+    assert _unsuppressed(src) == []
+
+
+def test_sarj_noqa_for_other_code_does_not_suppress():
+    src = 'logger.info("auth", token=token)  # sarj-noqa: SARJ099\n'
+    assert len(_unsuppressed(src)) == 1
+
+
+def test_sarj_noqa_only_affects_its_own_line():
+    src = 'logger.info("a", token=t)  # sarj-noqa: SARJ012\nlogger.info("b", secret=s)\n'
+    kept = _unsuppressed(src)
+    assert len(kept) == 1
+    assert kept[0].line == 2
