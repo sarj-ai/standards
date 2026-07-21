@@ -289,16 +289,13 @@ def test_flags_deep_builder_chain_bind_then_opt():
     assert len(_check('self.logger.bind(a=1).opt(lazy=True).info(f"{x}")\n')) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="structlog get_logger() (snake_case) not in factory set; stdlib getLogger matches but this FN is missed")
 def test_flags_structlog_get_logger_chain():
     assert len(_check('structlog.get_logger().info(f"{x}")\n')) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="f-string wrapped in a BinOp is not a top-level JoinedStr, so concatenated f-string message is missed")
 def test_flags_fstring_concatenated_with_plus():
     assert len(_check('logger.info(f"{x}" + "!")\n')) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="getChild is a generic tree/widget method; matching it as a logger factory misfires on non-loggers")
 def test_ignores_getchild_on_non_logger_receiver():
     assert _check('widget.getChild("panel").info(f"{x}")\n') == []

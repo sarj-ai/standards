@@ -116,7 +116,7 @@ LOGGER_RECEIVERS = [
     "logger.bind(request_id=rid)",
     "logger.opt(lazy=True)",
     "logger.bind(a=1).bind(b=2)",
-    "parent.getChild('c')",
+    "logger.getChild('c')",
 ]
 
 
@@ -140,6 +140,7 @@ NON_LOGGER_RECEIVERS = [
     "tracer",
     "obj.build()",
     "get_logger()",
+    "widget.getChild('c')",
 ]
 
 

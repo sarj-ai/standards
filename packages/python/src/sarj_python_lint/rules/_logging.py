@@ -12,7 +12,7 @@ import ast
 
 _LOGGER_NAMES = frozenset({"logger", "log", "logging", "loguru", "_logger", "_log"})
 
-_LOGGER_FACTORIES = frozenset({"getlogger", "getchild"})
+_LOGGER_FACTORIES = frozenset({"getlogger", "get_logger"})
 
 
 def is_logger_expr(expr: ast.expr) -> bool:
