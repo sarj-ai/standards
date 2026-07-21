@@ -1182,11 +1182,6 @@ def f():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="substring 'log' in receiver name wrongly exempts non-logger receivers "
-    "(dialog/catalog/backlog) — false negative",
-)
 def test_substring_log_receiver_should_still_fire():
     src = """
 def f():
@@ -1199,11 +1194,6 @@ def f():
     assert len(_check(src)) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="inline `logging.getLogger(__name__).error(...)` has a Call receiver, "
-    "not Name/Attribute, so real logging is not recognized — false positive",
-)
 def test_inline_getlogger_chain_should_be_exempt():
     src = """
 def f():
@@ -1216,11 +1206,6 @@ def f():
     assert _check(src) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="logging guarded behind an early-return branch exempts the unlogged "
-    "final-return path — any-logging-in-prelude heuristic under-reports",
-)
 def test_logging_only_on_early_return_branch_should_still_fire():
     src = """
 def f():
