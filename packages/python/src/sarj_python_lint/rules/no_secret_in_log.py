@@ -31,10 +31,12 @@ if TYPE_CHECKING:
 # Logging method names (the `.attr` of the call's func).
 _LOG_METHODS = frozenset({"debug", "info", "warning", "warn", "error", "exception", "critical"})
 
-# A redaction marker (`token_prefix`, `password_hash`, `secret_masked`) means the
-# keyword carries a masked derivative, not the raw value — the intended safe form.
+# A redaction marker (`token_prefix`, `password_hash`, `secret_masked`,
+# `api_key_tag`) means the keyword carries a masked/derived value, not the raw
+# secret — the intended safe form. `tag` covers redaction tags derived purely for
+# logging (`api_key_tag=_api_key_log_tag(api_key)`).
 _REDACTION_RE = re.compile(
-    r"prefix|suffix|redact|mask|hash|hint|_len|length",
+    r"prefix|suffix|redact|mask|hash|hint|tag|_len|length",
     re.IGNORECASE,
 )
 

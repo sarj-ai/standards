@@ -180,6 +180,10 @@ REDACTED_KEYWORDS = [
     "credential_mask",
     "PasswordHash",
     "tokenPrefix",
+    # `tag` marks a redaction tag derived for logging, not the raw secret.
+    "api_key_tag",
+    "token_tag",
+    "secret_tag",
 ]
 
 
@@ -365,9 +369,11 @@ def test_handles_syntax_error(src: str):
 # --------------------------------------------------------------------------- #
 #
 # These names embed a secret *substring* but are NOT secrets: LLM usage
-# metrics (`*tokens*` counts, `token_count`) and innocent words that merely
-# embed a secret word (`secretary`). Whole-token matching plus the innocuous
-# marker denylist (`_secret_names.py`) clears every one.
+# metrics (`*tokens*` counts, `token_count`), innocent words that merely embed a
+# secret word (`secretary`), and boolean presence / state flags that answer "is
+# it there / was it set" (`token_present`, `password_set`) rather than carrying
+# the credential. Whole-token matching plus the innocuous marker denylist
+# (`_secret_names.py`) clears every one.
 
 FALSE_POSITIVE_KEYWORDS = [
     "token_count",
@@ -384,6 +390,18 @@ FALSE_POSITIVE_KEYWORDS = [
     "secretary",
     "api_key_id",
     "password_enabled",
+    "token_present",
+    "secret_present",
+    "password_set",
+    "password_unset",
+    "password_configured",
+    "token_missing",
+    "password_required",
+    "token_valid",
+    "secret_invalid",
+    "secret_exists",
+    "token_type",
+    "credential_type",
 ]
 
 

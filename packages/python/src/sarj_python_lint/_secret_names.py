@@ -11,7 +11,10 @@ misfired on a large false-positive class observed in a real audit:
   `tokenize`, `tokenizer`, `token_budget`.
 - Row-id / handle names: `api_key_id`, `*_key_id` — the id of a key row, not the
   key material.
-- Boolean feature flags: `password_enabled`.
+- Boolean feature / presence / state flags: `password_enabled`,
+  `token_present`, `password_set`, `password_configured` — a boolean answering
+  "is it there / was it set", not the credential itself. A `type` discriminator
+  is the same: `token_type` is `"Bearer"`, `credential_type` is a class name.
 - Innocent words embedding a secret word: `secretary` (embeds `secret`).
 
 We fix this with two changes:
@@ -49,9 +52,11 @@ _SECRET_WORDS = frozenset(
     }
 )
 
-# Tokens that mark a counter, row-id, or feature flag. Their presence means the
-# identifier is metadata *about* a secret, not the secret itself, so it is not a
-# leak / timing surface even when a secret word is also present.
+# Tokens that mark a counter, row-id, feature flag, or boolean presence/state
+# marker. Their presence means the identifier is metadata *about* a secret, not
+# the secret itself, so it is not a leak / timing surface even when a secret word
+# is also present: `token_present`, `password_set`, and `password_configured` are
+# booleans, not credentials.
 _INNOCUOUS_WORDS = frozenset(
     {
         "count",
@@ -65,6 +70,17 @@ _INNOCUOUS_WORDS = frozenset(
         "disabled",
         "flag",
         "flags",
+        "present",
+        "set",
+        "unset",
+        "configured",
+        "missing",
+        "required",
+        "valid",
+        "invalid",
+        "exists",
+        "type",
+        "types",
     }
 )
 

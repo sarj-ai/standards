@@ -25,6 +25,7 @@ _SECRET_NAMES = [
     "token",
     "access_token",
     "refresh_token",
+    "auth_token",
     "secret",
     "client_secret",
     "signature",
@@ -394,6 +395,12 @@ _NON_SECRET_LOOKALIKES = [
     "api_key_id",
     "webhook_key_id",
     "password_enabled",
+    "token_present",
+    "secret_present",
+    "password_set",
+    "password_configured",
+    "token_type",
+    "credential_type",
 ]
 
 
