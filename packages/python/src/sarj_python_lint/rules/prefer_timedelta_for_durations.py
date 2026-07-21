@@ -161,7 +161,7 @@ def _settings_field_ids(tree: ast.Module) -> frozenset[int]:
     `class Foo(_Base)`). Such fields come from environment variables, whose
     bare-numeric wire form `timedelta` cannot parse, so they are exempt.
     """
-    classes = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)}
+    classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
     settings_classes = _resolve_settings_classes(classes)
     exempt: set[int] = set()
     for node in settings_classes:
@@ -172,32 +172,34 @@ def _settings_field_ids(tree: ast.Module) -> frozenset[int]:
 
 
 def _resolve_settings_classes(
-    classes: dict[str, ast.ClassDef],
+    classes: list[ast.ClassDef],
 ) -> set[ast.ClassDef]:
-    resolved: dict[str, bool] = {}
+    by_name: dict[str, ast.ClassDef] = {}
+    for node in classes:
+        by_name.setdefault(node.name, node)
+    resolved: dict[int, bool] = {}
 
-    def is_settings(name: str, seen: frozenset[str]) -> bool:
-        if name in resolved:
-            return resolved[name]
-        if name in seen:
-            return False
-        node = classes.get(name)
-        if node is None:
+    def is_settings(node: ast.ClassDef, seen: frozenset[int]) -> bool:
+        if id(node) in resolved:
+            return resolved[id(node)]
+        if id(node) in seen:
             return False
         result = False
         for base in node.bases:
             base_name = _trailing_name(base)
             if base_name is None:
                 continue
-            if base_name.endswith("Settings") or is_settings(
-                base_name, seen | {name}
-            ):
+            if base_name.endswith("Settings"):
                 result = True
                 break
-        resolved[name] = result
+            parent = by_name.get(base_name)
+            if parent is not None and is_settings(parent, seen | {id(node)}):
+                result = True
+                break
+        resolved[id(node)] = result
         return result
 
-    return {node for name, node in classes.items() if is_settings(name, frozenset())}
+    return {node for node in classes if is_settings(node, frozenset())}
 
 
 def _target_name(target: ast.expr) -> str | None:
@@ -246,6 +248,8 @@ def _trailing_name(node: ast.expr) -> str | None:
         return node.id
     if isinstance(node, ast.Attribute):
         return node.attr
+    if isinstance(node, ast.Subscript):
+        return _trailing_name(node.value)
     return None
 
 

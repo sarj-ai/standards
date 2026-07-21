@@ -711,11 +711,10 @@ def test_conint_call_annotation_not_resolved():
 
 
 # ---------------------------------------------------------------------------
-# Genuine defects (xfail strict) — false positives from the class-name index.
+# Regressions — false positives from the class-name index, now fixed.
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="BUG: class-name index keyed by bare name; a nested class of the same name shadows a real BaseSettings class, leaking its exempt field")
 def test_name_collision_nested_class_shadows_settings():
     src = """
 class Config(BaseSettings):
@@ -728,7 +727,6 @@ def factory() -> None:
     assert _check(src) == []
 
 
-@pytest.mark.xfail(strict=True, reason="BUG: a subscripted intermediate settings base (`Base[int]`) is a Subscript node; _trailing_name returns None so the generic settings base isn't resolved and the field is wrongly flagged")
 def test_subscripted_generic_settings_base_wrongly_flagged():
     src = """
 class Base(BaseSettings, Generic[T]):
