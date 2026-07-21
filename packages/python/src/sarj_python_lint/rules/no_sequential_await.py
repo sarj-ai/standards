@@ -57,7 +57,7 @@ class NoSequentialAwait(Rule):
         tree = parse_or_none(path, source)
         if tree is None:
             return []
-        visitor = _SequentialAwaitVisitor()
+        visitor = _SequentialAwaitVisitor(_yield_exempt_awaits(tree))
         visitor.visit(tree)
         diags = [
             Diagnostic(
@@ -102,14 +102,52 @@ def _names(node: ast.AST) -> set[str]:
     return {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
 
 
-def _is_gather_antipattern(node: ast.For) -> bool:
+def _walk_same_scope(node: ast.AST) -> list[ast.AST]:
+    """`node` and descendants, NOT descending into nested function/lambda bodies.
+
+    A loop's per-iteration work is only the code that runs in the loop's own
+    executable scope. An `await` inside a nested `async def`/`lambda` runs when
+    *that* callable is invoked, not per loop iteration, so it must not make the
+    loop look like a gatherable map.
+    """
+    out: list[ast.AST] = []
+    stack: list[ast.AST] = [node]
+    while stack:
+        current = stack.pop()
+        out.append(current)
+        # A nested function/lambda body runs in its own scope, not per iteration.
+        # Record the def node itself but never descend into it.
+        if isinstance(current, _SCOPES):
+            continue
+        stack.extend(ast.iter_child_nodes(current))
+    return out
+
+
+def _yield_exempt_awaits(tree: ast.AST) -> set[int]:
+    """`id()`s of awaits that are the value yielded by an async generator.
+
+    `for x in xs: yield await fetch(x)` streams results one at a time; the yield
+    imposes an inherent order, so it is not a gatherable map. Awaits reachable
+    from a `yield` value (without crossing a nested scope) are exempt.
+    """
+    exempt: set[int] = set()
+    for yield_node in ast.walk(tree):
+        if not isinstance(yield_node, ast.Yield) or yield_node.value is None:
+            continue
+        for inner in _walk_same_scope(yield_node.value):
+            if isinstance(inner, ast.Await):
+                exempt.add(id(inner))
+    return exempt
+
+
+def _is_gather_antipattern(node: ast.For, yield_exempt: set[int]) -> bool:
     """True for `for x in xs: <straight-line body awaiting a call that uses x>`."""
     if any(isinstance(stmt, _CONTROL_FLOW) for stmt in node.body):
         return False
     targets = _names(node.target)
     for stmt in node.body:
-        for inner in ast.walk(stmt):
-            if isinstance(inner, ast.Await) and _names(inner) & targets:
+        for inner in _walk_same_scope(stmt):
+            if isinstance(inner, ast.Await) and id(inner) not in yield_exempt and _names(inner) & targets:
                 return True
     return False
 
@@ -123,13 +161,16 @@ class _SequentialAwaitVisitor(ast.NodeVisitor):
     once-evaluated iterable is excluded (see module comment).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, yield_exempt: set[int]) -> None:
         super().__init__()
+        self._yield_exempt = yield_exempt
         self._loops: list[ast.AST] = []
         self._flagged: set[int] = set()
         self.hits: list[ast.Await] = []
 
     def _flag_if_in_loop(self, node: ast.Await) -> None:
+        if id(node) in self._yield_exempt:
+            return
         if self._loops:
             loop = self._loops[-1]
             if id(loop) not in self._flagged:
@@ -142,7 +183,7 @@ class _SequentialAwaitVisitor(ast.NodeVisitor):
         # Only a straight-line per-element-await body is the gather antipattern;
         # control-flow bodies (conditional/ordered) are not pushed, so awaits in
         # them are not flagged for this loop.
-        antipattern = _is_gather_antipattern(node)
+        antipattern = _is_gather_antipattern(node, self._yield_exempt)
         if antipattern:
             self._loops.append(node)
         self.visit(node.target)

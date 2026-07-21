@@ -655,7 +655,6 @@ async def outer(items):
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.xfail(strict=True, reason="async-generator `yield await` is streaming/sequential, not gatherable")
 def test_async_generator_yield_await_should_not_flag():
     src = """
 async def f(items):
@@ -665,7 +664,6 @@ async def f(items):
     assert _check(src) == []
 
 
-@pytest.mark.xfail(strict=True, reason="antipattern detection walks into nested scopes; a loop-invariant await is then flagged")
 def test_nested_scope_await_using_loop_var_should_not_flag_invariant_await():
     src = """
 async def outer(items):
@@ -677,7 +675,10 @@ async def outer(items):
     assert _check(src) == []
 
 
-@pytest.mark.xfail(strict=True, reason="loop var laundered through a local is a gatherable independent await the rule misses")
+@pytest.mark.xfail(
+    strict=True,
+    reason="left xfailed: detecting a loop var laundered through a local needs data-flow tracking; a clean fix risks new FPs, so we keep the miss over guessing",
+)
 def test_loop_var_laundered_through_local_should_flag():
     src = """
 async def f(items):
