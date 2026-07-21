@@ -95,9 +95,20 @@ def _comment_body(raw: str) -> str:
     return raw.lstrip("#").strip()
 
 
+def _is_word_char(ch: str) -> bool:
+    return ch.isalnum() or ch == "_"
+
+
 def _is_directive(body: str) -> bool:
     low = body.lower()
-    return any(low.startswith(p) for p in _DIRECTIVE_PREFIXES)
+    for prefix in _DIRECTIVE_PREFIXES:
+        if not low.startswith(prefix):
+            continue
+        rest = low[len(prefix) :]
+        if _is_word_char(prefix[-1]) and rest and _is_word_char(rest[0]):
+            continue
+        return True
+    return False
 
 
 def _is_banner(body: str) -> bool:

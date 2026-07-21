@@ -437,14 +437,12 @@ def test_empty_comment_line_counts_toward_preamble():
     assert "(4 lines)" in diags[0].message
 
 
-@pytest.mark.xfail(strict=True, reason="'todo' directive prefix lacks a word boundary, so commented-out `todos = []` is silently suppressed")
 def test_todos_assignment_is_commented_out_code_not_a_directive():
     diags = _standalone("todos = []")
     assert len(diags) == 1
     assert "Commented-out code" in diags[0].message
 
 
-@pytest.mark.xfail(strict=True, reason="'noqa' directive prefix lacks a word boundary, so commented-out `noqant = fetch()` is silently suppressed")
 def test_identifier_starting_with_noqa_is_not_a_directive():
     diags = _standalone("noqant = fetch()")
     assert len(diags) == 1
