@@ -58,20 +58,26 @@ class PreferStructOverNamedtuple(Rule):
         tree = parse_or_none(path, source)
         if tree is None:
             return []
-        collections_names = _collections_bindings(tree)
-        diags: list[Diagnostic] = []
+        collections_names = {"collections"}
+        candidates: list[tuple[ast.AST, str | None]] = []
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module == "collections":
-                diags.extend(self._diag(path, node) for alias in node.names if alias.name == "namedtuple")
+            if isinstance(node, ast.ImportFrom):
+                if node.module == "collections":
+                    candidates.extend((node, None) for alias in node.names if alias.name == "namedtuple")
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "collections":
+                        collections_names.add(alias.asname or "collections")
             elif (
                 isinstance(node, ast.Call)
                 and isinstance(node.func, ast.Attribute)
                 and node.func.attr == "namedtuple"
                 and isinstance(node.func.value, ast.Name)
-                and node.func.value.id in collections_names
             ):
-                diags.append(self._diag(path, node))
-        return diags
+                candidates.append((node, node.func.value.id))
+        return [
+            self._diag(path, node) for node, name in candidates if name is None or name in collections_names
+        ]
 
     def _diag(self, path: Path, node: ast.AST) -> Diagnostic:
         return Diagnostic(
@@ -81,14 +87,3 @@ class PreferStructOverNamedtuple(Rule):
             code=self.code,
             message=_MSG,
         )
-
-
-def _collections_bindings(tree: ast.AST) -> set[str]:
-    """Local names bound to the `collections` module, honouring `import ... as`."""
-    names = {"collections"}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name == "collections":
-                    names.add(alias.asname or "collections")
-    return names
