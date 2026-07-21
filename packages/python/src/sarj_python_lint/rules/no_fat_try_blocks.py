@@ -53,31 +53,90 @@ References:
 from __future__ import annotations
 
 import ast
+import enum
 from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 
 _MAX_TRY_BODY_STATEMENTS = 3
 
+_NESTED_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+
+
+def _walk_same_scope(node: ast.AST) -> Iterator[ast.AST]:
+    """Like `ast.walk`, but does not descend into the *bodies* of nested
+    `def` / `async def` / `lambda`. Those bodies do not run when the enclosing
+    `try` executes, so calls inside them must not count as throwing. Decorators
+    and default-argument expressions still run at definition time, so their
+    fields are walked normally."""
+    stack: list[ast.AST] = [node]
+    while stack:
+        current = stack.pop()
+        yield current
+        for field, value in ast.iter_fields(current):
+            if isinstance(current, _NESTED_SCOPES) and field == "body":
+                continue
+            items = value if isinstance(value, list) else [value]
+            stack.extend(item for item in items if isinstance(item, ast.AST))
+
 
 def _can_raise(stmt: ast.stmt) -> bool:
-    """True if the statement's subtree contains a call or `await` — i.e. it can
-    plausibly raise. Pure assignments / rebinds with no call do not count."""
-    return any(isinstance(n, (ast.Call, ast.Await)) for n in ast.walk(stmt))
+    """True if the statement can plausibly raise when the `try` runs — i.e. its
+    same-scope subtree contains a call or `await`. Pure assignments / rebinds and
+    inert `def` / `lambda` definitions (whose bodies never execute here) are
+    free."""
+    return any(isinstance(n, (ast.Call, ast.Await)) for n in _walk_same_scope(stmt))
+
+
+class _Exit(enum.Enum):
+    RAISE = enum.auto()
+    SWALLOW = enum.auto()
+    FALL = enum.auto()
+
+
+def _stmt_exits(stmt: ast.stmt) -> set[_Exit]:
+    """The set of ways control can leave `stmt`: propagate an exception
+    (`RAISE`), diverge without raising via return/break/continue (`SWALLOW`), or
+    complete normally and fall through to the next statement (`FALL`)."""
+    match stmt:
+        case ast.Raise():
+            return {_Exit.RAISE}
+        case ast.Return() | ast.Break() | ast.Continue():
+            return {_Exit.SWALLOW}
+        case ast.If(body=body, orelse=orelse):
+            else_exits = _body_exits(orelse) if orelse else {_Exit.FALL}
+            return _body_exits(body) | else_exits
+        case ast.With(body=body) | ast.AsyncWith(body=body):
+            return _body_exits(body)
+        case _:
+            return {_Exit.FALL}
+
+
+def _body_exits(stmts: list[ast.stmt]) -> set[_Exit]:
+    exits: set[_Exit] = set()
+    for stmt in stmts:
+        stmt_exits = _stmt_exits(stmt)
+        exits |= stmt_exits - {_Exit.FALL}
+        if _Exit.FALL not in stmt_exits:
+            return exits
+    exits.add(_Exit.FALL)
+    return exits
 
 
 def _all_handlers_reraise(handlers: list[ast.ExceptHandler]) -> bool:
-    """True if every `except` handler's body ends in a `raise`. Such a `try` is
-    doing uniform error-context/metric wrapping, not swallowing — its width is
-    intentional. A handler that returns / continues / passes / logs-without-raise
-    is swallowing and makes this False, so the block still fires."""
+    """True if every `except` handler is guaranteed to re-raise on all paths —
+    the block is uniform error-context/metric wrapping, not swallowing, so its
+    width is intentional. A handler with any path that returns / continues /
+    passes / falls through (including a conditional early return before a tail
+    `raise`) is swallowing and makes this False, so the block still fires."""
     return bool(handlers) and all(
-        bool(h.body) and isinstance(h.body[-1], ast.Raise) for h in handlers
+        _body_exits(h.body) == {_Exit.RAISE} for h in handlers
     )
 
 

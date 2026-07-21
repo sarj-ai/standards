@@ -699,11 +699,6 @@ except ValueError:
     assert len(_check(src)) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: handler tail is `raise` but the `return` branch swallows first — "
-    "only the tail is inspected, so this swallowing handler is wrongly exempted.",
-)
 def test_conditional_return_before_tail_reraise_should_still_fire():
     src = """
 def outer():
@@ -720,11 +715,6 @@ def outer():
     assert len(_check(src)) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: both if/else branches re-raise so nothing is swallowed, but the "
-    "handler tail is the `If` (not a `Raise`) so the exemption misses it and fires.",
-)
 def test_if_else_both_branches_reraise_should_be_exempt():
     src = """
 try:
@@ -741,11 +731,6 @@ except ValueError:
     assert _check(src) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: nested `def` bodies never execute at try-time, but ast.walk finds "
-    "their inner Calls so pure function definitions are counted as throwing.",
-)
 def test_nested_def_bodies_do_not_execute_so_should_be_clean():
     src = """
 try:
@@ -759,11 +744,6 @@ except ValueError:
     assert _check(src) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: lambda assignments are pure rebinds — the lambda body never runs at "
-    "try-time, but ast.walk counts the Call inside the lambda as throwing.",
-)
 def test_lambda_bodies_do_not_execute_so_should_be_clean():
     src = """
 try:
@@ -777,11 +757,6 @@ except ValueError:
     assert _check(src) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: `with ctx(): raise` always re-raises (no swallow path) but the tail "
-    "is the `With`, not a `Raise`, so the wrapping handler is wrongly flagged.",
-)
 def test_with_wrapped_reraise_handler_should_be_exempt():
     src = """
 try:
