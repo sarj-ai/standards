@@ -375,15 +375,10 @@ def f(frames):
 
 
 # --------------------------------------------------------------------------- #
-# Known gaps / suspected bugs — documented via xfail so the suite stays green #
-# while surfacing behaviour that likely warrants a rule fix.                  #
+# Previously known gaps — now fixed and asserted directly.                     #
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.xfail(
-    reason="async for is not treated as a loop; same O(n^2) concat goes undetected",
-    strict=False,
-)
 def test_flags_string_concat_in_async_for():
     src = """
 async def f(stream):
@@ -395,10 +390,6 @@ async def f(stream):
     assert _count(src) == 1
 
 
-@pytest.mark.xfail(
-    reason="`s = s + x` (plain assign) is the same antipattern but only `+=` is handled",
-    strict=False,
-)
 def test_flags_plain_reassignment_concat_in_loop():
     src = """
 def f(items):
@@ -410,10 +401,6 @@ def f(items):
     assert _count(src) == 1
 
 
-@pytest.mark.xfail(
-    reason="concat inside a def nested in a loop runs per-call, not per-iteration",
-    strict=False,
-)
 def test_ignores_concat_in_function_nested_in_loop():
     src = """
 def f(items):
@@ -588,15 +575,10 @@ def f(items):
 
 
 # --------------------------------------------------------------------------- #
-# New known gaps / suspected bugs — string-valued RHS shapes the heuristic     #
-# fails to recognise, so the O(n^2) concat goes undetected.                    #
+# Previously undetected string-valued RHS shapes — now recognised.             #
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.xfail(
-    reason="ternary IfExp RHS with two string branches is not recognised as string-ish",
-    strict=True,
-)
 def test_flags_ternary_string_rhs_in_loop():
     src = """
 def f(items, c):
@@ -608,10 +590,6 @@ def f(items, c):
     assert _count(src) == 1
 
 
-@pytest.mark.xfail(
-    reason="`%`-formatting RHS is a Mod BinOp; only Add BinOps are treated as string-ish",
-    strict=True,
-)
 def test_flags_percent_format_string_rhs_in_loop():
     src = """
 def f(items):
@@ -623,10 +601,6 @@ def f(items):
     assert _count(src) == 1
 
 
-@pytest.mark.xfail(
-    reason="walrus NamedExpr wrapping a string RHS is not unwrapped by the heuristic",
-    strict=True,
-)
 def test_flags_walrus_wrapped_string_rhs_in_loop():
     src = """
 def f(items):
