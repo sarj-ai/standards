@@ -31,6 +31,16 @@ _TERMINALS = (ast.Return, ast.Raise, ast.Break, ast.Continue)
 _BLOCK_FIELDS = ("body", "orelse", "finalbody")
 
 
+def _is_generator_marker(stmt: ast.stmt) -> bool:
+    # `yield` / `yield from` after a terminal is the idiom that forces a
+    # function to be a generator even when the yielding path is unreachable
+    # (e.g. `return` then `yield` makes an async generator). Removing it would
+    # change the function's type, so it is load-bearing, not dead code.
+    return isinstance(stmt, ast.Expr) and isinstance(
+        stmt.value, (ast.Yield, ast.YieldFrom)
+    )
+
+
 class NoUnreachableAfterTerminal(Rule):
     """Code following a `return`/`raise`/`break`/`continue` is unreachable."""
 
@@ -58,6 +68,8 @@ class NoUnreachableAfterTerminal(Rule):
                 for i in range(len(stmts) - 1):
                     if isinstance(stmts[i], _TERMINALS):
                         unreachable = stmts[i + 1]
+                        if _is_generator_marker(unreachable):
+                            break
                         diags.append(
                             Diagnostic(
                                 path=path,

@@ -340,6 +340,57 @@ def f(x):
 
 
 # --------------------------------------------------------------------------- #
+# False-positive guard: `yield` / `yield from` after a terminal is the idiom    #
+# that forces a function to be a generator even when the path is unreachable.   #
+# It is load-bearing (removing it changes the function type) -> NOT flagged.    #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("label", "src"),
+    [
+        (
+            "async-gen-return-then-yield",
+            "async def _gen():\n    return\n    yield\n",
+        ),
+        (
+            "sync-gen-return-then-yield",
+            "def _gen():\n    return\n    yield\n",
+        ),
+        (
+            "return-then-yield-value",
+            "def _gen():\n    return\n    yield 1\n",
+        ),
+        (
+            "return-then-yield-from",
+            "def _gen():\n    return\n    yield from ()\n",
+        ),
+        (
+            "raise-then-yield",
+            "def _gen():\n    raise RuntimeError()\n    yield\n",
+        ),
+    ],
+)
+def test_yield_after_terminal_is_not_flagged(label: str, src: str):
+    assert _check(src) == [], label
+
+
+def test_non_yield_after_terminal_still_flagged_regression():
+    # Regression: only the yield case is exempt; a plain statement after a
+    # terminal in a generator-shaped function still fires.
+    src = """
+def _gen():
+    return
+    dead()
+    yield
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].code == "SARJ010"
+    assert diags[0].line == 4  # points at `dead()`, not the later `yield`
+
+
+# --------------------------------------------------------------------------- #
 # Edge: comments, docstrings, ellipsis, empty, whitespace, syntax errors.      #
 # --------------------------------------------------------------------------- #
 
