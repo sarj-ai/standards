@@ -82,6 +82,8 @@ class PreferClassRow(Rule):
 
 def _factory_name(node: ast.expr) -> str | None:
     """Resolve a `row_factory=` value to its callable name (`dict_row`, …)."""
+    if isinstance(node, ast.NamedExpr):
+        node = node.value
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Attribute):

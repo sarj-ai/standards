@@ -501,6 +501,5 @@ def test_col_points_to_start_of_dotted_chain():
 # --------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="FN: NamedExpr (walrus) wrapping dict_row is not unwrapped")
 def test_walrus_wrapped_dict_row_should_fire():
     assert len(_check("conn.cursor(row_factory=(rf := dict_row))\n")) == 1
