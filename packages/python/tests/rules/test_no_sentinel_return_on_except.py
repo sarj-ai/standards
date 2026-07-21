@@ -113,7 +113,9 @@ def f():
     assert len(_check(src)) == 1
 
 
-def test_flags_sentinel_as_final_stmt_after_logging():
+def test_logged_sentinel_after_logging_is_exempt():
+    # Logging the exception before returning the sentinel makes the error
+    # observable, so it is the handled result, not a silent swallow.
     src = """
 def f():
     try:
@@ -122,7 +124,7 @@ def f():
         logger.warning("oops")
         return None
 """
-    assert len(_check(src)) == 1
+    assert _check(src) == []
 
 
 def test_diagnostic_points_at_return_line_and_col():
@@ -474,20 +476,21 @@ def f():
 @pytest.mark.parametrize(
     "prelude",
     [
-        'logger.warning("oops")',
-        'logger.exception("boom")',
         "cleanup()",
         "x = compute()",
+        'print("oops")',
+        "str(e)",
     ],
 )
-def test_flags_sentinel_after_non_raising_prelude(prelude: str):
-    # Logging / cleanup before the sentinel return does NOT exempt the swallow —
-    # only an actual `raise` does.
+def test_flags_sentinel_after_non_logging_prelude(prelude: str):
+    # Cleanup, assignment, print, or a bare read of the exception before the
+    # sentinel return does NOT exempt the swallow — only a `raise` or an actual
+    # logging call does.
     src = f"""
 def f():
     try:
         risky()
-    except Exception:
+    except Exception as e:
         {prelude}
         return None
 """
@@ -553,11 +556,10 @@ def f():
     assert [d.line for d in _check(src)] == [6, 8, 10]
 
 
-def test_nested_handlers_actual_walk_order():
-    # Pins the current ast.walk (breadth-first) emission: the OUTER handler's
-    # return (line 10) is reported before the INNER handler's (line 9), so the
-    # sequence is not ascending by line. The strict-xfail below documents that
-    # this diverges from the (line, col) sort every other rule applies.
+def test_nested_handlers_sorted_by_position():
+    # Diagnostics are sorted by (line, col): the INNER handler's return (line 9)
+    # is reported before the OUTER handler's (line 10), matching the sort every
+    # other rule in the package applies.
     src = """
 def f():
     try:
@@ -570,14 +572,9 @@ def f():
         return None
 """
     positions = [(d.line, d.col) for d in _check(src)]
-    assert positions == [(10, 9), (9, 13)]
+    assert positions == [(9, 13), (10, 9)]
 
 
-@pytest.mark.xfail(
-    reason="SARJ009 appends diagnostics in ast.walk order and never sorts by "
-    "(line, col); every other rule in the package sorts. See report.",
-    strict=True,
-)
 def test_nested_handlers_should_be_sorted_by_position():
     src = """
 def f():
@@ -838,5 +835,148 @@ def outer():
         except Exception:
             return None
     return inner
+"""
+    assert len(_check(src)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Logged-sentinel exemption: a logged error is observable, not a silent swallow.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "log_call",
+    [
+        'logger.debug("x")',
+        'logger.info("x")',
+        'logger.warning("x")',
+        'logger.warn("x")',
+        'logger.error("x")',
+        'logger.exception("x")',
+        'logger.critical("x")',
+        'logger.fatal("x")',
+        'log.info("x")',
+        'log.error("x")',
+        'logging.warning("x")',
+        'logging.exception("x")',
+        'self.logger.error("x")',
+        '_logger.warning("x")',
+        'logger.error("failed", exc_info=e)',
+    ],
+)
+def test_logged_sentinel_is_exempt_across_levels_and_receivers(log_call: str):
+    src = f"""
+def f():
+    try:
+        risky()
+    except Exception as e:
+        {log_call}
+        return None
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize("ret", ["None", "False", "[]", "{}", "()", "''", "set()"])
+def test_logged_sentinel_exempt_for_every_sentinel_shape(ret: str):
+    src = f"""
+def f():
+    try:
+        risky()
+    except Exception:
+        logger.warning("oops")
+        return {ret}
+"""
+    assert _check(src) == []
+
+
+def test_logging_in_nested_branch_before_return_is_exempt():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception as e:
+        if verbose:
+            logger.error("boom", exc_info=e)
+        return None
+"""
+    assert _check(src) == []
+
+
+# --- must STILL fire: silent swallows without logging ---
+
+
+def test_silent_sentinel_no_logging_still_fires():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_print_is_not_logging_still_fires():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        print("oops")
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_bare_exception_read_is_not_logging_still_fires():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception as e:
+        str(e)
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_non_log_receiver_with_log_method_name_still_fires():
+    # `metrics.error(...)` has a logging-style method name but the receiver is
+    # not a logger, so it is not treated as logging.
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        metrics.error("count")
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_log_receiver_with_non_log_method_still_fires():
+    # `logger.emit(...)` is on a logger but `emit` is not a recognized level.
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        logger.emit("x")
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_logging_only_inside_nested_def_still_fires():
+    # A logging call inside a nested def does not run before the return, so the
+    # handler still silently swallows.
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        def _later():
+            logger.error("x")
+        return None
 """
     assert len(_check(src)) == 1

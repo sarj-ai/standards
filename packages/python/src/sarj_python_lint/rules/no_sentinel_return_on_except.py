@@ -7,6 +7,12 @@ hides bugs and corrupts idempotency decisions.
 
 Prefer re-raising, or returning a typed result (e.g. a Result/Optional that the
 caller must explicitly handle).
+
+A handler that logs the exception (`logger.*` / `log.*` / `logging.*`) before
+returning the sentinel is exempt: the error is observable, so the sentinel is the
+handled result the caller expects rather than a silent swallow. The rule's value
+is catching *silent* swallows — a handler that returns a sentinel with no logging
+still fires.
 """
 
 from __future__ import annotations
@@ -48,6 +54,8 @@ class NoSentinelReturnOnExcept(Rule):
                 continue
             if _handler_reraises(node):
                 continue
+            if _handler_logs_before_return(node):
+                continue
             diags.append(
                 Diagnostic(
                     path=path,
@@ -61,6 +69,7 @@ class NoSentinelReturnOnExcept(Rule):
                     ),
                 )
             )
+        diags.sort(key=lambda d: (d.line, d.col))
         return diags
 
 
@@ -88,6 +97,60 @@ def _is_sentinel(value: ast.expr) -> bool:
         func = value.func
         return isinstance(func, ast.Name) and func.id == "set" and not value.args and not value.keywords
     return False
+
+
+_LOG_METHODS: frozenset[str] = frozenset(
+    {
+        "debug",
+        "info",
+        "warning",
+        "warn",
+        "error",
+        "exception",
+        "critical",
+        "fatal",
+    }
+)
+
+
+def _handler_logs_before_return(handler: ast.ExceptHandler) -> bool:
+    """True if the handler logs the exception before its final sentinel return.
+
+    Only statements preceding the final `return` are considered (that return is
+    the caller's handled result). Logging inside a nested def/lambda doesn't run
+    before the return, so those boundaries are not crossed.
+    """
+    return any(_contains_logging_call(stmt) for stmt in handler.body[:-1])
+
+
+def _contains_logging_call(node: ast.AST) -> bool:
+    """Walk `node` for a logging call, not crossing nested def/lambda boundaries."""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+        return False
+    if _is_logging_call(node):
+        return True
+    return any(_contains_logging_call(child) for child in ast.iter_child_nodes(node))
+
+
+def _is_logging_call(node: ast.AST) -> bool:
+    """True for `<recv>.<level>(...)` where recv name contains "log" and level is
+    a standard logging method (`logger.warning`, `log.info`, `logging.error`).
+
+    `print(...)` and bare reads of the exception are not logging.
+    """
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    if not isinstance(func, ast.Attribute) or func.attr not in _LOG_METHODS:
+        return False
+    receiver = func.value
+    if isinstance(receiver, ast.Name):
+        name = receiver.id
+    elif isinstance(receiver, ast.Attribute):
+        name = receiver.attr
+    else:
+        return False
+    return "log" in name.lower()
 
 
 def _handler_reraises(handler: ast.ExceptHandler) -> bool:
