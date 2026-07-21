@@ -331,18 +331,15 @@ def test_clickhouse_flavored_query_is_exempt(source: str) -> None:
     "source",
     [
         pytest.param(
-            "from google.cloud import bigquery\n"
-            'q = "SELECT status, COUNT(*) FROM call GROUP BY status"\n',
+            'from google.cloud import bigquery\nq = "SELECT status, COUNT(*) FROM call GROUP BY status"\n',
             id="from-import",
         ),
         pytest.param(
-            "from google.cloud.bigquery import Client\n"
-            'q = "SELECT status, COUNT(*) FROM call GROUP BY status"\n',
+            'from google.cloud.bigquery import Client\nq = "SELECT status, COUNT(*) FROM call GROUP BY status"\n',
             id="from-submodule",
         ),
         pytest.param(
-            "import google.cloud.bigquery\n"
-            'q = "SELECT DISTINCT org_id FROM call"\n',
+            'import google.cloud.bigquery\nq = "SELECT DISTINCT org_id FROM call"\n',
             id="import-dotted",
         ),
     ],
@@ -379,7 +376,7 @@ def test_bigquery_file_is_exempt(source: str) -> None:
             id="safe-cast",
         ),
         pytest.param(
-            'q = "SELECT PARSE_TIMESTAMP(\'%Y\', y), COUNT(*) FROM call GROUP BY y"\n',
+            "q = \"SELECT PARSE_TIMESTAMP('%Y', y), COUNT(*) FROM call GROUP BY y\"\n",
             id="parse-timestamp",
         ),
         pytest.param(
@@ -516,7 +513,7 @@ def test_diagnostic_metadata() -> None:
     "source",
     [
         pytest.param(
-            'q = "SELECT DATE_TRUNC(\'day\', ts), COUNT(*) FROM call GROUP BY 1"\n',
+            "q = \"SELECT DATE_TRUNC('day', ts), COUNT(*) FROM call GROUP BY 1\"\n",
             id="date-trunc-excluded-from-bq-signals",
         ),
         pytest.param(
@@ -585,8 +582,5 @@ def test_backtick_inside_string_value_wrongly_exempts_postgres_query() -> None:
 
 
 def test_bigquery_import_file_with_real_postgres_query_is_over_broad() -> None:
-    src = (
-        "from google.cloud import bigquery\n"
-        'q = "SELECT COUNT(*) FROM call WHERE org_id = %s GROUP BY status"\n'
-    )
+    src = 'from google.cloud import bigquery\nq = "SELECT COUNT(*) FROM call WHERE org_id = %s GROUP BY status"\n'
     assert len(_check(src)) == 1

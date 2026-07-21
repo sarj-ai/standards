@@ -147,9 +147,7 @@ class PreferStrEnum(Rule):
         for stmt in cls.body:
             if isinstance(stmt, (ast.Assign, ast.AnnAssign)):
                 target = (
-                    stmt.targets[0]
-                    if isinstance(stmt, ast.Assign) and stmt.targets
-                    else getattr(stmt, "target", None)
+                    stmt.targets[0] if isinstance(stmt, ast.Assign) and stmt.targets else getattr(stmt, "target", None)
                 )
                 if not isinstance(target, ast.Name):
                     continue
@@ -231,9 +229,7 @@ def _accumulate_match(clusters: dict[str, _ClusterEntry], node: ast.Match) -> No
     _merge_cluster(clusters, key, literals, (node.lineno, node.col_offset + 1))
 
 
-def _merge_cluster(
-    clusters: dict[str, _ClusterEntry], key: str, literals: list[str], pos: tuple[int, int]
-) -> None:
+def _merge_cluster(clusters: dict[str, _ClusterEntry], key: str, literals: list[str], pos: tuple[int, int]) -> None:
     all_tokens = all(_LOWER_TOKEN_RE.fullmatch(lit) for lit in literals)
     entry = clusters.get(key)
     if entry is not None:

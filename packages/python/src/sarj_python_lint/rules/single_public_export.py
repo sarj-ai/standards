@@ -46,26 +46,28 @@ _SKIPPED_FILENAMES = frozenset({"__init__.py", "conftest.py"})
 # every entry is a name that, standing alone as a module, tells a reader nothing
 # about what lives inside. Idiomatic domain stems (pagination, retry, warmup,
 # client, service, ...) are deliberately excluded.
-_JUNK_DRAWER_STEMS = frozenset({
-    "base",
-    "common",
-    "constant",
-    "constants",
-    "core",
-    "enum",
-    "enums",
-    "helper",
-    "helpers",
-    "misc",
-    "model",
-    "models",
-    "shared",
-    "stuff",
-    "type",
-    "types",
-    "util",
-    "utils",
-})
+_JUNK_DRAWER_STEMS = frozenset(
+    {
+        "base",
+        "common",
+        "constant",
+        "constants",
+        "core",
+        "enum",
+        "enums",
+        "helper",
+        "helpers",
+        "misc",
+        "model",
+        "models",
+        "shared",
+        "stuff",
+        "type",
+        "types",
+        "util",
+        "utils",
+    }
+)
 
 # Multi-word acronyms whose community-accepted snake_case is a single token
 # rather than the letter-by-letter split (`OAuth` -> `oauth`, not `o_auth`).

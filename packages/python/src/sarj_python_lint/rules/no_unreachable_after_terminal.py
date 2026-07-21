@@ -39,12 +39,7 @@ def _is_generator_marker(stmt: ast.stmt) -> bool:
     # assignment forms (`x = yield`, `x += yield from ()`) are equally
     # load-bearing generator markers, so match them too.
     match stmt:
-        case (
-            ast.Expr(value=value)
-            | ast.Assign(value=value)
-            | ast.AugAssign(value=value)
-            | ast.AnnAssign(value=value)
-        ):
+        case ast.Expr(value=value) | ast.Assign(value=value) | ast.AugAssign(value=value) | ast.AnnAssign(value=value):
             return isinstance(value, (ast.Yield, ast.YieldFrom))
         case _:
             return False

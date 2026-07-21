@@ -135,9 +135,7 @@ def _all_handlers_reraise(handlers: list[ast.ExceptHandler]) -> bool:
     width is intentional. A handler with any path that returns / continues /
     passes / falls through (including a conditional early return before a tail
     `raise`) is swallowing and makes this False, so the block still fires."""
-    return bool(handlers) and all(
-        _body_exits(h.body) == {_Exit.RAISE} for h in handlers
-    )
+    return bool(handlers) and all(_body_exits(h.body) == {_Exit.RAISE} for h in handlers)
 
 
 class NoFatTryBlocks(Rule):

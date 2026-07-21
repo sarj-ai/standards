@@ -125,9 +125,7 @@ class NoRepeatedStringLiteral(Rule):
         for value, nodes in occurrences.items():
             if len(nodes) < _MIN_OCCURRENCES:
                 continue
-            function_scopes = {
-                scope for n in nodes if (scope := scope_of.get(id(n), _MODULE_SCOPE)) != _MODULE_SCOPE
-            }
+            function_scopes = {scope for n in nodes if (scope := scope_of.get(id(n), _MODULE_SCOPE)) != _MODULE_SCOPE}
             if len(function_scopes) < _MIN_DISTINCT_SCOPES:
                 continue
             nodes.sort(key=lambda n: (n.lineno, n.col_offset))

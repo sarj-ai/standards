@@ -495,7 +495,10 @@ def test_flags_valid_token_credential():
     assert _count(src) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="Literal-sentinel exemption doesn't follow a Name bound to a str literal one line up — false positive on equivalent code")
+@pytest.mark.xfail(
+    strict=True,
+    reason="Literal-sentinel exemption doesn't follow a Name bound to a str literal one line up — false positive on equivalent code",
+)
 def test_allows_secret_vs_name_bound_to_literal():
     src = 'def f(token):\n    expected = "PLACEHOLDER"\n    return token == expected\n'
     assert _check(src) == []

@@ -363,7 +363,9 @@ def test_full_only_fill_char_banner_boundary_three_vs_four(ch: str):
     assert len(_standalone(ch * 4)) == 1, ch
 
 
-@pytest.mark.parametrize("body", ["wait ---- for it", "issue #### tracked", "rating **** stars", "range ~~~~ approx", "a ==== b"])
+@pytest.mark.parametrize(
+    "body", ["wait ---- for it", "issue #### tracked", "rating **** stars", "range ~~~~ approx", "a ==== b"]
+)
 def test_four_run_of_rule_char_inside_prose_is_flagged(body: str):
     diags = _standalone(body)
     assert len(diags) == 1

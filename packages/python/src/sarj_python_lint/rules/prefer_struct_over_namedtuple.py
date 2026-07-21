@@ -75,9 +75,7 @@ class PreferStructOverNamedtuple(Rule):
                 and isinstance(node.func.value, ast.Name)
             ):
                 candidates.append((node, node.func.value.id))
-        return [
-            self._diag(path, node) for node, name in candidates if name is None or name in collections_names
-        ]
+        return [self._diag(path, node) for node, name in candidates if name is None or name in collections_names]
 
     def _diag(self, path: Path, node: ast.AST) -> Diagnostic:
         return Diagnostic(
