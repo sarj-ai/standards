@@ -36,12 +36,16 @@ import ast
 import re
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
     from pathlib import Path
+
+
+#: Per-variable comparison-cluster accumulator:
+#: (first line, first col, all-lowercase-token, distinct literals).
+type _ClusterEntry = tuple[int, int, bool, set[str]]
 
 
 #: Field / variable name tokens that strongly suggest a closed enumeration.
@@ -74,9 +78,6 @@ _LOWER_TOKEN_RE = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
 #: How many distinct literals a variable must be compared against to fire.
 _MIN_CLUSTER_SIZE = 2
 
-#: Scope boundaries we do not descend into when attributing comparisons to a function.
-_NESTED_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)
-
 
 class PreferStrEnum(Rule):
     """Choice-shaped str field or string-literal comparison cluster — prefer StrEnum."""
@@ -87,88 +88,40 @@ class PreferStrEnum(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         diags: list[Diagnostic] = []
-        diags.extend(self._check_class_fields(path, tree))
-        if not _is_test_path(path):
-            diags.extend(self._check_comparison_clusters(path, tree))
-        diags.sort(key=lambda d: (d.line, d.col))
-        return diags
-
-    def _check_class_fields(self, path: Path, tree: ast.AST) -> list[Diagnostic]:
-        diags: list[Diagnostic] = []
-        for cls in ast.walk(tree):
-            if not isinstance(cls, ast.ClassDef):
-                continue
-            # Skip enum classes themselves
-            if any(_base_name(b) in {"Enum", "StrEnum", "IntEnum"} for b in cls.bases):
-                continue
-            # Find string-list class attrs that look like a choices set.
-            choices_attrs: set[str] = set()
-            for stmt in cls.body:
-                if isinstance(stmt, (ast.Assign, ast.AnnAssign)):
-                    target = (
-                        stmt.targets[0]
-                        if isinstance(stmt, ast.Assign) and stmt.targets
-                        else getattr(stmt, "target", None)
-                    )
-                    if not isinstance(target, ast.Name):
-                        continue
-                    val = getattr(stmt, "value", None)
-                    if _is_string_collection(val) and target.id.lower() in CHOICES_ATTR_NAMES:
-                        choices_attrs.add(target.id)
-            # Flag bare-str AnnAssigns
-            for stmt in cls.body:
-                if not isinstance(stmt, ast.AnnAssign):
-                    continue
-                if not isinstance(stmt.target, ast.Name):
-                    continue
-                ann_text = ast.unparse(stmt.annotation) if stmt.annotation else ""
-                if ann_text.strip() != "str":
-                    continue  # Literal[...] etc. is fine per user L234
-                # Heuristic: there's a nearby choices list OR the field name
-                # is (or ends with) a choice-like token.
-                name = stmt.target.id
-                if choices_attrs or _is_choice_like_name(name):
-                    diags.append(
-                        Diagnostic(
-                            path=path,
-                            line=stmt.lineno,
-                            col=stmt.col_offset + 1,
-                            code=self.code,
-                            message=(
-                                f"`{name}: str` looks like a choice field — "
-                                "prefer `StrEnum`. (`Literal[...]` is also acceptable.)"
-                            ),
-                        )
-                    )
-        return diags
-
-    def _check_comparison_clusters(self, path: Path, tree: ast.AST) -> list[Diagnostic]:
-        diags: list[Diagnostic] = []
-        for func in ast.walk(tree):
-            if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            # key -> (first line, first col, all-lowercase-token, distinct literals)
-            clusters: dict[str, tuple[int, int, bool, set[str]]] = {}
-            for node in _walk_own_scope(func):
-                if not isinstance(node, ast.Compare):
-                    continue
-                extracted = _extract_compare(node)
-                if extracted is None:
-                    continue
-                key, literals = extracted
-                all_tokens = all(_LOWER_TOKEN_RE.fullmatch(lit) for lit in literals)
-                pos = (node.lineno, node.col_offset + 1)
-                if key in clusters:
-                    line, col, ok, seen = clusters[key]
-                    line, col = min((line, col), pos)
-                    clusters[key] = (line, col, ok and all_tokens, seen | set(literals))
+        check_clusters = not _is_test_path(path)
+        # One DFS handles both triggers. `active` is the comparison-cluster map
+        # of the nearest enclosing function, or None when comparisons must be
+        # ignored (module level, or inside a nested class/lambda body — matching
+        # the old `_walk_own_scope` scope boundaries).
+        all_clusters: list[dict[str, _ClusterEntry]] = []
+        stack: list[tuple[ast.AST, dict[str, _ClusterEntry] | None]] = [(tree, None)]
+        while stack:
+            node, active = stack.pop()
+            if isinstance(node, ast.ClassDef):
+                diags.extend(self._class_field_diags(path, node))
+                child_active: dict[str, _ClusterEntry] | None = None
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if check_clusters:
+                    child_active = {}
+                    all_clusters.append(child_active)
                 else:
-                    clusters[key] = (*pos, all_tokens, set(literals))
+                    child_active = None
+            elif isinstance(node, ast.Lambda):
+                child_active = None
+            else:
+                child_active = active
+                if active is not None:
+                    if isinstance(node, ast.Compare):
+                        _accumulate_compare(active, node)
+                    elif isinstance(node, ast.Match):
+                        _accumulate_match(active, node)
+            stack.extend((child, child_active) for child in ast.iter_child_nodes(node))
+
+        for clusters in all_clusters:
             for key, (line, col, ok, literals) in clusters.items():
                 if not ok or len(literals) < _MIN_CLUSTER_SIZE:
                     continue
@@ -178,9 +131,51 @@ class PreferStrEnum(Rule):
                         line=line,
                         col=col,
                         code=self.code,
+                        message=(f"`{key}` is compared against a closed set of string literals — define a StrEnum"),
+                    )
+                )
+        diags.sort(key=lambda d: (d.line, d.col))
+        return diags
+
+    def _class_field_diags(self, path: Path, cls: ast.ClassDef) -> list[Diagnostic]:
+        diags: list[Diagnostic] = []
+        # Skip enum classes themselves
+        if any(_base_name(b) in {"Enum", "StrEnum", "IntEnum"} for b in cls.bases):
+            return diags
+        # Find string-list class attrs that look like a choices set.
+        choices_attrs: set[str] = set()
+        for stmt in cls.body:
+            if isinstance(stmt, (ast.Assign, ast.AnnAssign)):
+                target = (
+                    stmt.targets[0] if isinstance(stmt, ast.Assign) and stmt.targets else getattr(stmt, "target", None)
+                )
+                if not isinstance(target, ast.Name):
+                    continue
+                val = getattr(stmt, "value", None)
+                if _is_string_collection(val) and target.id.lower() in CHOICES_ATTR_NAMES:
+                    choices_attrs.add(target.id)
+        # Flag bare-str AnnAssigns
+        for stmt in cls.body:
+            if not isinstance(stmt, ast.AnnAssign):
+                continue
+            if not isinstance(stmt.target, ast.Name):
+                continue
+            ann_text = _annotation_text(stmt.annotation)
+            if ann_text.strip() != "str":
+                continue  # Literal[...] etc. is fine per user L234
+            # Heuristic: there's a nearby choices list OR the field name
+            # is (or ends with) a choice-like token.
+            name = stmt.target.id
+            if choices_attrs or _is_choice_like_name(name):
+                diags.append(
+                    Diagnostic(
+                        path=path,
+                        line=stmt.lineno,
+                        col=stmt.col_offset + 1,
+                        code=self.code,
                         message=(
-                            f"`{key}` is compared against a closed set of "
-                            "string literals — define a StrEnum"
+                            f"`{name}: str` looks like a choice field — "
+                            "prefer `StrEnum`. (`Literal[...]` is also acceptable.)"
                         ),
                     )
                 )
@@ -198,10 +193,7 @@ def _base_name(base: ast.AST) -> str | None:
 def _is_string_collection(node: ast.AST | None) -> bool:
     if not isinstance(node, (ast.List, ast.Tuple, ast.Set)):
         return False
-    return all(
-        isinstance(elt, ast.Constant) and isinstance(elt.value, str)
-        for elt in node.elts
-    )
+    return all(isinstance(elt, ast.Constant) and isinstance(elt.value, str) for elt in node.elts)
 
 
 def _is_choice_like_name(name: str) -> bool:
@@ -217,15 +209,57 @@ def _is_test_path(path: Path) -> bool:
     return "tests" in path.parts
 
 
-def _walk_own_scope(func: ast.AST) -> Iterator[ast.AST]:
-    """Yield descendants of `func` without descending into nested scopes."""
-    stack: list[ast.AST] = list(ast.iter_child_nodes(func))
-    while stack:
-        node = stack.pop()
-        if isinstance(node, _NESTED_SCOPES):
-            continue
-        yield node
-        stack.extend(ast.iter_child_nodes(node))
+def _accumulate_compare(clusters: dict[str, _ClusterEntry], node: ast.Compare) -> None:
+    extracted = _extract_compare(node)
+    if extracted is None:
+        return
+    key, literals = extracted
+    _merge_cluster(clusters, key, literals, (node.lineno, node.col_offset + 1))
+
+
+def _accumulate_match(clusters: dict[str, _ClusterEntry], node: ast.Match) -> None:
+    key = _ref_key(node.subject)
+    if key is None:
+        return
+    literals: list[str] = []
+    for case in node.cases:
+        literals.extend(_match_pattern_literals(case.pattern))
+    if not literals:
+        return
+    _merge_cluster(clusters, key, literals, (node.lineno, node.col_offset + 1))
+
+
+def _merge_cluster(clusters: dict[str, _ClusterEntry], key: str, literals: list[str], pos: tuple[int, int]) -> None:
+    all_tokens = all(_LOWER_TOKEN_RE.fullmatch(lit) for lit in literals)
+    entry = clusters.get(key)
+    if entry is not None:
+        line, col, ok, seen = entry
+        line, col = min((line, col), pos)
+        clusters[key] = (line, col, ok and all_tokens, seen | set(literals))
+    else:
+        clusters[key] = (*pos, all_tokens, set(literals))
+
+
+def _match_pattern_literals(pattern: ast.pattern) -> list[str]:
+    """String-constant literals from a `case` pattern (`MatchValue` / `MatchOr`)."""
+    if isinstance(pattern, ast.MatchValue):
+        value = _str_const(pattern.value)
+        return [value] if value is not None else []
+    if isinstance(pattern, ast.MatchOr):
+        literals: list[str] = []
+        for sub in pattern.patterns:
+            literals.extend(_match_pattern_literals(sub))
+        return literals
+    return []
+
+
+def _annotation_text(annotation: ast.expr | None) -> str:
+    """Unparsed annotation, unwrapping a stringized forward-ref (`x: "str"`)."""
+    if annotation is None:
+        return ""
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        return annotation.value
+    return ast.unparse(annotation)
 
 
 def _extract_compare(node: ast.Compare) -> tuple[str, list[str]] | None:

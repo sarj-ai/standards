@@ -19,7 +19,8 @@ import ast
 import re
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint._secret_names import _tokens, is_secret_name
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 from sarj_python_lint.rules._logging import is_logger_expr
 
 
@@ -28,29 +29,30 @@ if TYPE_CHECKING:
 
 
 # Logging method names (the `.attr` of the call's func).
-_LOG_METHODS = frozenset(
-    {"debug", "info", "warning", "warn", "error", "exception", "critical"}
-)
+_LOG_METHODS = frozenset({"debug", "info", "warning", "warn", "error", "exception", "critical"})
 
-# A keyword name leaks a secret if it CONTAINS a secret word (so `AuthToken`,
-# `api_key`, `userPassword` all match) UNLESS it also carries a redaction marker
-# (`token_prefix`, `password_hash`, `secret_masked`) — those are the intended
-# safe forms, not the raw value.
-_SECRET_WORD_RE = re.compile(
-    r"token|secret|password|passwd|api_?key|jwt|credential|authorization",
-    re.IGNORECASE,
-)
+# A redaction marker (`token_prefix`, `password_hash`, `secret_masked`,
+# `api_key_tag`) means the keyword carries a masked/derived value, not the raw
+# secret — the intended safe form.
 _REDACTION_RE = re.compile(
     r"prefix|suffix|redact|mask|hash|hint|_len|length",
     re.IGNORECASE,
 )
+
+# `tag` marks a redaction tag derived purely for logging
+# (`api_key_tag=_api_key_log_tag(api_key)`), but only as a WHOLE token — matched
+# as a substring it wrongly exempts raw env secrets like `staging_secret`
+# (`s·tag·ing`), which is a leak.
+_WHOLE_TOKEN_REDACTION_MARKERS = frozenset({"tag"})
 
 
 def _is_secret_keyword(name: str) -> bool:
     """True if the keyword name names a raw secret (not a redacted derivative)."""
     if _REDACTION_RE.search(name):
         return False
-    return _SECRET_WORD_RE.search(name) is not None
+    if any(tok in _WHOLE_TOKEN_REDACTION_MARKERS for tok in _tokens(name)):
+        return False
+    return is_secret_name(name)
 
 
 class NoSecretInLog(Rule):
@@ -62,9 +64,8 @@ class NoSecretInLog(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):

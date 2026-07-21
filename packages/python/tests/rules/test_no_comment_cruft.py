@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 from sarj_python_lint.rules.no_comment_cruft import NoCommentCruft
 
 
@@ -12,145 +14,438 @@ def _check(source: str) -> list[Diagnostic]:
     return NoCommentCruft().check(Path("<t>.py"), source)
 
 
-def test_flags_commented_out_statement():
-    src = """
-def f():
-    x = compute()
-    # return x + 1
-    return x
-"""
-    diags = _check(src)
+def _standalone(body: str) -> list[Diagnostic]:
+    """Wrap `body` as a lone own-line comment between two real code lines."""
+    return _check(f"x = 1\n# {body}\ny = 2\n")
+
+
+COMMENTED_OUT_CODE = [
+    "return x + 1",
+    "return x",
+    "import os",
+    "from foo import bar",
+    "yield item",
+    "await coro()",
+    "del foo",
+    "pass",
+    "break",
+    "continue",
+    "global counter",
+    "nonlocal state",
+    "print(result)",
+    "x = compute()",
+    "self.value = 42",
+    "obj.method(arg)",
+    "foo()",
+    "result += 1",
+    "count -= 1",
+    "scale *= 2",
+    "ratio /= 3",
+    "matches[key] = value",
+    "for row in rows:",
+    "if condition:",
+    "while True:",
+    "with open(f) as fh:",
+    "def helper():",
+    "class Foo:",
+    "async def go():",
+    "@decorator",
+    "@app.route('/x')",
+    "assert result == expected",
+    'raise ValueError("boom")',
+]
+
+
+@pytest.mark.parametrize("body", COMMENTED_OUT_CODE)
+def test_flags_commented_out_code(body: str):
+    diags = _standalone(body)
     assert len(diags) == 1
     assert "Commented-out code" in diags[0].message
 
 
-def test_flags_commented_out_block_header():
-    src = """
-# for row in rows:
-value = 1
-"""
-    assert len(_check(src)) == 1
+BANNERS = [
+    "====================",
+    "--------------------",
+    "####################",
+    "********************",
+    "~~~~~~~~~~~~~~~~~~~~",
+    "____________________",
+    "++++++++++++++++++++",
+    "....................",
+    "====",
+    "----",
+    "Section ============",
+    "helpers ------------",
+    "boundary ~~~~",
+    "region",
+    "region helpers",
+    "endregion",
+    "endregion helpers",
+    "use ---- sparingly",
+    "value = a **** b",
+]
 
 
-def test_flags_commented_out_import():
-    src = "# import os\nx = 1\n"
-    assert len(_check(src)) == 1
+@pytest.mark.parametrize("body", BANNERS)
+def test_flags_banner_or_region(body: str):
+    diags = _standalone(body)
+    assert len(diags) == 1
+    assert "Section-banner" in diags[0].message
 
 
-def test_flags_section_banner():
-    src = """
-x = 1
-# ============================
-y = 2
-"""
-    assert len(_check(src)) == 1
+LEGIT_PROSE = [
+    "assert this is true before we proceed",
+    "raise the question with the team first",
+    "return to this later when we refactor",
+    "import the concept of idempotency here",
+    "pass this along to the reviewer",
+    "break out of the pattern when stuck",
+    "continue reading below for context",
+    "yield better results over time",
+    "del old behavior noted here for us",
+    "global state matters for this cache",
+    "for clarity we inline the call here",
+    "if in doubt ask the team lead first",
+    "class of problems we deliberately avoid",
+    "with great power comes responsibility",
+    "try harder next time around",
+    "except when it rains outside",
+    "else the fallback path runs slowly",
+    "finally the invariant holds again",
+    "returns cached value when warm",
+    "importantly we cache here for speed",
+    "classifier config lives below this",
+    "forwards the request to upstream",
+    "withhold the retry until backoff ends",
+    "passes validation before persisting",
+    "deletes stale rows once nightly",
+    "printing happens elsewhere in code",
+    "retry because the upstream API is flaky",
+    "this must match the value in settings.py",
+    "ordering matters here for migration 042",
+    "do not change this because Clerk caches it",
+    "see incident PLATFORM-1XW for context",
+    "count: int = 0",
+    "value: dict[str, int] = {}",
+    "x == expected",
+    "a === b in the JS bridge, not ==",
+    "compare x == y for equality",
+    "use --- sparingly in prose",
+    "handles the try: header edge case",
+    "نتحقق من الرقم قبل الإرسال",
+]
 
 
-def test_flags_region_marker():
-    src = """
-x = 1
-# region helpers
-y = 2
-# endregion
-"""
-    assert len(_check(src)) == 2
+@pytest.mark.parametrize("body", LEGIT_PROSE)
+def test_ignores_legit_prose(body: str):
+    assert _standalone(body) == []
+
+
+DIRECTIVES = [
+    "type: ignore",
+    "type: ignore[assignment]",
+    "noqa",
+    "noqa: F401",
+    "sarj-noqa: SARJ016 — intentional",
+    "pragma: no cover",
+    "pragma: allowlist secret",
+    "pyright: ignore",
+    "mypy: ignore",
+    "fmt: off",
+    "fmt: on",
+    "isort: skip",
+    "ruff: noqa",
+    "pylint: disable=redefined-outer-name",
+    "flake8: noqa",
+    "nosec",
+    "nosemgrep",
+    "todo: revisit this soon",
+    "TODO@nmaswood: revisit",
+    "fixme: broken under load",
+    "hack: workaround for upstream bug",
+    "xxx: dangerous assumption here",
+    "-*- coding: utf-8 -*-",
+]
+
+
+@pytest.mark.parametrize("body", DIRECTIVES)
+def test_ignores_directive_comments(body: str):
+    assert _standalone(body) == []
+
+
+def test_header_keywords_without_body_are_not_code():
+    for body in ("try:", "except ValueError:", "else:", "elif cond:", "finally:"):
+        assert _standalone(body) == [], body
+
+
+def test_inline_trailing_comment_is_never_flagged():
+    assert _check("x = compute()  # return x + 1\n") == []
+    assert _check("y = 1  # ====================\n") == []
+    assert _check("z = 2  # region helpers\n") == []
+
+
+def test_hash_inside_string_is_not_a_comment():
+    assert _check('x = "# return y"\n') == []
+    assert _check("x = '# region helpers'\n") == []
+
+
+def test_hash_inside_multiline_string_is_not_a_comment():
+    assert _check('x = """\n# return y\n# ====\n"""\n') == []
+
+
+def test_docstring_is_not_a_comment():
+    assert _check('"""Module why: it does the thing for a reason."""\nx = 1\n') == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "",
+        "   \n\t\n",
+        "def (:\n",
+        'x = "unterminated\n',
+        "x = (\n",
+    ],
+)
+def test_empty_or_unparseable_source_returns_nothing(source: str):
+    assert _check(source) == []
+
+
+def test_reports_1based_line_and_1based_col_top_level():
+    diags = _check("# return x + 1\nv = 1\n")
+    assert len(diags) == 1
+    assert (diags[0].line, diags[0].col) == (1, 1)
+
+
+def test_reports_line_and_col_for_indented_comment():
+    diags = _check("def f():\n    # return x + 1\n    return f()\n")
+    assert len(diags) == 1
+    assert (diags[0].line, diags[0].col) == (2, 5)
+
+
+def test_diagnostic_carries_code_and_path():
+    diags = _check("# return x + 1\nv = 1\n")
+    assert diags[0].code == "SARJ016"
+    assert diags[0].path == Path("<t>.py")
+
+
+def test_multiple_violations_are_sorted_by_line():
+    src = "# region a\n# return b\n# ====\nx = 1\n"
+    diags = _check(src)
+    assert [d.line for d in diags] == [1, 2, 3]
+
+
+def test_flags_each_consecutive_commented_out_line():
+    src = "# return a\n# import os\n# obj.call()\nx = 1\n"
+    assert len(_check(src)) == 3
+
+
+def test_region_and_endregion_both_flag():
+    src = "x = 1\n# region helpers\ny = 2\n# endregion\nz = 3\n"
+    diags = _check(src)
+    assert len(diags) == 2
+    assert all("Section-banner" in d.message for d in diags)
+
+
+def test_box_drawing_run_is_not_a_banner():
+    assert _check("x = 1\n# ════════\ny = 2\n") == []
+
+
+def test_three_char_symbol_run_is_not_a_banner():
+    assert _standalone("split on --- here and === there") == []
 
 
 def test_flags_leading_file_header_preamble():
-    src = """# This module does a thing.
-# It was written a while ago.
-# Please be careful editing it.
-# Contact the team before changes.
-import os
-"""
+    src = "# alpha note here\n# beta note here\n# gamma note here\n# delta note here\nimport os\n"
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "preamble" in diags[0].message
+    assert (diags[0].line, diags[0].col) == (1, 1)
+
+
+def test_preamble_message_reports_line_count():
+    src = "# a1\n# b2\n# c3\n# d4\n# e5\nimport os\n"
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "(5 lines)" in diags[0].message
+
+
+def test_three_line_preamble_is_below_threshold():
+    src = "# alpha note\n# beta note\n# gamma note\nimport os\n"
+    assert _check(src) == []
+
+
+def test_short_leading_comment_is_allowed():
+    assert _check("# why this module exists at all\nimport os\n") == []
+
+
+def test_license_header_preamble_is_allowed():
+    src = (
+        "# Copyright 2023 LiveKit, Inc.\n"
+        "#\n"
+        '# Licensed under the Apache License, Version 2.0 (the "License");\n'
+        "# you may not use this file except in compliance with the License.\n"
+        "# See the License for the specific language governing permissions.\n"
+        "import os\n"
+    )
+    assert _check(src) == []
+
+
+def test_blank_line_breaks_the_preamble_run():
+    src = "# alpha\n# beta\n\n# gamma\n# delta\nimport os\n"
+    assert _check(src) == []
+
+
+def test_directive_line_breaks_the_preamble_run():
+    src = "# alpha\n# noqa: E501\n# gamma\n# delta\n# epsilon\nimport os\n"
+    assert _check(src) == []
+
+
+def test_shebang_is_skipped_but_preamble_still_counts_below_it():
+    src = "#!/usr/bin/env python\n# alpha\n# beta\n# gamma\n# delta\nimport os\n"
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "preamble" in diags[0].message
+    assert diags[0].line == 2
+
+
+def test_all_comment_file_with_no_code_flags_preamble():
+    src = "# alpha\n# beta\n# gamma\n# delta\n"
     diags = _check(src)
     assert len(diags) == 1
     assert "preamble" in diags[0].message
 
 
-def test_allows_license_header_preamble():
-    src = """# Copyright 2023 LiveKit, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# See the License for the specific language governing permissions.
-import os
-"""
+def test_midfile_comment_run_is_not_a_preamble():
+    src = "import os\n\nx = 1\n# alpha note\n# beta note\n# gamma note\n# delta note\ny = 2\n"
     assert _check(src) == []
 
 
-def test_allows_short_leading_comment():
-    src = """# why this exists
-import os
-"""
+def test_comment_run_after_module_docstring_is_not_a_preamble():
+    src = '"""Module docstring."""\n# alpha\n# beta\n# gamma\n# delta\nx = 1\n'
     assert _check(src) == []
 
 
-def test_allows_assert_raise_prose():
-    src = """
-def f():
-    # assert this is true before we proceed
-    # raise the question with the team first
-    return go()
-"""
-    assert _check(src) == []
+def test_preamble_and_embedded_banner_both_flag():
+    src = "# alpha note\n# beta note\n# ================\n# delta note\nimport os\n"
+    diags = _check(src)
+    assert len(diags) == 2
+    assert "preamble" in diags[0].message
+    assert "Section-banner" in diags[1].message
 
 
-def test_flags_commented_out_assert_with_signal():
-    src = """
-def f():
-    # assert result == expected
-    return f()
-"""
-    assert len(_check(src)) == 1
+def test_preamble_suppressed_when_first_line_is_commented_out_code():
+    src = "# return x + 1\n# beta note\n# gamma note\n# delta note\nimport os\n"
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "Commented-out code" in diags[0].message
 
 
-def test_allows_prose_why_comment():
-    src = """
-def f():
-    # retry because the upstream API is flaky under load
-    return retry()
-"""
-    assert _check(src) == []
+def test_annotated_assignment_body_is_not_flagged():
+    assert _standalone("count: int = 0") == []
 
 
-def test_allows_short_equals_run_in_prose():
-    src = """
-def f():
-    # compare with a === b in the JS bridge, not ==
-    return g()
-"""
-    assert _check(src) == []
+def test_bare_comparison_body_is_not_flagged():
+    assert _standalone("result == expected") == []
 
 
-def test_allows_directive_comments():
-    src = """
-import os  # noqa: F401
-x = eval("1")  # noqa: S307
-y: int = 1  # type: ignore[assignment]
-# sarj-noqa: SARJ001 — intentional
-# TODO@nmaswood: revisit
-"""
-    assert _check(src) == []
+@pytest.mark.parametrize("ch", ["~", "#", "*", "=", "-"])
+def test_run_char_banner_boundary_three_vs_four(ch: str):
+    assert _standalone(ch * 3) == [], ch
+    diags = _standalone(ch * 4)
+    assert len(diags) == 1, ch
+    assert "Section-banner" in diags[0].message, ch
 
 
-def test_allows_trailing_explanatory_comment():
-    src = "x = compute()  # returns cached value when warm\n"
-    assert _check(src) == []
+@pytest.mark.parametrize("ch", ["+", "_", "."])
+def test_full_only_fill_char_banner_boundary_three_vs_four(ch: str):
+    assert _standalone(ch * 3) == [], ch
+    assert len(_standalone(ch * 4)) == 1, ch
 
 
-def test_does_not_flag_midfile_comment_run_as_preamble():
-    src = """import os
-
-x = 1
-# alpha note
-# beta note
-# gamma note
-# delta note
-y = 2
-"""
-    assert _check(src) == []
+@pytest.mark.parametrize(
+    "body", ["wait ---- for it", "issue #### tracked", "rating **** stars", "range ~~~~ approx", "a ==== b"]
+)
+def test_four_run_of_rule_char_inside_prose_is_flagged(body: str):
+    diags = _standalone(body)
+    assert len(diags) == 1
+    assert "Section-banner" in diags[0].message
 
 
-def test_handles_unparseable_source():
-    assert _check("def (:\n") == []
+@pytest.mark.parametrize("body", ["cost .... approx", "scores ++++ higher", "dunder ____ name here"])
+def test_full_only_fill_chars_do_not_flag_inside_prose(body: str):
+    assert _standalone(body) == []
+
+
+def test_trailing_inline_comment_on_commented_out_code_still_flags():
+    diags = _standalone("x = compute()  # legacy path")
+    assert len(diags) == 1
+    assert "Commented-out code" in diags[0].message
+
+
+def test_annotated_assignment_with_call_rhs_is_not_flagged():
+    assert _standalone("cache: Dict = build()") == []
+
+
+def test_two_word_assignment_aphorism_is_flagged_as_code():
+    assert len(_standalone("time = money")) == 1
+    assert len(_standalone("a = b in math")) == 1
+
+
+def test_global_keyword_with_assignment_prose_is_not_code():
+    assert _standalone("global config = None") == []
+
+
+def test_at_sign_with_space_is_not_a_decorator():
+    assert _standalone("@ the office we standardize this") == []
+
+
+def test_directive_without_space_after_colon_is_ignored():
+    assert _standalone("type:ignore") == []
+    assert _standalone("fmt:off") == []
+
+
+def test_uppercase_endregion_is_flagged():
+    diags = _standalone("ENDREGION")
+    assert len(diags) == 1
+    assert "Section-banner" in diags[0].message
+
+
+def test_word_starting_with_region_is_not_a_banner():
+    assert _standalone("regionally we differ here") == []
+
+
+def test_arabic_prose_comment_is_not_flagged():
+    assert _standalone("نتحقق من الرقم قبل الإرسال") == []
+
+
+def test_commented_code_with_arabic_identifier_is_flagged():
+    diags = _standalone("return النتيجة")
+    assert len(diags) == 1
+    assert "Commented-out code" in diags[0].message
+
+
+def test_ascii_banner_around_arabic_text_is_flagged():
+    diags = _standalone("==== قسم ====")
+    assert len(diags) == 1
+    assert "Section-banner" in diags[0].message
+
+
+def test_empty_comment_line_counts_toward_preamble():
+    src = "# alpha\n#\n# gamma\n# delta\nimport os\n"
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "preamble" in diags[0].message
+    assert "(4 lines)" in diags[0].message
+
+
+def test_todos_assignment_is_commented_out_code_not_a_directive():
+    diags = _standalone("todos = []")
+    assert len(diags) == 1
+    assert "Commented-out code" in diags[0].message
+
+
+def test_identifier_starting_with_noqa_is_not_a_directive():
+    diags = _standalone("noqant = fetch()")
+    assert len(diags) == 1
+    assert "Commented-out code" in diags[0].message

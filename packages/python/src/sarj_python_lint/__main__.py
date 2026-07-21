@@ -1,7 +1,10 @@
-"""CLI: sarj-python-lint check --rule <id> [--rule <id2>] <files>"""
+"""CLI: sarj-python-lint check --rule <id> [--rule <id2>] [--baseline <json>] <files>"""
+
 from __future__ import annotations
 
 import argparse
+from collections import Counter
+import json
 from pathlib import Path
 import sys
 
@@ -11,9 +14,21 @@ from sarj_python_lint.rules import REGISTRY
 
 
 SKIP_DIR_NAMES = {
-    "node_modules", ".venv", "venv", ".git", "dist", "build", ".next",
-    "coverage", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache",
-    ".turbo", ".yarn", ".pnpm-store",
+    "node_modules",
+    ".venv",
+    "venv",
+    ".git",
+    "dist",
+    "build",
+    ".next",
+    "coverage",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".turbo",
+    ".yarn",
+    ".pnpm-store",
 }
 
 # Skip files larger than this — they are almost always generated/vendored, not
@@ -70,12 +85,36 @@ class _Args(argparse.Namespace):
     cmd: str | None
     rule: list[str]
     files: list[Path]
+    baseline: Path | None
+    update_baseline: Path | None
 
     def __init__(self) -> None:
         super().__init__()
         self.cmd = None
         self.rule = []
         self.files = []
+        self.baseline = None
+        self.update_baseline = None
+
+
+def _baseline_counts(diags: list[Diagnostic]) -> dict[str, dict[str, int]]:
+    counts: dict[str, dict[str, int]] = {}
+    for d in diags:
+        counts.setdefault(str(d.path), {})
+        counts[str(d.path)][d.code] = counts[str(d.path)].get(d.code, 0) + 1
+    return counts
+
+
+def _apply_baseline(diags: list[Diagnostic], baseline: dict[str, dict[str, int]]) -> list[Diagnostic]:
+    """Suppress up to the baselined count per (path, code); excess diags survive."""
+    seen: Counter[tuple[str, str]] = Counter()
+    out: list[Diagnostic] = []
+    for d in diags:
+        key = (str(d.path), d.code)
+        seen[key] += 1
+        if seen[key] > baseline.get(key[0], {}).get(key[1], 0):
+            out.append(d)
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -93,6 +132,16 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help="Rule ID (repeat for multiple).",
     )
+    check_p.add_argument(
+        "--baseline",
+        type=Path,
+        help="Per-file shrink-only baseline JSON: {path: {CODE: count}}. Diags up to the baselined count are suppressed.",
+    )
+    check_p.add_argument(
+        "--update-baseline",
+        type=Path,
+        help="Write the current per-file diagnostic counts to this JSON and exit 0.",
+    )
     check_p.add_argument("files", nargs="+", type=Path)
 
     sub.add_parser("list-rules", help="List available rule IDs.")
@@ -106,6 +155,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     diags = _check(args.rule, args.files)
+    if args.update_baseline is not None:
+        args.update_baseline.write_text(json.dumps(_baseline_counts(diags), indent=2, sort_keys=True) + "\n")
+        sys.stdout.write(
+            f"baseline written: {args.update_baseline} ({len(diags)} diagnostics over {len(_baseline_counts(diags))} files)\n"
+        )
+        return 0
+    if args.baseline is not None:
+        diags = _apply_baseline(diags, json.loads(args.baseline.read_text()))
     for d in diags:
         sys.stdout.write(d.format() + "\n")
     return 1 if diags else 0

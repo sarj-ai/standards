@@ -17,7 +17,7 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
@@ -31,21 +31,31 @@ _TERMINALS = (ast.Return, ast.Raise, ast.Break, ast.Continue)
 _BLOCK_FIELDS = ("body", "orelse", "finalbody")
 
 
+def _is_generator_marker(stmt: ast.stmt) -> bool:
+    # `yield` / `yield from` after a terminal is the idiom that forces a
+    # function to be a generator even when the yielding path is unreachable
+    # (e.g. `return` then `yield` makes an async generator). Removing it would
+    # change the function's type, so it is load-bearing, not dead code. The
+    # assignment forms (`x = yield`, `x += yield from ()`) are equally
+    # load-bearing generator markers, so match them too.
+    match stmt:
+        case ast.Expr(value=value) | ast.Assign(value=value) | ast.AugAssign(value=value) | ast.AnnAssign(value=value):
+            return isinstance(value, (ast.Yield, ast.YieldFrom))
+        case _:
+            return False
+
+
 class NoUnreachableAfterTerminal(Rule):
     """Code following a `return`/`raise`/`break`/`continue` is unreachable."""
 
     id: str = "no-unreachable-after-terminal"
     code: str = "SARJ010"
-    description: str = (
-        "Unreachable code after a terminal statement "
-        "(`return`/`raise`/`break`/`continue`)."
-    )
+    description: str = "Unreachable code after a terminal statement (`return`/`raise`/`break`/`continue`)."
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):
@@ -57,11 +67,18 @@ class NoUnreachableAfterTerminal(Rule):
                 # statements; annotating keeps the `.lineno`/`.col_offset`
                 # access below well-typed under strict checking.
                 stmts: list[ast.stmt] = raw
-                # Find the first terminal that is not the last element; the
-                # statement immediately after it is unreachable.
+                # Find the first terminal that is not the last element. The
+                # statement after it is unreachable, but a generator-marker
+                # `yield` is load-bearing and exempt per-statement: skip any
+                # markers and flag the first genuinely-dead statement that
+                # follows, so a non-yield dead statement after an exempt yield
+                # still fires.
                 for i in range(len(stmts) - 1):
-                    if isinstance(stmts[i], _TERMINALS):
-                        unreachable = stmts[i + 1]
+                    if not isinstance(stmts[i], _TERMINALS):
+                        continue
+                    for unreachable in stmts[i + 1 :]:
+                        if _is_generator_marker(unreachable):
+                            continue
                         diags.append(
                             Diagnostic(
                                 path=path,
@@ -75,5 +92,6 @@ class NoUnreachableAfterTerminal(Rule):
                                 ),
                             )
                         )
-                        break  # one diag per statement list (the first)
+                        break
+                    break  # one diag per statement list (the first terminal)
         return diags

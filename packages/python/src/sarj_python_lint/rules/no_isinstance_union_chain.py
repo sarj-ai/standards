@@ -42,7 +42,7 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
@@ -106,14 +106,17 @@ class NoIsinstanceUnionChain(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
-        elif_nodes = _collect_elif_nodes(tree)
+        elif_nodes: set[int] = set()
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):
-            if not isinstance(node, ast.If) or id(node) in elif_nodes:
+            if not isinstance(node, ast.If):
+                continue
+            if len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
+                elif_nodes.add(id(node.orelse[0]))
+            if id(node) in elif_nodes:
                 continue
             count = _qualifying_chain_length(node)
             if count >= _MIN_CHAIN_LENGTH:
@@ -132,21 +135,12 @@ class NoIsinstanceUnionChain(Rule):
         return diags
 
 
-def _collect_elif_nodes(tree: ast.AST) -> set[int]:
-    """ids of `If` nodes that are the sole `orelse` of another `If` (i.e. `elif` arms)."""
-    elifs: set[int] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.If) and len(node.orelse) == 1 and isinstance(node.orelse[0], ast.If):
-            elifs.add(id(node.orelse[0]))
-    return elifs
-
-
 def _qualifying_chain_length(head: ast.If) -> int:
     """Number of branches if `head` is an all-`isinstance`-on-one-target chain, else 0.
 
     Returns 0 if any branch is not `isinstance(<same target>, <single local class>)`.
     """
-    target_dump: str | None = None
+    first_target: ast.expr | None = None
     count = 0
     current: ast.If | None = head
     while current is not None:
@@ -156,18 +150,29 @@ def _qualifying_chain_length(head: ast.If) -> int:
         target, type_name = type_arg
         if type_name in _EXCLUDED_TYPE_NAMES:
             return 0
-        dumped = ast.dump(target)
-        if target_dump is None:
-            target_dump = dumped
-        elif dumped != target_dump:
+        if first_target is None:
+            first_target = target
+        elif not _ast_equal(target, first_target):
             return 0
         count += 1
-        current = (
-            current.orelse[0]
-            if len(current.orelse) == 1 and isinstance(current.orelse[0], ast.If)
-            else None
-        )
+        current = current.orelse[0] if len(current.orelse) == 1 and isinstance(current.orelse[0], ast.If) else None
     return count
+
+
+def _ast_equal(a: object, b: object) -> bool:
+    """Structural equality equivalent to `ast.dump(a) == ast.dump(b)`, without building
+    the dump strings. Recursively compares node types and their `_fields`; leaves compare
+    by type + repr to mirror ast.dump's value rendering (e.g. `1` vs `1.0`, `True` vs `1`)
+    exactly while avoiding the per-subtree string allocation ast.dump pays."""
+    if isinstance(a, ast.AST):
+        if type(a) is not type(b):
+            return False
+        return all(_ast_equal(getattr(a, field, None), getattr(b, field, None)) for field in a._fields)
+    if isinstance(a, list):
+        if not isinstance(b, list) or len(a) != len(b):
+            return False
+        return all(map(_ast_equal, a, b, strict=True))
+    return type(a) is type(b) and repr(a) == repr(b)
 
 
 def _isinstance_single_type(test: ast.expr) -> tuple[ast.expr, str] | None:

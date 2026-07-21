@@ -49,7 +49,7 @@ import ast
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
@@ -76,18 +76,14 @@ class PydanticAtBoundaries(Rule):
 
     id: str = "pydantic-at-boundaries"
     code: str = "SARJ008"
-    description: str = (
-        "Public function/route returns an untyped dict — "
-        "define a pydantic model (or frozen dataclass)."
-    )
+    description: str = "Public function/route returns an untyped dict — define a pydantic model (or frozen dataclass)."
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         if _is_test_path(path):
             return []
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):
@@ -103,6 +99,10 @@ class PydanticAtBoundaries(Rule):
             # take and return raw dict/values by contract — that's the API, not
             # a missing model.
             if _is_validator(node):
+                continue
+            # A `@pytest.fixture` is test scaffolding, not a public data
+            # contract — its return shape is an implementation detail.
+            if _is_fixture(node):
                 continue
             route = _route_info(node)
             returns = _resolve_annotation(node.returns)
@@ -167,6 +167,16 @@ def _is_validator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     return False
 
 
+def _is_fixture(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """A pytest fixture — `@pytest.fixture` / `@fixture`, decorated or called."""
+    for dec in node.decorator_list:
+        target = dec.func if isinstance(dec, ast.Call) else dec
+        name = _flat_name(target) if isinstance(target, (ast.Name, ast.Attribute)) else ""
+        if name == "fixture":
+            return True
+    return False
+
+
 def _route_info(node: ast.FunctionDef | ast.AsyncFunctionDef) -> _RouteInfo | None:
     """Detect a FastAPI route decorator: `@<router|app|*_router>.<method>(...)`."""
     for dec in node.decorator_list:
@@ -189,7 +199,7 @@ def _resolve_annotation(node: ast.expr | None) -> ast.expr | None:
     """Unwrap a string forward-reference annotation into its parsed expression."""
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         try:
-            return ast.parse(node.value, mode="eval").body
+            return ast.parse(node.value.strip(), mode="eval").body
         except SyntaxError:
             return None
     return node
@@ -209,6 +219,12 @@ def _classify_return(node: ast.expr) -> str | None:
         return None
 
     base = _flat_name(node.value)
+    if base == "Annotated":
+        # `Annotated[T, ...]` carries the real type as its first argument
+        # (common in FastAPI). Classify T, ignore the metadata.
+        if isinstance(node.slice, ast.Tuple) and node.slice.elts:
+            return _classify_return(node.slice.elts[0])
+        return _classify_return(node.slice)
     if base == "Optional":
         return _classify_return(node.slice)
     if base == "Union":
@@ -234,7 +250,8 @@ def _is_untyped_dict_args(slice_node: ast.expr) -> bool:
     """`dict[K, V]` is flagged only when V is `Any` or `object`."""
     if not isinstance(slice_node, ast.Tuple) or len(slice_node.elts) != _DICT_ARG_COUNT:
         return False
-    return _flat_name(slice_node.elts[1]) in _ANY_VALUE_NAMES
+    value = _resolve_annotation(slice_node.elts[1])
+    return value is not None and _flat_name(value) in _ANY_VALUE_NAMES
 
 
 def _flat_name(node: ast.expr) -> str:

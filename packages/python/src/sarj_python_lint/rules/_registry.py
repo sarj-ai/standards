@@ -13,6 +13,7 @@ from sarj_python_lint.rules.no_fat_try_blocks import NoFatTryBlocks
 from sarj_python_lint.rules.no_fstring_in_log import NoFstringInLog
 from sarj_python_lint.rules.no_isinstance_union_chain import NoIsinstanceUnionChain
 from sarj_python_lint.rules.no_query_with_many_joins import NoQueryWithManyJoins
+from sarj_python_lint.rules.no_repeated_string_literal import NoRepeatedStringLiteral
 from sarj_python_lint.rules.no_secret_in_log import NoSecretInLog
 from sarj_python_lint.rules.no_select_star import NoSelectStar
 from sarj_python_lint.rules.no_sentinel_return_on_except import NoSentinelReturnOnExcept
@@ -32,6 +33,8 @@ from sarj_python_lint.rules.prefer_timedelta_for_durations import (
     PreferTimedeltaForDurations,
 )
 from sarj_python_lint.rules.pydantic_at_boundaries import PydanticAtBoundaries
+from sarj_python_lint.rules.single_public_export import SinglePublicExport
+from sarj_python_lint.rules.stepdown import Stepdown
 from sarj_python_lint.rules.store_insert_requires_on_conflict import (
     StoreInsertRequiresOnConflict,
 )
@@ -61,6 +64,9 @@ REGISTRY: dict[str, type[Rule]] = {
     NoQueryWithManyJoins.id: NoQueryWithManyJoins,
     NoAggregationInStoreQuery.id: NoAggregationInStoreQuery,
     NoSelectStar.id: NoSelectStar,
+    SinglePublicExport.id: SinglePublicExport,
+    Stepdown.id: Stepdown,
+    NoRepeatedStringLiteral.id: NoRepeatedStringLiteral,
 }
 
 __all__ = ["REGISTRY"]

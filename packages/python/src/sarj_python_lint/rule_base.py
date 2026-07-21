@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import ast
 from dataclasses import dataclass
 import re
 from typing import TYPE_CHECKING
@@ -75,3 +76,20 @@ class Rule(ABC):
     def check(self, path: Path, source: str) -> list[Diagnostic]:
         """Inspect the given source. Return zero or more diagnostics."""
         raise NotImplementedError
+
+
+_last_parse: tuple[tuple[str, int, int], ast.Module | None] | None = None
+
+
+def parse_or_none(path: Path, source: str) -> ast.Module | None:
+    """Parse `source`, memoizing the most recent file so N rules share one parse."""
+    global _last_parse  # ruff:ignore[global-statement] — single-slot memo; the CLI runs rules per file sequentially
+    key = (str(path), len(source), hash(source))
+    if _last_parse is not None and _last_parse[0] == key:
+        return _last_parse[1]
+    try:
+        tree = ast.parse(source, filename=str(path))
+    except SyntaxError:
+        tree = None
+    _last_parse = (key, tree)
+    return tree

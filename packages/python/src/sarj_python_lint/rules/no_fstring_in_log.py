@@ -30,7 +30,7 @@ from __future__ import annotations
 import ast
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 from sarj_python_lint.rules._logging import is_logger_expr
 
 
@@ -67,9 +67,8 @@ class NoFstringInLog(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):
@@ -77,13 +76,13 @@ class NoFstringInLog(Rule):
                 continue
             if not node.args:
                 continue
-            first = node.args[0]
-            if isinstance(first, ast.JoinedStr) and _has_interpolation(first):
+            offending = _interpolating_fstring(node.args[0])
+            if offending is not None:
                 diags.append(
                     Diagnostic(
                         path=path,
-                        line=getattr(first, "lineno", node.lineno),
-                        col=getattr(first, "col_offset", node.col_offset) + 1,
+                        line=offending.lineno,
+                        col=offending.col_offset + 1,
                         code=self.code,
                         message=(
                             "f-string logging message — pass variables as keyword "
@@ -99,6 +98,20 @@ def _is_logging_call(node: ast.Call) -> bool:
     if not isinstance(func, ast.Attribute) or func.attr not in _LOG_METHODS:
         return False
     return is_logger_expr(func.value)
+
+
+def _interpolating_fstring(node: ast.expr) -> ast.JoinedStr | None:
+    """Find an interpolating f-string in `node`, descending `+`-concat operands.
+
+    A concatenated message like `f"{x}" + "!"` wraps the f-string in a `BinOp`,
+    so the interpolation is not the top-level node — walk the `Add` tree to find
+    it while leaving interpolation-free f-strings unflagged.
+    """
+    if isinstance(node, ast.JoinedStr):
+        return node if _has_interpolation(node) else None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        return _interpolating_fstring(node.left) or _interpolating_fstring(node.right)
+    return None
 
 
 def _has_interpolation(node: ast.JoinedStr) -> bool:

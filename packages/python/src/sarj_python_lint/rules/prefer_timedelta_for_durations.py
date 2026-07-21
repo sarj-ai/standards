@@ -33,7 +33,13 @@ Deliberately NOT flagged:
 - percentages and rates (`*_percentage`, `*_pct`, `*_rate`, `*_ratio`),
 - calendar units that `timedelta` cannot express cleanly (`*_months`, `*_years`),
 - absolute instants (`*_timestamp`, `*_epoch`, `expires_at`, `*_at`),
-- anything already annotated `timedelta`.
+- anything already annotated `timedelta`,
+- fields declared directly on a pydantic-settings class (any base name ending in
+  `Settings`, e.g. `BaseSettings` / `pydantic_settings.BaseSettings` / a
+  `...Settings` subclass): these are populated from environment variables, whose
+  bare-numeric wire values `timedelta` cannot parse, so a raw `int`/`float` is
+  the only workable type at that boundary. Ordinary `BaseModel` domain fields are
+  still flagged.
 
 Suppress an intentional raw-numeric duration with `# sarj-noqa: SARJ014 — <reason>`.
 
@@ -47,7 +53,7 @@ import ast
 import re
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint.rule_base import Diagnostic, Rule
+from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
 
 if TYPE_CHECKING:
@@ -98,10 +104,10 @@ class PreferTimedeltaForDurations(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
-        try:
-            tree = ast.parse(source, filename=str(path))
-        except SyntaxError:
+        tree = parse_or_none(path, source)
+        if tree is None:
             return []
+        settings_fields = _settings_field_ids(tree)
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -109,6 +115,8 @@ class PreferTimedeltaForDurations(Rule):
                 for a in (*args.posonlyargs, *args.args, *args.kwonlyargs):
                     self._consider(a.arg, a.annotation, a, diags, path)
             elif isinstance(node, ast.AnnAssign):
+                if id(node) in settings_fields:
+                    continue
                 name = _target_name(node.target)
                 if name is not None:
                     self._consider(name, node.annotation, node, diags, path)
@@ -141,6 +149,57 @@ class PreferTimedeltaForDurations(Rule):
                 ),
             )
         )
+
+
+def _settings_field_ids(tree: ast.Module) -> frozenset[int]:
+    """`id()` of every `AnnAssign` declared directly on a pydantic-settings class.
+
+    A class is treated as pydantic-settings when it derives from a `...Settings`
+    base — either directly (`BaseSettings`, `pydantic_settings.BaseSettings`, a
+    project `...Settings` class) or transitively through an intermediate base
+    defined in the same module (e.g. `class _Base(BaseSettings)` →
+    `class Foo(_Base)`). Such fields come from environment variables, whose
+    bare-numeric wire form `timedelta` cannot parse, so they are exempt.
+    """
+    classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
+    settings_classes = _resolve_settings_classes(classes)
+    exempt: set[int] = set()
+    for node in settings_classes:
+        for stmt in node.body:
+            if isinstance(stmt, ast.AnnAssign):
+                exempt.add(id(stmt))
+    return frozenset(exempt)
+
+
+def _resolve_settings_classes(
+    classes: list[ast.ClassDef],
+) -> set[ast.ClassDef]:
+    by_name: dict[str, ast.ClassDef] = {}
+    for node in classes:
+        by_name.setdefault(node.name, node)
+    resolved: dict[int, bool] = {}
+
+    def is_settings(node: ast.ClassDef, seen: frozenset[int]) -> bool:
+        if id(node) in resolved:
+            return resolved[id(node)]
+        if id(node) in seen:
+            return False
+        result = False
+        for base in node.bases:
+            base_name = _trailing_name(base)
+            if base_name is None:
+                continue
+            if base_name.endswith("Settings"):
+                result = True
+                break
+            parent = by_name.get(base_name)
+            if parent is not None and is_settings(parent, seen | {id(node)}):
+                result = True
+                break
+        resolved[id(node)] = result
+        return result
+
+    return {node for node in classes if is_settings(node, frozenset())}
 
 
 def _target_name(target: ast.expr) -> str | None:
@@ -189,6 +248,8 @@ def _trailing_name(node: ast.expr) -> str | None:
         return node.id
     if isinstance(node, ast.Attribute):
         return node.attr
+    if isinstance(node, ast.Subscript):
+        return _trailing_name(node.value)
     return None
 
 
