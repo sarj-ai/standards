@@ -338,7 +338,6 @@ def b():
     assert len(_check(src)) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="BUG: module-level + one function counts 2 distinct scopes, but filter-2 promises >=2 distinct *functions* — a single function should not trigger.")
 def test_module_level_plus_single_function_should_not_flag():
     src = f'''
 A = """{_LONG_SQL}"""
@@ -348,7 +347,15 @@ def f():
     assert _check(src) == []
 
 
-@pytest.mark.xfail(strict=True, reason="BUG: case-sensitive SQL-keyword match still treats an UPPERCASE keyword word inside plain prose ('...FROM...') as structural, producing a false positive.")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "WONTFIX (precision): a lone uppercase SQL keyword in prose ('...FROM the menu...') "
+        "reads as structural. Tightening to require SQL-ish adjacency would create real-SQL "
+        "false-negatives for bare 'GROUP BY col' / 'ORDER BY col' / single-clause fragments, "
+        "so the FP is kept over risking missed real drift."
+    ),
+)
 def test_uppercase_sql_keyword_in_prose_should_not_flag():
     prose = "Please choose one option FROM the menu list below now"
     assert len(prose) >= 40
