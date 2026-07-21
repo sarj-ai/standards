@@ -418,3 +418,113 @@ def test_unrelated_noqa_code_does_not_suppress() -> None:
     src = 'q = "SELECT * FROM a JOIN b ON 1 JOIN c ON 1 JOIN d ON 1"  # sarj-noqa: SARJ001 — different code'
     (diag,) = _check(src)
     assert not is_suppressed(src.splitlines(), diag.line, diag.code)
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: further qualified JOIN variants each count exactly once.        #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "join_kw",
+    ["NATURAL JOIN", "NATURAL LEFT JOIN", "LEFT JOIN LATERAL", "CROSS JOIN LATERAL"],
+)
+def test_natural_and_lateral_join_variants_count_once(join_kw: str) -> None:
+    diags = _check(_sql_with_joins(3, join_kw))
+    assert len(diags) == 1
+    assert "3 JOINs" in diags[0].message
+
+
+def test_qualified_join_split_across_newline_counts_once() -> None:
+    src = '''q = """
+    SELECT * FROM a
+    LEFT
+    JOIN b ON 1
+    RIGHT
+    JOIN c ON 1
+    INNER
+    JOIN d ON 1
+    """'''
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "3 JOINs" in diags[0].message
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: implicit comma joins are intentionally NOT counted.            #
+# --------------------------------------------------------------------------- #
+
+
+def test_implicit_comma_join_not_counted() -> None:
+    src = 'q = "SELECT * FROM a, b, c, d, e WHERE a.id = b.id AND c.id = d.id"'
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: `.format()` template literal still carries shape + joins.       #
+# --------------------------------------------------------------------------- #
+
+
+def test_format_template_literal_still_fires() -> None:
+    src = 'q = "SELECT * FROM {} JOIN b ON 1 JOIN c ON 1 JOIN d ON 1".format(t)'
+    assert len(_check(src)) == 1
+
+
+def test_str_join_receiver_with_query_shape_still_fires() -> None:
+    src = 'x = "SELECT * FROM a JOIN b ON 1 JOIN c ON 1 JOIN d ON 1".join(parts)'
+    assert len(_check(src)) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: the word JOIN split across `+` chunks is reconstructed.         #
+# --------------------------------------------------------------------------- #
+
+
+def test_join_word_split_across_plus_concat_is_reconstructed() -> None:
+    src = 'q = "SELECT * FROM a JO" + "IN b JO" + "IN c JO" + "IN d ON 1"'
+    assert len(_check(src)) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: underscore-prefixed identifiers containing "join" don't count.  #
+# --------------------------------------------------------------------------- #
+
+
+def test_underscore_prefixed_join_identifier_not_counted() -> None:
+    src = 'q = "SELECT a.cross_join, b.left_join FROM a JOIN b ON 1 JOIN c ON 1"'
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial NEW DEFECTS (xfail): the rule counts JOIN by lexical keyword     #
+# only, so string values, `+`-variable splits, and `--` inside literals fool   #
+# it. Distinct from the existing f-string-interpolation-between-FROM-and-JOINs  #
+# limitation.                                                                   #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SARJ019 FP: string VALUES equal to 'join' are counted as JOIN keywords (this query has 0 real joins).",
+)
+def test_string_literal_join_values_false_positive() -> None:
+    src = "q = \"SELECT x FROM a WHERE p = 'join' AND q = 'join' AND r = 'join'\""
+    assert _check(src) == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SARJ019 FN: a `+`-concatenated variable placed between the JOINs splits the literal so no single segment holds shape + 3 joins.",
+)
+def test_plus_concat_variable_between_joins_false_negative() -> None:
+    src = 'q = "SELECT * FROM a JOIN b ON 1 " + mid + " JOIN c ON 1 JOIN d ON 1"'
+    assert len(_check(src)) == 1
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="SARJ019 FN: a literal `--` inside a SQL string value makes line-comment stripping eat the trailing real joins.",
+)
+def test_double_dash_in_string_value_truncates_joins_false_negative() -> None:
+    src = "q = \"SELECT * FROM a JOIN b ON x = '--' JOIN c ON 1 JOIN d ON 1\""
+    assert len(_check(src)) == 1

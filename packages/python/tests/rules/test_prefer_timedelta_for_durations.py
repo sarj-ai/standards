@@ -563,3 +563,178 @@ class AppSettings(BaseSettings):
     diags = _check(src)
     assert len(diags) == 1
     assert "retry_delay" in diags[0].message
+
+
+# ---------------------------------------------------------------------------
+# Adversarial: Settings-exemption edges (base-name heuristic + transitive
+# intra-module resolution). Exemption keys off BASE names, not the class's own
+# name, and only resolves intermediates defined in the same module.
+# ---------------------------------------------------------------------------
+
+
+def test_settings_named_class_without_base_still_flagged():
+    """A class *named* `...Settings` but with no base is not exempt — only a
+    `...Settings` BASE grants the env-wire exemption, not the class's own name."""
+    src = """
+class RedisSettings:
+    connect_timeout_seconds: int
+"""
+    assert len(_check(src)) == 1
+
+
+def test_non_pydantic_settings_named_base_exempts_by_name_heuristic():
+    """Deriving from *any* base whose name ends in `Settings` exempts, even a
+    plain non-pydantic class — the rule is a deliberate name heuristic."""
+    src = """
+class LegacySettings:
+    pass
+
+class Foo(LegacySettings):
+    timeout_seconds: int
+"""
+    assert _check(src) == []
+
+
+def test_multiple_inheritance_one_settings_base_exempt():
+    src = """
+class Config(Mixin, BaseSettings):
+    timeout_seconds: int
+"""
+    assert _check(src) == []
+
+
+def test_generic_plus_settings_base_exempt():
+    src = """
+class Config(Generic[T], BaseSettings):
+    timeout_seconds: int
+"""
+    assert _check(src) == []
+
+
+def test_nested_settings_class_fields_exempt():
+    src = """
+def build() -> None:
+    class LocalSettings(BaseSettings):
+        timeout_seconds: int
+"""
+    assert _check(src) == []
+
+
+def test_external_intermediate_base_not_resolved_still_flagged():
+    """An intermediate base from another module can't be resolved (its def is
+    invisible) and its name doesn't end in `Settings`, so the field still fires —
+    the documented boundary of intra-module-only transitive resolution."""
+    src = """
+class Config(ExternalBase):
+    request_timeout_seconds: float
+"""
+    assert len(_check(src)) == 1
+
+
+def test_external_settings_named_base_exempt_by_name():
+    src = """
+class Config(RedisCacheSettings):
+    request_timeout_seconds: float
+"""
+    assert _check(src) == []
+
+
+def test_deep_transitive_settings_chain_all_exempt():
+    src = """
+class A(BaseSettings):
+    a_timeout_seconds: int
+
+class B(A):
+    b_ttl: int
+
+class C(B):
+    c_delay: float
+"""
+    assert _check(src) == []
+
+
+def test_settings_optional_and_annotated_fields_exempt():
+    src = """
+class AppSettings(BaseSettings):
+    ttl: Optional[int] = None
+    retry_delay: Annotated[float, Field(ge=0)] = 1.0
+"""
+    assert _check(src) == []
+
+
+def test_settings_class_local_var_in_method_still_flagged():
+    """An annotated local inside a method body is not a class field — its
+    `AnnAssign` isn't in the class body, so the exemption never covers it."""
+    src = """
+class AppSettings(BaseSettings):
+    def m(self) -> None:
+        cache_ttl: int = 5
+"""
+    assert len(_check(src)) == 1
+
+
+def test_settings_base_cycle_terminates_and_flags():
+    """Mutually-referential bases with no real `Settings` root must not recurse
+    forever, and neither class is exempt."""
+    src = """
+class A(B):
+    timeout_seconds: int
+
+class B(A):
+    poll_interval: int
+"""
+    assert len(_check(src)) == 2
+
+
+# ---------------------------------------------------------------------------
+# Adversarial: unit-token vs exclusion-token boundary collisions.
+# ---------------------------------------------------------------------------
+
+
+def test_timestamp_ms_exclusion_wins_over_unit_token():
+    src = "def f(timestamp_ms: int) -> None: ...\n"
+    assert _check(src) == []
+
+
+def test_countdown_seconds_flagged_count_substring_not_a_boundary():
+    """`count` inside `countdown` lacks a `_`/boundary, so exclusion doesn't
+    fire and the `_seconds` unit still flags."""
+    src = "def f(countdown_seconds: int) -> None: ...\n"
+    assert len(_check(src)) == 1
+
+
+def test_conint_call_annotation_not_resolved():
+    """A `conint(...)` factory call is a `Call` node, not a brand `Name`, so the
+    AST rule can't see it's numeric — a known limitation, like string forward-refs."""
+    src = "def f(timeout_seconds: conint(ge=0)) -> None: ...\n"
+    assert _check(src) == []
+
+
+# ---------------------------------------------------------------------------
+# Genuine defects (xfail strict) — false positives from the class-name index.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(strict=True, reason="BUG: class-name index keyed by bare name; a nested class of the same name shadows a real BaseSettings class, leaking its exempt field")
+def test_name_collision_nested_class_shadows_settings():
+    src = """
+class Config(BaseSettings):
+    timeout_seconds: int
+
+def factory() -> None:
+    class Config(BaseModel):
+        payload_size: int
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.xfail(strict=True, reason="BUG: a subscripted intermediate settings base (`Base[int]`) is a Subscript node; _trailing_name returns None so the generic settings base isn't resolved and the field is wrongly flagged")
+def test_subscripted_generic_settings_base_wrongly_flagged():
+    src = """
+class Base(BaseSettings, Generic[T]):
+    x: int
+
+class Config(Base[int]):
+    timeout_seconds: int
+"""
+    assert _check(src) == []

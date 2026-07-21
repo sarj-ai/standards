@@ -670,3 +670,96 @@ def test_test_paths_are_skipped(path: str):
 def test_non_test_paths_are_still_linted(path: str):
     src = "def f() -> dict[str, Any]:\n    return {}\n"
     assert len(_check(src, path=path)) == 1, path
+
+
+# ===========================================================================
+# ADVERSARIAL EDGE-CASE HUNT (new)
+# ===========================================================================
+
+# --- Additional flagged shapes (passing regressions) ------------------------
+
+
+def test_flags_builtins_dict_subscript():
+    """`builtins.dict[str, Any]` — attribute receiver still resolves to `dict`."""
+    src = "import builtins\ndef f() -> builtins.dict[str, Any]:\n    return {}\n"
+    assert len(_check(src)) == 1
+
+
+def test_flags_builtins_dict_bare():
+    src = "import builtins\ndef f() -> builtins.dict:\n    return {}\n"
+    assert len(_check(src)) == 1
+
+
+def test_flags_list_of_bare_dict():
+    """`list[dict]` — the inner bare `dict` classifies as untyped."""
+    assert len(_check("def f() -> list[dict]:\n    return []\n")) == 1
+
+
+def test_flags_union_with_nested_optional_dict():
+    src = """
+from typing import Union, Optional, Any
+
+def f() -> Union[str, Optional[dict[str, Any]]]:
+    return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_flags_forward_ref_with_leading_newline():
+    """A leading newline inside an eval-mode string forward-ref parses fine."""
+    assert len(_check('def f() -> "\\ndict[str, Any]":\n    return {}\n')) == 1
+
+
+def test_flags_implicitly_concatenated_string_annotation():
+    """Adjacent string literals fold into one Constant at parse time → resolvable."""
+    assert len(_check('def f() -> "dict[str, " "Any]":\n    return {}\n')) == 1
+
+
+# --- Additional allowed shapes / documented limitations (passing) -----------
+
+
+def test_allows_dict_with_bare_dict_value():
+    """Bare `dict` in VALUE position is not inspected (mirrors `dict[str, dict[str, Any]]`)."""
+    assert _check("def f() -> dict[str, dict]:\n    return {}\n") == []
+
+
+def test_allows_sequence_of_untyped_dict():
+    """Only `list`/`List` are unwrapped — `Sequence[...]` is not."""
+    src = "from collections.abc import Sequence\ndef f() -> Sequence[dict[str, Any]]:\n    return []\n"
+    assert _check(src) == []
+
+
+def test_allows_kwargs_any_without_return_annotation():
+    """`**kwargs: Any` is a param annotation; a non-route missing return is not flagged."""
+    assert _check("def f(**kwargs: Any):\n    return {}\n") == []
+
+
+def test_allows_type_alias_return_pure_annotation_limitation():
+    """Pure-annotation rule does not resolve `type X = dict[...]` aliases (by design)."""
+    src = "type Payload = dict[str, Any]\ndef f() -> Payload:\n    return {}\n"
+    assert _check(src) == []
+
+
+# --- Genuine defects (xfail, strict) ----------------------------------------
+
+
+@pytest.mark.xfail(strict=True, reason="SARJ008 does not unwrap Annotated[dict[str, Any], ...] returns")
+def test_annotated_dict_return_should_be_flagged():
+    src = 'from typing import Annotated, Any\ndef f() -> Annotated[dict[str, Any], "meta"]:\n    return {}\n'
+    assert len(_check(src)) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="leading whitespace in a string forward-ref raises SyntaxError → silently unflagged")
+def test_forward_ref_with_leading_space_should_be_flagged():
+    assert len(_check('def f() -> " dict[str, Any]":\n    return {}\n')) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="string forward-ref in dict VALUE position not resolved: dict[str, 'Any'] escapes")
+def test_dict_with_string_forward_ref_any_value_should_be_flagged():
+    assert len(_check('def f() -> dict[str, "Any"]:\n    return {}\n')) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="@pytest.fixture returning dict[str, Any] is a fixture, not a public data-contract boundary")
+def test_pytest_fixture_returning_dict_is_false_positive():
+    src = "import pytest\n@pytest.fixture\ndef sample() -> dict[str, Any]:\n    return {}\n"
+    assert _check(src) == []

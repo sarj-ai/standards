@@ -373,3 +373,170 @@ def test_shadowed_collections_name_still_fires():
     """Accepted limitation: name-based matching fires even on a rebound `collections`."""
     src = 'collections = object()\nRow = collections.namedtuple("Row", ["x"])\n'
     assert len(_check(src)) == 1
+
+
+def test_param_shadowed_collections_still_fires():
+    """Accepted limitation: a param named `collections` is not the module, but the seed name matches."""
+    src = "def f(collections):\n    return collections.namedtuple('R', ['x'])\n"
+    assert len(_check(src)) == 1
+
+
+# --- Adversarial: forward references the single-walk optimization must preserve
+
+
+def test_flags_qualified_call_before_its_import():
+    """Call textually before `import collections`: filtering is post-walk, so it still fires once."""
+    src = 'Row = collections.namedtuple("Row", ["x"])\nimport collections\n'
+    diags = _check(src)
+    assert len(diags) == 1
+    assert (diags[0].line, diags[0].col) == (1, 7)
+
+
+def test_flags_aliased_qualified_call_before_its_import():
+    """The alias (`c`) is defined AFTER the call; post-walk `collections_names` still resolves it."""
+    src = 'R = c.namedtuple("R", ["x"])\nimport collections as c\n'
+    diags = _check(src)
+    assert len(diags) == 1
+    assert (diags[0].line, diags[0].col) == (1, 5)
+
+
+def test_from_alias_call_counts_import_only():
+    """`from collections import namedtuple as nt` + `nt(...)`: bare Name call is not a 2nd finding."""
+    src = "from collections import namedtuple as nt\nP = nt('P', ['x'])\n"
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].line == 1
+
+
+def test_flags_from_asname_shadowing_typing_name():
+    """`as NamedTuple` doesn't launder it — the source name is still `namedtuple`."""
+    src = 'from collections import namedtuple as NamedTuple\nP = NamedTuple("P", ["x"])\n'
+    assert len(_check(src)) == 1
+
+
+# --- Adversarial: deeply nested / exotic call sites --------------------------
+
+
+def test_flags_call_in_deeply_nested_defs():
+    src = "import collections\ndef a():\n    def b():\n        def c():\n            R = collections.namedtuple('R', ['x'])\n"
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].line == 5
+
+
+def test_flags_call_in_async_def():
+    src = "import collections\nasync def f():\n    R = collections.namedtuple('R', ['x'])\n"
+    assert len(_check(src)) == 1
+
+
+def test_flags_call_in_match_case():
+    src = "import collections\nmatch 1:\n    case 1:\n        R = collections.namedtuple('R', ['x'])\n"
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].line == 4
+
+
+def test_flags_call_as_decorator():
+    src = 'import collections\n@collections.namedtuple("R", ["x"])\nclass C:\n    pass\n'
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].line == 2
+
+
+@pytest.mark.parametrize(
+    "expr",
+    [
+        '(R := collections.namedtuple("R", ["x"]))',
+        'f = lambda: collections.namedtuple("R", ["x"])',
+        'xs = [collections.namedtuple("R", ["x"]) for _ in range(1)]',
+    ],
+)
+def test_flags_call_in_expression_contexts(expr: str):
+    assert len(_check(f"import collections\n{expr}\n")) == 1
+
+
+def test_flags_call_under_conditional_import():
+    src = "import sys\nif sys.version_info:\n    import collections\nR = collections.namedtuple('R', ['x'])\n"
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].line == 4
+
+
+def test_flags_conditional_from_import_alone():
+    assert len(_check("if True:\n    from collections import namedtuple\n")) == 1
+
+
+# --- Adversarial: exact BFS emission order across interleaved sites -----------
+
+
+def test_exact_bfs_order_interleaved_imports_and_calls():
+    """import(L3, depth 1) precedes both module-level calls (depth 2); the call nested in
+    `def f` (L5, depth 3) sorts last — verifying the single walk still emits pure BFS order."""
+    src = (
+        "import collections\n"
+        'A = collections.namedtuple("A", ["x"])\n'
+        "from collections import namedtuple\n"
+        "def f():\n"
+        '    B = collections.namedtuple("B", ["y"])\n'
+        'C = collections.namedtuple("C", ["z"])\n'
+    )
+    diags = _check(src)
+    assert sorted(d.line for d in diags) == [2, 3, 5, 6]
+    assert [d.line for d in diags] == [3, 2, 6, 5]
+
+
+def test_base_class_call_after_module_call_bfs_order():
+    src = (
+        "import collections\n"
+        'X = collections.namedtuple("X", ["a"])\n'
+        "class Outer:\n"
+        '    class Inner(collections.namedtuple("Inner", ["b"])):\n'
+        "        pass\n"
+    )
+    diags = _check(src)
+    assert [d.line for d in diags] == [2, 4]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="BFS does not preserve import-before-call: a module-level call (depth 2) is emitted BEFORE an import nested deeper (depth 3).",
+)
+def test_import_finding_precedes_call_finding_even_when_import_nested_deeper():
+    src = 'A = collections.namedtuple("A", ["x"])\nclass C:\n    class D:\n        from collections import namedtuple\n'
+    diags = _check(src)
+    assert len(diags) == 2
+    assert diags[0].line == 4
+
+
+# --- Adversarial: must-NOT-fire negatives ------------------------------------
+
+
+def test_allows_qualified_typing_namedtuple_call():
+    """`typing.namedtuple` keys off the name `typing`, not in `collections_names`."""
+    assert _check('import typing\nP = typing.namedtuple("P", ["x"])\n') == []
+
+
+def test_allows_typing_namedtuple_aliased_to_namedtuple():
+    """`from typing import NamedTuple as namedtuple` + bare call — neither site is collections."""
+    src = 'from typing import NamedTuple as namedtuple\nP = namedtuple("P", ["x"])\n'
+    assert _check(src) == []
+
+
+def test_allows_star_import_then_bare_call():
+    """Star imports can't be resolved statically; bare Name calls are never attributed."""
+    assert _check('from collections import *\nP = namedtuple("P", ["x"])\n') == []
+
+
+def test_allows_collections_abc_qualified_call():
+    """`collections.abc.namedtuple(...)` — func.value is an Attribute chain, not a Name."""
+    assert _check('import collections.abc\nP = collections.abc.namedtuple("P", ["x"])\n') == []
+
+
+def test_flags_top_level_collections_call_despite_submodule_import():
+    """`import collections.abc` binds `collections`; the seed name matches the qualified call."""
+    src = 'import collections.abc\nP = collections.namedtuple("P", ["x"])\n'
+    assert len(_check(src)) == 1
+
+
+def test_allows_string_annotation_call_form():
+    assert _check('x: "collections.namedtuple" = None\n') == []

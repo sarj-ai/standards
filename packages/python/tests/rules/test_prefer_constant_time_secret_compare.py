@@ -432,3 +432,72 @@ def test_flags_same_compare_in_production_path():
     """The identical runtime compare in a non-test module is still flagged."""
     src = "def f(api_key, provided):\n    return api_key == provided\n"
     assert len(PreferConstantTimeSecretCompare().check(Path("svc/auth.py"), src)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Adversarial edge-case hunt (2026-07): camelCase, attribute/attribute,
+# lambda/f-string operands, innocuous-boundary probing.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["apiKey", "accessToken", "clientSecret", "authToken"])
+def test_flags_camelcase_secret_name(name: str):
+    """A secret word surfaced only by camelCase splitting is still flagged."""
+    src = f"def f({name}, provided):\n    return {name} == provided\n"
+    assert _count(src) == 1
+
+
+def test_flags_attribute_vs_attribute():
+    """`self.token == other.token` — both operands secret attrs, one diagnostic."""
+    src = "def f(self, other):\n    return self.token == other.token\n"
+    assert _count(src) == 1
+
+
+def test_flags_comparison_inside_lambda():
+    src = "g = lambda token, e: token == e\n"
+    assert _count(src) == 1
+
+
+def test_flags_secret_vs_fstring_rhs():
+    """An f-string RHS is not a compile-time Constant, so it does not exempt."""
+    src = 'def f(token, expected):\n    return token == f"{expected}"\n'
+    assert _count(src) == 1
+
+
+def test_allows_fstring_lhs_not_inspected():
+    """A JoinedStr operand is neither Name nor Attribute — out of scope (no fire)."""
+    src = 'def f(token, expected):\n    return f"{token}" == expected\n'
+    assert _check(src) == []
+
+
+def test_token_fires_but_token_type_stays_exempt():
+    """`token` is a secret; `token_type` (innocuous `type`) is metadata."""
+    assert _count("def f(token, o):\n    return token == o\n") == 1
+    assert _check("def f(token_type, o):\n    return token_type == o\n") == []
+
+
+def test_flags_token_tag_tag_absent_from_denylist():
+    """`tag` is NOT in the innocuous denylist, so `token_tag` still fires."""
+    src = "def f(token_tag, other):\n    return token_tag == other\n"
+    assert _count(src) == 1
+
+
+# --- Genuine defects: xfail(strict=True) ----------------------------------
+
+
+@pytest.mark.xfail(strict=True, reason="NamedExpr (walrus) operand isn't inspected — secret compare via `(secret := f()) == x` is missed")
+def test_flags_secret_in_walrus_operand():
+    src = "def f(expected):\n    return (secret := load()) == expected\n"
+    assert _count(src) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="Order-insensitive innocuous denylist: `valid` disqualifies `valid_token`, a credential, not a flag")
+def test_flags_valid_token_credential():
+    src = "def f(valid_token, provided):\n    return valid_token == provided\n"
+    assert _count(src) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="Literal-sentinel exemption doesn't follow a Name bound to a str literal one line up — false positive on equivalent code")
+def test_allows_secret_vs_name_bound_to_literal():
+    src = 'def f(token):\n    expected = "PLACEHOLDER"\n    return token == expected\n'
+    assert _check(src) == []

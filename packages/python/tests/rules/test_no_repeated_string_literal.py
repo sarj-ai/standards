@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pytest
+
 from sarj_python_lint.rules.no_repeated_string_literal import NoRepeatedStringLiteral
 
 
@@ -222,3 +224,138 @@ def b():
     diags = _check(src)
     assert len(diags) == 1
     assert "x" * 41 not in diags[0].message
+
+
+def test_flags_newline_sql_across_two_methods():
+    src = f'''
+class Store:
+    def a(self):
+        return """{_LONG_SQL}"""
+    def b(self):
+        return """{_LONG_SQL}"""
+'''
+    assert len(_check(src)) == 1
+
+
+def test_flags_dotted_identifier_across_functions():
+    ident = "organization.custom_scenario.name_index.key_x"
+    assert len(ident) >= 40
+    src = f"""
+def a():
+    return "{ident}"
+def b():
+    return "{ident}"
+"""
+    assert len(_check(src)) == 1
+
+
+def test_flags_lambda_bodies_in_two_functions():
+    """Lambda does not push a scope; each lambda inherits its enclosing function, so two distinct enclosers still flag."""
+    src = f'''
+def a():
+    return (lambda: """{_LONG_SQL}""")()
+def b():
+    return (lambda: """{_LONG_SQL}""")()
+'''
+    assert len(_check(src)) == 1
+
+
+def test_flags_nested_function_versus_outer_body():
+    src = f'''
+def outer():
+    def inner():
+        return """{_LONG_SQL}"""
+    return inner, """{_LONG_SQL}"""
+'''
+    assert len(_check(src)) == 1
+
+
+def test_allows_two_module_level_lambdas():
+    """Module-level lambdas share the module scope, so they are excluded like module constants."""
+    src = f'''
+f = lambda: """{_LONG_SQL}"""
+g = lambda: """{_LONG_SQL}"""
+'''
+    assert _check(src) == []
+
+
+def test_scaffolding_exclusion_is_per_occurrence_not_per_value():
+    """A description= copy is dropped, but two plain copies of the same literal still couple and flag."""
+    text = "SELECT id FROM organization ORDER BY created_at DESC"
+    src = f"""
+def a():
+    return Field(description="{text}")
+def b():
+    return "{text}"
+def c():
+    return "{text}"
+"""
+    assert len(_check(src)) == 1
+
+
+def test_scaffolding_copy_plus_single_plain_copy_is_not_flagged():
+    text = "SELECT id FROM organization ORDER BY created_at DESC"
+    src = f"""
+def a():
+    return Field(description="{text}")
+def b():
+    return "{text}"
+"""
+    assert _check(src) == []
+
+
+def test_length_alone_is_insufficient_without_structure():
+    unstructured = "SomeMixedCaseThingWithoutSpacesFortyPlusXX"
+    assert len(unstructured) >= 40
+    src = f"""
+def a():
+    return "{unstructured}"
+def b():
+    return "{unstructured}"
+"""
+    assert _check(src) == []
+
+
+def test_identifier_below_length_floor_not_flagged():
+    ident39 = "a" * 39
+    src = f"""
+def a():
+    return "{ident39}"
+def b():
+    return "{ident39}"
+"""
+    assert _check(src) == []
+
+
+def test_identifier_at_length_floor_is_flagged():
+    ident40 = "a" * 40
+    src = f"""
+def a():
+    return "{ident40}"
+def b():
+    return "{ident40}"
+"""
+    assert len(_check(src)) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="BUG: module-level + one function counts 2 distinct scopes, but filter-2 promises >=2 distinct *functions* — a single function should not trigger.")
+def test_module_level_plus_single_function_should_not_flag():
+    src = f'''
+A = """{_LONG_SQL}"""
+def f():
+    return """{_LONG_SQL}"""
+'''
+    assert _check(src) == []
+
+
+@pytest.mark.xfail(strict=True, reason="BUG: case-sensitive SQL-keyword match still treats an UPPERCASE keyword word inside plain prose ('...FROM...') as structural, producing a false positive.")
+def test_uppercase_sql_keyword_in_prose_should_not_flag():
+    prose = "Please choose one option FROM the menu list below now"
+    assert len(prose) >= 40
+    src = f"""
+def a():
+    return "{prose}"
+def b():
+    return "{prose}"
+"""
+    assert _check(src) == []

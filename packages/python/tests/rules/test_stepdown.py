@@ -1,7 +1,14 @@
+import ast
+from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sarj_python_lint.rules.stepdown import Stepdown
+import pytest
+
+from sarj_python_lint.rules.stepdown import (
+    Stepdown,
+    _walk,  # ruff:ignore[import-private-name] — parity test for the rule's inlined AST walker vs ast.walk
+)
 
 
 if TYPE_CHECKING:
@@ -425,3 +432,312 @@ def test_x():
 """
     assert _check(src, path="test_things.py") == []
     assert _check(src, path="pkg/tests/helpers.py") == []
+
+
+def test_async_helper_above_caller_fires():
+    src = """
+async def _fetch() -> int:
+    return 1
+
+async def run() -> int:
+    return await _fetch()
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_fetch" in diags[0].message
+    assert "run" in diags[0].message
+
+
+def test_call_from_nested_function_counts_as_caller():
+    src = """
+def _h() -> int:
+    return 1
+
+def caller() -> int:
+    def inner() -> int:
+        return _h()
+    return inner()
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_h" in diags[0].message
+    assert "caller" in diags[0].message
+
+
+def test_call_inside_comprehension_fires():
+    src = """
+def _h(x: int) -> int:
+    return x
+
+def caller(xs: list[int]) -> list[int]:
+    return [_h(x) for x in xs]
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_h" in diags[0].message
+
+
+def test_call_inside_match_case_fires():
+    src = """
+def _h(x: int) -> int:
+    return x
+
+def caller(x: int) -> int:
+    match x:
+        case 0:
+            return _h(x)
+        case _:
+            return x
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_h" in diags[0].message
+
+
+def test_call_inside_except_star_fires():
+    src = """
+def _h() -> int:
+    return 1
+
+def caller() -> int:
+    try:
+        return _h()
+    except* ValueError:
+        return 0
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_h" in diags[0].message
+
+
+def test_pep695_type_param_caller_fires():
+    src = """
+def _bound() -> int:
+    return 1
+
+def caller[T]() -> int:
+    return _bound()
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_bound" in diags[0].message
+
+
+def test_classmethod_cls_reference_ordering_fires():
+    src = """
+class H:
+    @classmethod
+    def _load(cls) -> int:
+        return 1
+
+    @classmethod
+    def run(cls) -> int:
+        return cls._load()
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_load" in diags[0].message
+
+
+def test_helper_used_as_value_reference_fires():
+    src = """
+def _h() -> int:
+    return 1
+
+def caller():
+    return _h
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_h" in diags[0].message
+
+
+def test_nested_def_default_reference_fires():
+    src = """
+def _h() -> int:
+    return 1
+
+def caller():
+    def inner(x=_h()):
+        return x
+    return inner()
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_h" in diags[0].message
+
+
+def test_call_inside_lambda_body_fires():
+    src = """
+def _h() -> int:
+    return 1
+
+def caller():
+    f = lambda: _h()
+    return f()
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_h" in diags[0].message
+
+
+def test_walrus_binding_in_caller_shadows_helper():
+    src = """
+def _cfg() -> dict:
+    return {}
+
+def caller() -> dict:
+    if (_cfg := {"a": 1}):
+        return _cfg
+    return _cfg()
+"""
+    assert _check(src) == []
+
+
+def test_type_checking_only_reference_in_body_not_a_call():
+    src = """
+from typing import TYPE_CHECKING
+
+def _h() -> int:
+    return 1
+
+def caller() -> int:
+    if TYPE_CHECKING:
+        x = _h()
+    return 2
+"""
+    assert _check(src) == []
+
+
+def test_annotation_only_local_in_body_not_a_call():
+    src = """
+def _t() -> int:
+    return 1
+
+def caller() -> None:
+    x: _t
+    return None
+
+def other() -> int:
+    return _t()
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_t" in diags[0].message
+    assert "other" in diags[0].message
+
+
+def test_walk_matches_ast_walk_multiset():
+    src = """
+match command.split():
+    case [action]:
+        pass
+    case [action, obj, *rest]:
+        pass
+    case {"key": value, **others}:
+        pass
+    case Point(x=0, y=0) | Line(a=1):
+        pass
+    case _ as fallback:
+        pass
+
+try:
+    run()
+except* ValueError as e:
+    handle(e)
+except* (TypeError, KeyError):
+    pass
+
+def gen[T, *Ts, **P](a, /, b=1, *args, kw=2, **kw2) -> T:
+    total = [y := f(x) for x in data if (z := g(x))]
+    return total
+
+class K[T](Base, metaclass=Meta):
+    attr: int = 5
+
+type Alias[T] = list[T]
+"""
+    tree = ast.parse(src)
+    expected = Counter(type(n).__name__ for n in ast.walk(tree))
+    actual = Counter(type(n).__name__ for n in _walk(tree))
+    assert actual == expected
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="comprehension target is a separate scope in py3; _locally_bound_names collects its Store and wrongly suppresses the real body-level call",
+)
+def test_comprehension_target_wrongly_shadows_helper():
+    src = """
+def _x() -> int:
+    return 1
+
+def caller(xs) -> int:
+    total = _x()
+    doubled = [_x for _x in xs]
+    return total + len(doubled)
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_x" in diags[0].message
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="shadow set is module-global; a local binding in an unrelated non-calling function suppresses a real violation elsewhere",
+)
+def test_unrelated_local_binding_suppresses_violation():
+    src = """
+def _item() -> int:
+    return 1
+
+def unrelated() -> int:
+    _item = 5
+    return _item
+
+def other() -> int:
+    return _item()
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_item" in diags[0].message
+    assert "other" in diags[0].message
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="module-level lambda body reference is deferred, not import-time; treating it as a position pin misses a real violation",
+)
+def test_module_lambda_reference_over_pins_helper():
+    src = """
+def _h() -> int:
+    return 1
+
+handler = lambda: _h()
+
+def caller() -> int:
+    return _h()
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_h" in diags[0].message
+    assert "caller" in diags[0].message
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="same-class call via the class name (H._m) is a real same-scope caller but only self./cls. references are tracked",
+)
+def test_same_class_call_via_class_name_missed():
+    src = """
+class H:
+    @staticmethod
+    def _load() -> int:
+        return 1
+
+    def run(self) -> int:
+        return H._load()
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_load" in diags[0].message

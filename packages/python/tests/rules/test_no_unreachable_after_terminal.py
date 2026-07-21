@@ -624,3 +624,112 @@ def f(x):
 
 def test_handles_syntax_error():
     assert _check("def f(:\n    pass") == []
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: yield-exemption edges + terminal detection in exotic blocks.    #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("label", "src"),
+    [
+        (
+            "raise-then-yield-from",
+            "def _gen():\n    raise RuntimeError()\n    yield from ()\n",
+        ),
+        (
+            "yield-in-match-case-body",
+            "def _gen(x):\n    match x:\n        case 1:\n            return\n            yield\n",
+        ),
+        (
+            "yield-in-try-body",
+            "def _gen():\n    try:\n        return\n        yield\n    except Exception:\n        pass\n",
+        ),
+        (
+            "yield-in-finally",
+            "def _gen():\n    try:\n        pass\n    finally:\n        return\n        yield\n",
+        ),
+        (
+            "break-then-yield-in-loop",
+            "def _gen():\n    for i in ():\n        break\n        yield\n",
+        ),
+        (
+            "continue-then-yield-in-loop",
+            "def _gen():\n    for i in ():\n        continue\n        yield\n",
+        ),
+        (
+            "two-yields-after-terminal",
+            "def _gen():\n    return\n    yield\n    yield 2\n",
+        ),
+    ],
+)
+def test_yield_marker_exempt_across_block_kinds(label: str, src: str):
+    assert _check(src) == [], label
+
+
+@pytest.mark.parametrize(
+    ("label", "src"),
+    [
+        (
+            "def-after-return",
+            "def f():\n    return 1\n    def g():\n        pass\n",
+        ),
+        (
+            "class-after-return",
+            "def f():\n    return 1\n    class C:\n        pass\n",
+        ),
+        (
+            "walrus-expr-after-return",
+            "def f():\n    return 1\n    (x := 5)\n",
+        ),
+        (
+            "nested-yield-block-after-return",
+            "def _gen():\n    return\n    if True:\n        yield\n",
+        ),
+    ],
+)
+def test_non_bare_yield_after_terminal_is_flagged(label: str, src: str):
+    # The exemption is deliberately shallow: only a direct bare `yield` /
+    # `yield from` Expr statement is spared. A `def`/`class`/walrus, or a yield
+    # wrapped in control flow, is still flagged as unreachable.
+    diags = _check(src)
+    assert len(diags) == 1, label
+    assert diags[0].code == "SARJ010"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="BUG: an exempt `yield` immediately after a terminal makes the rule "
+    "`break` the whole list, so a genuinely-dead non-yield statement that "
+    "follows the yield is silently swallowed (false negative).",
+)
+@pytest.mark.parametrize(
+    "src",
+    [
+        "def _gen():\n    return\n    yield\n    dead()\n",
+        "async def _gen():\n    return\n    yield\n    dead()\n",
+    ],
+)
+def test_dead_code_after_exempt_yield_should_still_flag(src: str):
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].code == "SARJ010"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="BUG: `x = yield` / `x += yield` after a terminal is load-bearing "
+    "(it still forces the function to be a generator) but the exemption only "
+    "matches a bare Expr yield, so the assignment form is wrongly flagged.",
+)
+@pytest.mark.parametrize(
+    "src",
+    [
+        "def _gen():\n    return\n    x = yield\n",
+        "def _gen():\n    return\n    x = yield from ()\n",
+        "def _gen():\n    x = 0\n    return\n    x += yield\n",
+    ],
+)
+def test_assigned_yield_marker_should_be_exempt(src: str):
+    assert _check(src) == []

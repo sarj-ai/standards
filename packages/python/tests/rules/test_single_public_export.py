@@ -125,3 +125,180 @@ def test_oauth_stem_matching_accepted_form_not_flagged():
 class SalesforceOAuthService: ...
 """
     assert _check(src, path="salesforce_oauth_service.py") == []
+
+
+@pytest.mark.parametrize(
+    "stem",
+    [
+        "base",
+        "common",
+        "constant",
+        "constants",
+        "core",
+        "enum",
+        "enums",
+        "helper",
+        "helpers",
+        "misc",
+        "model",
+        "models",
+        "shared",
+        "stuff",
+        "type",
+        "types",
+        "util",
+        "utils",
+    ],
+)
+def test_every_denylist_stem_fires(stem: str):
+    src = """
+class DataPipelineRunner: ...
+"""
+    diags = _check(src, path=f"{stem}.py")
+    assert len(diags) == 1
+    assert "data_pipeline_runner.py" in diags[0].message
+
+
+@pytest.mark.parametrize(
+    "stem",
+    ["utility", "utilities", "typing", "modeling", "baseline", "corelib", "sharing", "commons", "enumerations"],
+)
+def test_near_miss_non_denylist_stems_not_flagged(stem: str):
+    src = """
+class DataPipelineRunner: ...
+"""
+    assert _check(src, path=f"{stem}.py") == []
+
+
+def test_exactly_two_public_defs_boundary_not_flagged():
+    src = """
+def first_thing() -> None: ...
+
+def second_thing() -> None: ...
+"""
+    assert _check(src, path="helpers.py") == []
+
+
+def test_public_class_and_public_function_mix_not_flagged():
+    src = """
+class Widget: ...
+
+def build_widget() -> Widget: ...
+"""
+    assert _check(src, path="models.py") == []
+
+
+def test_private_only_module_not_flagged():
+    src = """
+def _internal() -> None: ...
+
+class _Hidden: ...
+"""
+    assert _check(src, path="util.py") == []
+
+
+def test_all_declaration_does_not_suppress_fire():
+    src = """
+__all__ = ["Widget"]
+
+
+class Widget: ...
+"""
+    diags = _check(src, path="common.py")
+    assert len(diags) == 1
+    assert "widget.py" in diags[0].message
+
+
+def test_async_def_sole_export_flagged():
+    src = """
+async def fetch_records() -> None: ...
+"""
+    diags = _check(src, path="helpers.py")
+    assert len(diags) == 1
+    assert "fetch_records.py" in diags[0].message
+
+
+def test_decorated_class_flagged():
+    src = """
+import functools
+
+
+@functools.total_ordering
+class OrderedWidget: ...
+"""
+    diags = _check(src, path="base.py")
+    assert len(diags) == 1
+    assert "ordered_widget.py" in diags[0].message
+
+
+def test_type_checking_only_export_not_counted():
+    src = """
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    class OnlyUnderTypeChecking: ...
+"""
+    assert _check(src, path="types.py") == []
+
+
+def test_type_checking_plus_one_toplevel_still_single():
+    src = """
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    class Shadow: ...
+
+
+class RealExport: ...
+"""
+    diags = _check(src, path="types.py")
+    assert len(diags) == 1
+    assert "real_export.py" in diags[0].message
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("APIClient", "api_client"),
+        ("IOError", "io_error"),
+        ("OAuth2Provider", "oauth2_provider"),
+        ("MyABC", "my_abc"),
+        ("XMLParser", "xml_parser"),
+        ("SHA256Hash", "sha256_hash"),
+    ],
+)
+def test_additional_acronym_shapes(name: str, expected: str):
+    src = f"""
+class {name}: ...
+"""
+    diags = _check(src, path="base.py")
+    assert len(diags) == 1
+    assert f"`{expected}.py`" in diags[0].message
+
+
+@pytest.mark.xfail(strict=True, reason="GraphQL is a single-token acronym with no override; regex yields graph_ql_schema")
+def test_graphql_acronym_should_be_single_token():
+    src = """
+class GraphQLSchema: ...
+"""
+    diags = _check(src, path="base.py")
+    assert len(diags) == 1
+    assert "`graphql_schema.py`" in diags[0].message
+
+
+@pytest.mark.xfail(strict=True, reason="lowercase-lead gRPC has no override; regex yields g_rpc_server not grpc_server")
+def test_grpc_acronym_should_be_single_token():
+    src = """
+class gRPCServer: ...
+"""
+    diags = _check(src, path="base.py")
+    assert len(diags) == 1
+    assert "`grpc_server.py`" in diags[0].message
+
+
+@pytest.mark.xfail(strict=True, reason="denylist gate is case-sensitive on stem; capitalized junk-drawer module escapes")
+def test_capitalized_junk_drawer_stem_should_fire():
+    src = """
+class DataPipelineRunner: ...
+"""
+    assert len(_check(src, path="Utils.py")) == 1

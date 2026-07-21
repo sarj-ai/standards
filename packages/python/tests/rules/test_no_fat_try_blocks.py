@@ -640,3 +640,157 @@ except KeyError:
     pass
 """
     assert len(_check(src)) == 1
+
+
+# ---- Adversarial: re-raise exemption, TryStar, and subtree-walk edges ----
+
+
+def test_trystar_all_handlers_reraise_exempts():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except* ValueError:
+    raise
+"""
+    assert _check(src) == []
+
+
+def test_trystar_mixed_reraise_and_swallow_still_fires():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except* ValueError:
+    raise
+except* KeyError:
+    pass
+"""
+    assert len(_check(src)) == 1
+
+
+def test_many_calls_in_single_comprehension_statement_count_once():
+    src = """
+try:
+    a = [f(x) for x in g() if h(x)]
+    b = two()
+    c = three()
+except ValueError:
+    pass
+"""
+    assert _check(src) == []
+
+
+def test_for_loop_raise_handler_can_skip_body_so_still_fires():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except ValueError:
+    for x in y():
+        raise
+"""
+    assert len(_check(src)) == 1
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="BUG: handler tail is `raise` but the `return` branch swallows first — "
+    "only the tail is inspected, so this swallowing handler is wrongly exempted.",
+)
+def test_conditional_return_before_tail_reraise_should_still_fire():
+    src = """
+def outer():
+    try:
+        a = one()
+        b = two()
+        c = three()
+        d = four()
+    except ValueError:
+        if recoverable():
+            return None
+        raise
+"""
+    assert len(_check(src)) == 1
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="BUG: both if/else branches re-raise so nothing is swallowed, but the "
+    "handler tail is the `If` (not a `Raise`) so the exemption misses it and fires.",
+)
+def test_if_else_both_branches_reraise_should_be_exempt():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except ValueError:
+    if x():
+        raise A
+    else:
+        raise B
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="BUG: nested `def` bodies never execute at try-time, but ast.walk finds "
+    "their inner Calls so pure function definitions are counted as throwing.",
+)
+def test_nested_def_bodies_do_not_execute_so_should_be_clean():
+    src = """
+try:
+    def a(): return one()
+    def b(): return two()
+    def c(): return three()
+    def d(): return four()
+except ValueError:
+    pass
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="BUG: lambda assignments are pure rebinds — the lambda body never runs at "
+    "try-time, but ast.walk counts the Call inside the lambda as throwing.",
+)
+def test_lambda_bodies_do_not_execute_so_should_be_clean():
+    src = """
+try:
+    a = lambda: one()
+    b = lambda: two()
+    c = lambda: three()
+    d = lambda: four()
+except ValueError:
+    pass
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="BUG: `with ctx(): raise` always re-raises (no swallow path) but the tail "
+    "is the `With`, not a `Raise`, so the wrapping handler is wrongly flagged.",
+)
+def test_with_wrapped_reraise_handler_should_be_exempt():
+    src = """
+try:
+    a = one()
+    b = two()
+    c = three()
+    d = four()
+except ValueError:
+    with ctx():
+        raise
+"""
+    assert _check(src) == []

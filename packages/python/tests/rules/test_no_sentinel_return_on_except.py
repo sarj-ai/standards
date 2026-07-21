@@ -980,3 +980,256 @@ def f():
         return None
 """
     assert len(_check(src)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Adversarial: logged-exemption edges (nested control flow, receiver shapes)
+# ---------------------------------------------------------------------------
+
+
+def test_logging_in_nested_for_before_return_is_exempt():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception as e:
+        for _ in range(1):
+            logger.error("boom", exc_info=e)
+        return None
+"""
+    assert _check(src) == []
+
+
+def test_logging_in_nested_with_before_return_is_exempt():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception as e:
+        with lock():
+            logger.exception("boom")
+        return None
+"""
+    assert _check(src) == []
+
+
+def test_logging_in_match_case_before_return_is_exempt():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception as e:
+        match kind:
+            case 1:
+                logger.error("boom")
+            case _:
+                logger.warning("other")
+        return None
+"""
+    assert _check(src) == []
+
+
+def test_logging_in_nested_try_handler_before_return_is_exempt():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        try:
+            g()
+        except ValueError:
+            logger.warning("inner")
+        return None
+"""
+    assert _check(src) == []
+
+
+def test_logging_inside_walrus_before_return_is_exempt():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        if (rc := logger.error("boom")) is None:
+            pass
+        return None
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize(
+    "log_call",
+    [
+        "self._log.error('x')",
+        "self._logger.warning('x')",
+        "app.log.info('x')",
+        "log.exception('x')",
+    ],
+)
+def test_dotted_and_underscore_log_receivers_are_exempt(log_call: str):
+    src = f"""
+def f():
+    try:
+        risky()
+    except Exception as e:
+        {log_call}
+        return None
+"""
+    assert _check(src) == []
+
+
+def test_fstring_log_then_sentinel_is_exempt():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception as e:
+        logger.error(f"failed: {e}")
+        return None
+"""
+    assert _check(src) == []
+
+
+def test_logging_in_except_star_group_is_exempt():
+    src = """
+def f():
+    try:
+        risky()
+    except* ValueError:
+        logger.exception("grouped")
+        return None
+"""
+    assert _check(src) == []
+
+
+# --- must STILL fire: non-logging preludes that superficially resemble logging ---
+
+
+def test_bare_helper_log_function_is_not_logging_still_fires():
+    # `log_error(e)` is a plain Name call, not `<recv>.<level>(...)`, so the rule
+    # cannot know it logs — the swallow still fires.
+    src = """
+def f():
+    try:
+        risky()
+    except Exception as e:
+        log_error(e)
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_print_style_fstring_still_fires():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception as e:
+        print(f"oops {e}")
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_log_after_early_return_only_still_fires():
+    # The logging call is the LAST statement (it sits after a nested early
+    # return), so the handler's final statement is not a sentinel return and the
+    # rule finds nothing to flag on the tail — but the guarded sentinel return is
+    # not final either, so no diagnostic. Documents that a trailing log-only tail
+    # yields no diagnostic.
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        if cond:
+            return None
+        logger.error("x")
+"""
+    assert _check(src) == []
+
+
+# --- conditional / walrus / ternary sentinel shapes (non-constant returns) ---
+
+
+def test_ternary_sentinel_return_is_allowed():
+    # `return None if c else None` is an IfExp, not a bare sentinel constant, so
+    # the rule does not classify it as a sentinel. Documents the current scope.
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        return None if flag else None
+"""
+    assert _check(src) == []
+
+
+def test_walrus_sentinel_return_is_allowed():
+    # `return (x := None)` is a NamedExpr, not a sentinel constant.
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        return (x := None)
+"""
+    assert _check(src) == []
+
+
+# ---------------------------------------------------------------------------
+# Adversarial: genuine defects (xfail strict — flip when the rule is fixed)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="substring 'log' in receiver name wrongly exempts non-logger receivers "
+    "(dialog/catalog/backlog) — false negative",
+)
+def test_substring_log_receiver_should_still_fire():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        dialog.error("show error to user")
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="inline `logging.getLogger(__name__).error(...)` has a Call receiver, "
+    "not Name/Attribute, so real logging is not recognized — false positive",
+)
+def test_inline_getlogger_chain_should_be_exempt():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        logging.getLogger(__name__).error("boom")
+        return None
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="logging guarded behind an early-return branch exempts the unlogged "
+    "final-return path — any-logging-in-prelude heuristic under-reports",
+)
+def test_logging_only_on_early_return_branch_should_still_fire():
+    src = """
+def f():
+    try:
+        risky()
+    except Exception as e:
+        if verbose:
+            logger.exception("boom")
+            return cached
+        return None
+"""
+    assert len(_check(src)) == 1

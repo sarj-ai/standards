@@ -503,3 +503,101 @@ def test_diagnostic_metadata() -> None:
     assert d.path == Path("call_store.py")
     assert "ClickHouse" in d.message
     assert "sarj-noqa: SARJ020" in d.message
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: Postgres-flavored SQL that overlaps with BigQuery vocabulary but
+# is NOT a BQ signal (DATE_TRUNC excluded by docstring; DISTINCT ON is a
+# Postgres-only extension) must STILL fire.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(
+            'q = "SELECT DATE_TRUNC(\'day\', ts), COUNT(*) FROM call GROUP BY 1"\n',
+            id="date-trunc-excluded-from-bq-signals",
+        ),
+        pytest.param(
+            'q = "SELECT DISTINCT ON (org_id) * FROM call ORDER BY org_id, ts"\n',
+            id="distinct-on-is-postgres-only",
+        ),
+    ],
+)
+def test_postgres_overlapping_vocab_still_fires(source: str) -> None:
+    assert len(_check(source)) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: an aggregation keyword split across a `+` concatenation boundary
+# (so neither literal half is a full keyword) must still fire once the BinOp is
+# reconstructed. Also tab-separated GROUP/BY.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param('q = "SELECT COUNT" + "(*) FROM call"\n', id="count-split-across-concat"),
+        pytest.param('q = "SELECT s FROM call GROUP" + " BY s"\n', id="group-by-split-across-concat"),
+        pytest.param('q = "SELECT s FROM call GROUP\\tBY s"\n', id="group-by-tab-separated"),
+    ],
+)
+def test_keyword_split_or_tabbed_still_fires(source: str) -> None:
+    assert len(_check(source)) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: BigQuery signals live only inside a stripped SQL comment. Comment
+# stripping runs BEFORE the BQ-exemption check, so a comment-embedded backtick or
+# BQ-only function must NOT smuggle a real Postgres aggregation past the rule.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(
+            'q = "SELECT COUNT(*) FROM call /* APPROX_COUNT_DISTINCT(x) */ WHERE org = 1"\n',
+            id="bq-func-only-in-block-comment",
+        ),
+        pytest.param(
+            'q = "SELECT COUNT(*) FROM call /* join `proj.ds` here */ WHERE org = 1"\n',
+            id="backtick-only-in-block-comment",
+        ),
+    ],
+)
+def test_bq_signal_only_in_comment_does_not_exempt(source: str) -> None:
+    assert len(_check(source)) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial defects in the BigQuery exemption.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="BUG: `_BIGQUERY_SQL` matches `FROM|JOIN` + whitespace + backtick anywhere "
+    "in the literal — including inside a Postgres string VALUE (`... = 'from `x`'`). "
+    "The backtick is data, not a table ident, so this real Postgres COUNT is wrongly "
+    "exempted.",
+)
+def test_backtick_inside_string_value_wrongly_exempts_postgres_query() -> None:
+    src = "q = \"SELECT COUNT(*) FROM call WHERE note = 'imported from `legacy`'\"\n"
+    assert len(_check(src)) == 1
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="BUG: the BigQuery-SDK-import heuristic exempts the WHOLE file. A mixed "
+    "module that imports bigquery for one analytics helper but also runs a real "
+    "Postgres store query has that Postgres COUNT silently exempted.",
+)
+def test_bigquery_import_file_with_real_postgres_query_is_over_broad() -> None:
+    src = (
+        "from google.cloud import bigquery\n"
+        'q = "SELECT COUNT(*) FROM call WHERE org_id = %s GROUP BY status"\n'
+    )
+    assert len(_check(src)) == 1

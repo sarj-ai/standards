@@ -268,3 +268,72 @@ def test_fstring_interpolation_between_keywords_is_missed() -> None:
 def test_on_conflict_in_unrelated_statement_wrongly_excuses() -> None:
     src = 'q = "UPDATE x SET y = 1 ON CONFLICT DO NOTHING; INSERT INTO t (id) VALUES (%s)"'
     assert _count(src) == 1
+
+
+# --------------------------------------------------------------------------- #
+# New passing regressions — correct behavior on previously untested shapes.    #
+# --------------------------------------------------------------------------- #
+
+NEW_FIRES = [
+    pytest.param(
+        'q = "WITH x AS (SELECT 1) INSERT INTO t (id) SELECT id FROM x"',
+        id="data_modifying_cte_insert_select_fires",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t (id) VALUES(%s)"',
+        id="values_with_no_space_before_paren",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t " + "(id) " + "VALUES (1)"',
+        id="three_operand_plus_concat_fires_once",
+    ),
+    pytest.param(
+        'q = "INSERT INTO t VALUES (" + str(x) + ")"',
+        id="keywords_intact_in_one_constant_of_nonfoldable_concat",
+    ),
+]
+
+
+@pytest.mark.parametrize("src", NEW_FIRES)
+def test_new_fires_once(src: str) -> None:
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].code == "SARJ018"
+
+
+# --------------------------------------------------------------------------- #
+# New known limitations (xfail) — genuine false negatives / positives.         #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.xfail(
+    reason="ON CONFLICT text living inside an inserted single-quoted VALUE is "
+    "counted as a real clause (no SQL-string awareness), wrongly excusing a bare "
+    "insert.",
+    strict=True,
+)
+def test_on_conflict_inside_inserted_string_value_wrongly_excuses() -> None:
+    src = "q = \"INSERT INTO t (msg) VALUES ('ON CONFLICT DO NOTHING')\""
+    assert _count(src) == 1
+
+
+@pytest.mark.xfail(
+    reason="A `--` inside a single-quoted VALUE on the ON CONFLICT line is stripped "
+    "as a SQL comment, deleting the real ON CONFLICT clause and producing a false "
+    "positive.",
+    strict=True,
+)
+def test_double_dash_in_string_value_strips_real_on_conflict() -> None:
+    src = "q = \"INSERT INTO t (c) VALUES ('a--b') ON CONFLICT DO NOTHING\""
+    assert _count(src) == 0
+
+
+@pytest.mark.xfail(
+    reason="A runtime `+`-concatenated expression between INSERT INTO and VALUES "
+    "splits the keywords across two constants, so neither matches and the write is "
+    "silently missed.",
+    strict=True,
+)
+def test_plus_concat_runtime_value_between_keywords_is_missed() -> None:
+    src = 'q = "INSERT INTO t " + table + " (id) VALUES (%s)"'
+    assert _count(src) == 1

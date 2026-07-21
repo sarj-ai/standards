@@ -240,3 +240,65 @@ def test_line_and_col_point_at_the_fstring_multiline():
 
 def test_only_the_first_positional_argument_is_inspected():
     assert _check('logger.info("safe %s", f"{x}", f"{y}")\n') == []
+
+
+def test_flags_implicit_concat_of_plain_and_fstring():
+    assert len(_check('logger.info("prefix: " f"{x}")\n')) == 1
+
+
+def test_flags_implicit_concat_fstring_then_plain():
+    assert len(_check('logger.error(f"{x}" " suffix")\n')) == 1
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'logger.info(f"{x!r}")\n',
+        'logger.info(f"{x:>10}")\n',
+        'logger.info(f"{x:{width}}")\n',
+    ],
+)
+def test_flags_fstring_with_conversion_or_format_spec(source: str):
+    assert len(_check(source)) == 1
+
+
+def test_allows_escaped_braces_only_fstring():
+    assert _check('logger.info(f"{{x}} literal braces")\n') == []
+
+
+def test_allows_str_format_call_as_first_arg():
+    assert _check('logger.info("msg {}".format(x))\n') == []
+
+
+@pytest.mark.parametrize(
+    "receiver",
+    [
+        "catalog",
+        "dialog",
+        "backlog",
+        "logout",
+        "log_event",
+        "blog",
+    ],
+)
+def test_ignores_receiver_that_merely_contains_log_substring(receiver: str):
+    assert _check(f'{receiver}.info(f"{{x}}")\n') == []
+
+
+def test_flags_deep_builder_chain_bind_then_opt():
+    assert len(_check('self.logger.bind(a=1).opt(lazy=True).info(f"{x}")\n')) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="structlog get_logger() (snake_case) not in factory set; stdlib getLogger matches but this FN is missed")
+def test_flags_structlog_get_logger_chain():
+    assert len(_check('structlog.get_logger().info(f"{x}")\n')) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="f-string wrapped in a BinOp is not a top-level JoinedStr, so concatenated f-string message is missed")
+def test_flags_fstring_concatenated_with_plus():
+    assert len(_check('logger.info(f"{x}" + "!")\n')) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="getChild is a generic tree/widget method; matching it as a logger factory misfires on non-loggers")
+def test_ignores_getchild_on_non_logger_receiver():
+    assert _check('widget.getChild("panel").info(f"{x}")\n') == []

@@ -442,3 +442,100 @@ def test_sarj_noqa_only_affects_its_own_line():
     kept = _unsuppressed(src)
     assert len(kept) == 1
     assert kept[0].line == 2
+
+
+# --------------------------------------------------------------------------- #
+# Family 13: additional shared secret words (signature / hmac / digest)        #
+# --------------------------------------------------------------------------- #
+#
+# `_SECRET_WORDS` carries more than the human-facing set in Family 1 — it also
+# holds the crypto-material words shared with SARJ011. They must flag too.
+
+
+@pytest.mark.parametrize("kw", ["signature", "hmac", "digest", "api_secret"])
+def test_flags_additional_secret_words(kw: str):
+    assert _codes(f'logger.info("m", {kw}=v)\n') == ["SARJ012"]
+
+
+def test_hash_keyword_is_exempted_by_redaction_marker():
+    """`hash` is a secret word, but the redaction regex matches `hash` first and wins."""
+    assert _check('logger.info("m", hash=h)\n') == []
+
+
+# --------------------------------------------------------------------------- #
+# Family 14: camelCase decomposition of the keyword name                       #
+# --------------------------------------------------------------------------- #
+
+
+def test_flags_camelcase_apikey():
+    """`apiKey` splits to api/key -> whole-token `apikey`, still a secret."""
+    assert _codes('logger.info("m", apiKey=k)\n') == ["SARJ012"]
+
+
+@pytest.mark.parametrize("kw", ["tokenCount", "apiKeyId", "tokenPresent", "promptTokens"])
+def test_allows_camelcase_innocuous(kw: str):
+    """camelCase splitting surfaces the innocuous token (count/id/present/plural)."""
+    assert _check(f'logger.info("m", {kw}=n)\n') == []
+
+
+# --------------------------------------------------------------------------- #
+# Family 15: whole-token matching, not substring                               #
+# --------------------------------------------------------------------------- #
+
+
+def test_flags_reset_token_whole_token_matching():
+    """`reset` embeds `set` only as a substring, not a whole token, so `reset_token` flags."""
+    assert _codes('logger.info("m", reset_token=t)\n') == ["SARJ012"]
+
+
+def test_allows_plural_tokens_counter():
+    """Plural `tokens` is a usage counter, not the singular secret word `token`."""
+    assert _check('logger.info("usage", tokens=n)\n') == []
+
+
+# --------------------------------------------------------------------------- #
+# Family 16: extra receiver / method variants                                  #
+# --------------------------------------------------------------------------- #
+
+
+def test_flags_bind_chain_on_self_logger():
+    assert _codes('self.logger.bind(request_id=rid).info("m", secret=s)\n') == ["SARJ012"]
+
+
+def test_skips_logger_log_with_positional_level():
+    """`.log(level, ...)` is not a recognised level method, even with a positional level."""
+    assert _check('logger.log(logging.INFO, "m", token=t)\n') == []
+
+
+# --------------------------------------------------------------------------- #
+# Family 17: value never inspected — even a redacting-call value               #
+# --------------------------------------------------------------------------- #
+
+
+def test_flags_secret_name_with_redacting_call_value():
+    """The name is the raw secret word; a `mask(...)` value does not exempt it."""
+    assert _codes('logger.info("m", token=mask(token))\n') == ["SARJ012"]
+
+
+def test_skips_fstring_secret_with_safe_keyword():
+    """Interpolated secret in an f-string is out of scope; the safe kwarg is clean."""
+    assert _check('logger.info(f"key={api_key}", user_id=u)\n') == []
+
+
+# --------------------------------------------------------------------------- #
+# Family 18: KNOWN DEFECTS (xfail strict)                                       #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.xfail(strict=True, reason="SARJ012 defect: redaction regex matches `tag` as a substring, so `staging_*` raw env-secret kwargs are wrongly exempted")
+@pytest.mark.parametrize("kw", ["staging_secret", "staging_token"])
+def test_staging_secret_should_be_flagged(kw: str):
+    # `_REDACTION_RE` finds "tag" inside "staging" and treats a raw env secret as redacted.
+    assert _codes(f'logger.info("boot", {kw}=v)\n') == ["SARJ012"]
+
+
+@pytest.mark.xfail(strict=True, reason="SARJ012 defect: plural `secrets`/`passwords` are missing from _SECRET_WORDS (asymmetric with `credentials`), so a logged secret bundle is missed")
+@pytest.mark.parametrize("kw", ["secrets", "passwords"])
+def test_plural_secret_bundle_should_be_flagged(kw: str):
+    # A bundle like `secrets=all_secrets` is a genuine leak but the plural whole-token misses it.
+    assert _codes(f'logger.info("loaded", {kw}=v)\n') == ["SARJ012"]

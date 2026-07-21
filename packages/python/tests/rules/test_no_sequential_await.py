@@ -578,3 +578,111 @@ async def f(rows, cols):
     diags = _check(src)
     assert len(diags) == 2
     assert {d.code for d in diags} == {"SARJ001"}
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: constructs not covered above that the rule handles correctly.  #
+# --------------------------------------------------------------------------- #
+
+
+def test_nested_comprehension_in_for_body_flags_only_comprehension():
+    """The inner comprehension's `await` uses its own var (`c`), not the loop var
+    (`x`), so the `for` is not the antipattern; only the gatherable comprehension
+    fires."""
+    src = """
+async def f(items):
+    for x in items:
+        ys = [await g(c) for c in x]
+"""
+    assert len(_check(src)) == 1
+
+
+def test_starred_unpacking_target_flags():
+    src = """
+async def f(pairs):
+    for a, *rest in pairs:
+        await use(rest)
+"""
+    assert len(_check(src)) == 1
+
+
+def test_taskgroup_create_task_not_awaited_not_flagged():
+    src = """
+import asyncio
+
+async def f(items):
+    async with asyncio.TaskGroup() as tg:
+        for x in items:
+            tg.create_task(process(x))
+"""
+    assert _check(src) == []
+
+
+def test_for_else_await_counts_loop_once():
+    src = """
+async def f(items):
+    for x in items:
+        await use(x)
+    else:
+        await finish()
+"""
+    assert len(_check(src)) == 1
+
+
+def test_assert_with_await_using_loop_var_flags():
+    src = """
+async def f(items):
+    for x in items:
+        assert await check(x)
+"""
+    assert len(_check(src)) == 1
+
+
+def test_decorated_nested_async_def_await_not_using_loop_var_not_flagged():
+    src = """
+async def outer(items):
+    for x in items:
+        @deco
+        async def inner():
+            return await call()
+        register(inner)
+"""
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: genuine defects (xfail, strict).                               #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.xfail(strict=True, reason="async-generator `yield await` is streaming/sequential, not gatherable")
+def test_async_generator_yield_await_should_not_flag():
+    src = """
+async def f(items):
+    for x in items:
+        yield await fetch(x)
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.xfail(strict=True, reason="antipattern detection walks into nested scopes; a loop-invariant await is then flagged")
+def test_nested_scope_await_using_loop_var_should_not_flag_invariant_await():
+    src = """
+async def outer(items):
+    for x in items:
+        async def inner():
+            return await call(x)
+        await tick()
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.xfail(strict=True, reason="loop var laundered through a local is a gatherable independent await the rule misses")
+def test_loop_var_laundered_through_local_should_flag():
+    src = """
+async def f(items):
+    for x in items:
+        key = x.id
+        await fetch(key)
+"""
+    assert len(_check(src)) == 1

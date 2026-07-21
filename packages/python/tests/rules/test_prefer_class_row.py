@@ -384,3 +384,123 @@ def test_message_is_stable_across_shapes():
     a = _check("cur = c(row_factory=dict_row)\n")[0]
     b = _check("cur = c(row_factory=rows.dict_row)\n")[0]
     assert a.message == b.message
+
+
+# --------------------------------------------------------------------------
+# Adversarial additions: keyword matching is context-free — it fires for ANY
+# `row_factory=dict_row` keyword, not just `conn.cursor(...)`.
+# --------------------------------------------------------------------------
+
+
+def test_fires_in_functools_partial():
+    src = "import functools\nfunctools.partial(conn.cursor, row_factory=dict_row)\n"
+    assert len(_check(src)) == 1
+
+
+def test_fires_in_call_decorator():
+    src = "@register(row_factory=dict_row)\ndef f():\n    pass\n"
+    assert len(_check(src)) == 1
+
+
+def test_fires_in_classdef_keyword():
+    # `class C(Base, row_factory=dict_row)` is an ast.keyword on ClassDef, not a
+    # Call — the walk still matches it (a keyword is a keyword).
+    src = "class C(Base, row_factory=dict_row):\n    pass\n"
+    assert len(_check(src)) == 1
+
+
+def test_fires_in_nested_call_keyword():
+    assert len(_check("f(g(row_factory=dict_row))\n")) == 1
+
+
+def test_fires_with_leading_star_arg():
+    assert len(_check("conn.cursor(*a, row_factory=dict_row)\n")) == 1
+
+
+# --------------------------------------------------------------------------
+# Adversarial additions: attribute matching keys ONLY off the terminal `.attr`,
+# so any receiver whose last segment is `dict_row` fires — even a call/subscript.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "get_rows().dict_row",
+        "factories[0].dict_row",
+        "(await g()).dict_row",
+    ],
+)
+def test_fires_on_dict_row_attr_of_exotic_receiver(value: str):
+    src = f"async def h(conn):\n    return conn.cursor(row_factory={value})\n"
+    assert len(_check(src)) == 1
+
+
+def test_attribute_with_nonterminal_dict_row_does_not_fire():
+    # Terminal `.attr` is `foo`, not `dict_row`, so `_factory_name` returns "foo".
+    assert _check("conn.cursor(row_factory=dict_row.foo)\n") == []
+
+
+# --------------------------------------------------------------------------
+# Adversarial additions: names that merely contain `dict_row` as a substring,
+# and `class_row` as a bare name, must not fire (exact-literal match only).
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "factory",
+    ["dict_rows", "dict_row_factory", "my_dict_row", "dict_row2", "_dict_row", "class_row"],
+)
+def test_substring_and_class_row_names_do_not_fire(factory: str):
+    assert _check(f"conn.cursor(row_factory={factory})\n") == []
+
+
+# --------------------------------------------------------------------------
+# Adversarial additions: compound value expressions collapse to None.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "dict_row or tuple_row",
+        "tuple_row and dict_row",
+        "await get_factory()",
+    ],
+)
+def test_boolop_and_await_values_do_not_fire(value: str):
+    src = f"async def h(conn):\n    return conn.cursor(row_factory={value})\n"
+    assert _check(src) == []
+
+
+def test_local_variable_rebind_does_not_fire():
+    # Same accepted limitation as the aliased-import case: a name bound to
+    # `dict_row` elsewhere is not resolved by the literal-name matcher.
+    src = "dr = dict_row\nconn.cursor(row_factory=dr)\n"
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------
+# Adversarial additions: column points at the START of a dotted chain, not the
+# `dict_row` leaf, on a wrapped call.
+# --------------------------------------------------------------------------
+
+
+def test_col_points_to_start_of_dotted_chain():
+    src = "cur = conn.cursor(\n    row_factory=psycopg.rows.dict_row,\n)\n"
+    diags = _check(src)
+    assert len(diags) == 1
+    line2 = src.splitlines()[1]
+    assert diags[0].line == 2
+    assert diags[0].col == line2.index("psycopg") + 1
+
+
+# --------------------------------------------------------------------------
+# Adversarial additions: genuine defect — a walrus-wrapped `dict_row` value is
+# still `dict_row` at runtime, but `_factory_name` does not unwrap NamedExpr.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(strict=True, reason="FN: NamedExpr (walrus) wrapping dict_row is not unwrapped")
+def test_walrus_wrapped_dict_row_should_fire():
+    assert len(_check("conn.cursor(row_factory=(rf := dict_row))\n")) == 1

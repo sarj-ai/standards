@@ -631,3 +631,255 @@ def handle(x):
         b()
 """
     assert len(_check(src)) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: `_ast_equal` must match `ast.dump` EXACTLY — equal targets      #
+# (structurally identical -> same target -> chain IS flagged)                  #
+# --------------------------------------------------------------------------- #
+
+
+def test_deep_attribute_target_equal_flagged():
+    src = """
+def handle(o):
+    if isinstance(o.a.b.c, Foo):
+        x()
+    elif isinstance(o.a.b.c, Bar):
+        y()
+"""
+    assert len(_check(src)) == 1
+
+
+def test_subscript_hex_and_decimal_index_are_equal_value_flagged():
+    src = """
+def handle(o):
+    if isinstance(o[0x1], Foo):
+        x()
+    elif isinstance(o[1], Bar):
+        y()
+"""
+    assert len(_check(src)) == 1
+
+
+def test_subscript_string_quote_styles_equal_flagged():
+    src = """
+def handle(o):
+    if isinstance(o["k"], Foo):
+        x()
+    elif isinstance(o['k'], Bar):
+        y()
+"""
+    assert len(_check(src)) == 1
+
+
+def test_negative_index_target_equal_flagged():
+    src = """
+def handle(o):
+    if isinstance(o[-1], Foo):
+        x()
+    elif isinstance(o[-1], Bar):
+        y()
+"""
+    assert len(_check(src)) == 1
+
+
+def test_call_target_with_identical_args_and_kwargs_flagged():
+    src = """
+def handle():
+    if isinstance(get(1, k=2), Foo):
+        x()
+    elif isinstance(get(1, k=2), Bar):
+        y()
+"""
+    assert len(_check(src)) == 1
+
+
+def test_walrus_target_equal_flagged():
+    src = """
+def handle():
+    if isinstance((y := f()), Foo):
+        x()
+    elif isinstance((y := f()), Bar):
+        z()
+"""
+    assert len(_check(src)) == 1
+
+
+def test_boolop_target_equal_flagged():
+    src = """
+def handle(a, b):
+    if isinstance(a and b, Foo):
+        x()
+    elif isinstance(a and b, Bar):
+        y()
+"""
+    assert len(_check(src)) == 1
+
+
+def test_fstring_target_equal_flagged():
+    src = """
+def handle(a):
+    if isinstance(f'{a}', Foo):
+        x()
+    elif isinstance(f'{a}', Bar):
+        y()
+"""
+    assert len(_check(src)) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: `_ast_equal` must match `ast.dump` EXACTLY — distinct targets   #
+# (equal-repr-but-different / different-value -> NOT the same target -> no flag)#
+# --------------------------------------------------------------------------- #
+
+
+def test_subscript_int_vs_float_index_not_flagged():
+    src = """
+def handle(o):
+    if isinstance(o[1], Foo):
+        x()
+    elif isinstance(o[1.0], Bar):
+        y()
+"""
+    assert _check(src) == []
+
+
+def test_subscript_int_vs_bool_index_not_flagged():
+    src = """
+def handle(o):
+    if isinstance(o[1], Foo):
+        x()
+    elif isinstance(o[True], Bar):
+        y()
+"""
+    assert _check(src) == []
+
+
+def test_subscript_str_vs_bytes_index_not_flagged():
+    src = """
+def handle(o):
+    if isinstance(o["a"], Foo):
+        x()
+    elif isinstance(o[b"a"], Bar):
+        y()
+"""
+    assert _check(src) == []
+
+
+def test_negative_vs_positive_constant_index_not_flagged():
+    src = """
+def handle(o):
+    if isinstance(o[-1], Foo):
+        x()
+    elif isinstance(o[1], Bar):
+        y()
+"""
+    assert _check(src) == []
+
+
+def test_unary_minus_vs_unary_plus_index_not_flagged():
+    src = """
+def handle(o):
+    if isinstance(o[-1], Foo):
+        x()
+    elif isinstance(o[+1], Bar):
+        y()
+"""
+    assert _check(src) == []
+
+
+def test_walrus_different_binding_name_not_flagged():
+    src = """
+def handle():
+    if isinstance((y := f()), Foo):
+        x()
+    elif isinstance((z := f()), Bar):
+        w()
+"""
+    assert _check(src) == []
+
+
+def test_call_target_different_keyword_value_not_flagged():
+    src = """
+def handle():
+    if isinstance(get(k=1), Foo):
+        x()
+    elif isinstance(get(k=2), Bar):
+        y()
+"""
+    assert _check(src) == []
+
+
+def test_boolop_different_operator_not_flagged():
+    src = """
+def handle(a, b):
+    if isinstance(a and b, Foo):
+        x()
+    elif isinstance(a or b, Bar):
+        y()
+"""
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Adversarial: heuristic boundaries — match/case, elif resets, name-exclusion  #
+# --------------------------------------------------------------------------- #
+
+
+def test_local_class_colliding_with_excluded_name_suppresses_chain():
+    # Name-based exclusion is intentional: a local domain class named like an ABC
+    # (`Sequence`) is treated as excluded, so this real 2-type dispatch is not flagged.
+    assert _check(_chain("x", "Node", "Sequence")) == []
+
+
+def test_two_valid_arms_before_non_isinstance_reset_not_flagged():
+    src = """
+def handle(x):
+    if isinstance(x, Foo):
+        a()
+    elif isinstance(x, Bar):
+        b()
+    elif x is None:
+        c()
+    elif isinstance(x, Baz):
+        d()
+"""
+    assert _check(src) == []
+
+
+def test_none_guard_head_before_isinstance_dispatch_not_flagged():
+    src = """
+def handle(x):
+    if x is None:
+        a()
+    elif isinstance(x, Foo):
+        b()
+    elif isinstance(x, Bar):
+        c()
+"""
+    assert _check(src) == []
+
+
+def test_match_with_class_patterns_and_guard_not_flagged():
+    src = """
+def handle(subject):
+    match subject:
+        case ApiKeySubject() if subject.active:
+            a()
+        case JwtSubject():
+            b()
+        case _:
+            c()
+"""
+    assert _check(src) == []
+
+
+def test_nested_boolop_walrus_mixed_guard_not_flagged():
+    src = """
+def handle(x):
+    if isinstance(x, Foo) and (y := x.v):
+        a()
+    elif isinstance(x, Bar):
+        b()
+"""
+    assert _check(src) == []

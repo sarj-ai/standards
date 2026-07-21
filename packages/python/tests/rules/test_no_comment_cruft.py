@@ -347,3 +347,105 @@ def test_annotated_assignment_body_is_not_flagged():
 
 def test_bare_comparison_body_is_not_flagged():
     assert _standalone("result == expected") == []
+
+
+@pytest.mark.parametrize("ch", ["~", "#", "*", "=", "-"])
+def test_run_char_banner_boundary_three_vs_four(ch: str):
+    assert _standalone(ch * 3) == [], ch
+    diags = _standalone(ch * 4)
+    assert len(diags) == 1, ch
+    assert "Section-banner" in diags[0].message, ch
+
+
+@pytest.mark.parametrize("ch", ["+", "_", "."])
+def test_full_only_fill_char_banner_boundary_three_vs_four(ch: str):
+    assert _standalone(ch * 3) == [], ch
+    assert len(_standalone(ch * 4)) == 1, ch
+
+
+@pytest.mark.parametrize("body", ["wait ---- for it", "issue #### tracked", "rating **** stars", "range ~~~~ approx", "a ==== b"])
+def test_four_run_of_rule_char_inside_prose_is_flagged(body: str):
+    diags = _standalone(body)
+    assert len(diags) == 1
+    assert "Section-banner" in diags[0].message
+
+
+@pytest.mark.parametrize("body", ["cost .... approx", "scores ++++ higher", "dunder ____ name here"])
+def test_full_only_fill_chars_do_not_flag_inside_prose(body: str):
+    assert _standalone(body) == []
+
+
+def test_trailing_inline_comment_on_commented_out_code_still_flags():
+    diags = _standalone("x = compute()  # legacy path")
+    assert len(diags) == 1
+    assert "Commented-out code" in diags[0].message
+
+
+def test_annotated_assignment_with_call_rhs_is_not_flagged():
+    assert _standalone("cache: Dict = build()") == []
+
+
+def test_two_word_assignment_aphorism_is_flagged_as_code():
+    assert len(_standalone("time = money")) == 1
+    assert len(_standalone("a = b in math")) == 1
+
+
+def test_global_keyword_with_assignment_prose_is_not_code():
+    assert _standalone("global config = None") == []
+
+
+def test_at_sign_with_space_is_not_a_decorator():
+    assert _standalone("@ the office we standardize this") == []
+
+
+def test_directive_without_space_after_colon_is_ignored():
+    assert _standalone("type:ignore") == []
+    assert _standalone("fmt:off") == []
+
+
+def test_uppercase_endregion_is_flagged():
+    diags = _standalone("ENDREGION")
+    assert len(diags) == 1
+    assert "Section-banner" in diags[0].message
+
+
+def test_word_starting_with_region_is_not_a_banner():
+    assert _standalone("regionally we differ here") == []
+
+
+def test_arabic_prose_comment_is_not_flagged():
+    assert _standalone("نتحقق من الرقم قبل الإرسال") == []
+
+
+def test_commented_code_with_arabic_identifier_is_flagged():
+    diags = _standalone("return النتيجة")
+    assert len(diags) == 1
+    assert "Commented-out code" in diags[0].message
+
+
+def test_ascii_banner_around_arabic_text_is_flagged():
+    diags = _standalone("==== قسم ====")
+    assert len(diags) == 1
+    assert "Section-banner" in diags[0].message
+
+
+def test_empty_comment_line_counts_toward_preamble():
+    src = "# alpha\n#\n# gamma\n# delta\nimport os\n"
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "preamble" in diags[0].message
+    assert "(4 lines)" in diags[0].message
+
+
+@pytest.mark.xfail(strict=True, reason="'todo' directive prefix lacks a word boundary, so commented-out `todos = []` is silently suppressed")
+def test_todos_assignment_is_commented_out_code_not_a_directive():
+    diags = _standalone("todos = []")
+    assert len(diags) == 1
+    assert "Commented-out code" in diags[0].message
+
+
+@pytest.mark.xfail(strict=True, reason="'noqa' directive prefix lacks a word boundary, so commented-out `noqant = fetch()` is silently suppressed")
+def test_identifier_starting_with_noqa_is_not_a_directive():
+    diags = _standalone("noqant = fetch()")
+    assert len(diags) == 1
+    assert "Commented-out code" in diags[0].message

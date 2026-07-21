@@ -183,3 +183,64 @@ def test_syntax_error_returns_empty(source: str):
 )
 def test_schema_qualified_star_should_fire():
     assert len(_check('q = "SELECT public.call.* FROM call"\n')) == 1
+
+
+NEW_ALLOWS = {
+    "arithmetic_star_multiply": 'q = "SELECT price * quantity FROM orders"\n',
+    "star_in_sql_string_literal": "q = \"SELECT id FROM call WHERE note = '*'\"\n",
+    "two_exists_both_exempt": 'q = "SELECT id FROM a WHERE EXISTS(SELECT * FROM b) AND EXISTS(SELECT * FROM c)"\n',
+    "concat_reconstructs_count_star": 'q = "SELECT COUNT(" + "*) FROM call"\n',
+    "count_star_then_arithmetic": 'q = "SELECT COUNT(*), price * qty FROM call"\n',
+}
+
+
+@pytest.mark.parametrize("source", NEW_ALLOWS.values(), ids=list(NEW_ALLOWS))
+def test_new_does_not_fire(source: str):
+    assert _check(source) == []
+
+
+NEW_FIRES = {
+    "star_split_before_star": 'q = "SELECT " + "* FROM call"\n',
+    "star_split_after_star": 'q = "SELECT *" + " FROM call"\n',
+    "mod_format_inner_constant": 'q = "SELECT * FROM %s" % tbl\n',
+    "numeric_suffixed_alias_star": 'q = "SELECT t1.* FROM call t1"\n',
+    "underscore_alias_star": 'q = "SELECT _c.* FROM call _c"\n',
+}
+
+
+@pytest.mark.parametrize("source", NEW_FIRES.values(), ids=list(NEW_FIRES))
+def test_new_fires_one_diagnostic(source: str):
+    assert len(_check(source)) == 1
+
+
+def test_earlier_exists_does_not_exempt_later_real_star_in_union():
+    src = 'q = "SELECT id FROM a WHERE EXISTS(SELECT * FROM b) UNION SELECT * FROM c"\n'
+    assert len(_check(src)) == 1
+
+
+@pytest.mark.xfail(
+    reason="FN: `SELECT DISTINCT ON (cols) *` (Postgres) — _SELECT_STAR only allows an "
+    "ALL/DISTINCT keyword then one alias-dot, not `DISTINCT ON (...)` before the star.",
+    strict=True,
+)
+def test_distinct_on_star_should_fire():
+    assert len(_check('q = "SELECT DISTINCT ON (id) * FROM call"\n')) == 1
+
+
+@pytest.mark.xfail(
+    reason="FN: a bare `*` in any but the first projection position (`SELECT id, *`) is "
+    "missed — _SELECT_STAR anchors the star directly to SELECT with no leading columns.",
+    strict=True,
+)
+def test_star_in_non_first_projection_should_fire():
+    assert len(_check('q = "SELECT id, * FROM call"\n')) == 1
+
+
+@pytest.mark.xfail(
+    reason="FN: f-string with interpolation between the star and FROM "
+    '(`f"SELECT * {cols} FROM call"`) splits SELECT and FROM across separate Constant '
+    "segments, so neither segment matches _QUERY_SHAPE.",
+    strict=True,
+)
+def test_fstring_interp_between_star_and_from_should_fire():
+    assert len(_check('q = f"SELECT * {cols} FROM call"\n')) == 1

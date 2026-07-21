@@ -961,3 +961,169 @@ def route(kind: str) -> int:
     diags = _check(src)
     assert len(diags) == 2
     assert [d.line for d in diags] == sorted(d.line for d in diags)
+
+
+# --- Adversarial: scope attribution across nested boundaries ------------------
+
+
+def test_method_accumulates_across_a_nested_helper_def():
+    """The method's own cluster must survive a nested def dropped in the middle:
+    `active` + `pending` = 2 distinct -> one diag; the helper's `inactive` is
+    isolated in its own cluster (below threshold)."""
+    src = """
+class W:
+    def run(self, status: str) -> int:
+        if status == "active":
+            return 1
+        def helper(status: str) -> int:
+            if status == "inactive":
+                return 2
+            return 0
+        if status == "pending":
+            return 3
+        return 0
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].line == 4
+    assert "status" in diags[0].message
+
+
+def test_class_nested_in_function_resets_the_cluster_scope():
+    """A class body opened inside a function is its own (module-like) scope: the
+    class-body comparison is not merged into the enclosing function's cluster,
+    so neither side reaches the 2-literal threshold."""
+    src = """
+def outer(status):
+    class C:
+        y = status == "active"
+    if status == "inactive":
+        return 2
+"""
+    assert _check(src) == []
+
+
+def test_comprehension_condition_clusters_within_its_function():
+    """A comprehension makes no def/lambda node, so its `if` comparisons stay in
+    the enclosing function's cluster."""
+    src = """
+def f(items):
+    return [x for x in items if x == "active" or x == "inactive"]
+"""
+    assert len(_check(src)) == 1
+
+
+def test_decorator_expression_comparisons_attribute_to_decorated_function():
+    """Both comparisons live in a decorator call expression on the inner def;
+    the DFS attributes them to that def's cluster, so the closed set still
+    fires once."""
+    src = """
+def outer(status):
+    @deco(status == "active" or status == "inactive")
+    def inner():
+        return 1
+    return inner
+"""
+    assert len(_check(src)) == 1
+
+
+# --- Adversarial: comparand shapes -------------------------------------------
+
+
+def test_walrus_target_in_comparison_is_not_clustered():
+    """A `(s := ...)` left-hand side is a NamedExpr, not a plain name/attribute,
+    so it is excluded; the later bare `s` sees only one literal."""
+    src = """
+def handle(get) -> int:
+    if (s := get()) == "active":
+        return 1
+    if s == "inactive":
+        return 2
+    return 0
+"""
+    assert _check(src) == []
+
+
+def test_membership_against_a_variable_collection_not_flagged():
+    src = """
+def handle(status: str, allowed) -> bool:
+    return status in allowed
+"""
+    assert _check(src) == []
+
+
+def test_membership_against_non_literal_elements_not_flagged():
+    src = """
+def handle(status: str, a, b) -> bool:
+    return status in (a, b)
+"""
+    assert _check(src) == []
+
+
+def test_duplicate_literals_inside_in_tuple_do_not_reach_threshold():
+    src = """
+def handle(status: str) -> bool:
+    return status in ("active", "active")
+"""
+    assert _check(src) == []
+
+
+def test_yoda_and_not_equal_mix_into_one_cluster():
+    src = """
+def handle(status: str) -> int:
+    if "active" == status:
+        return 1
+    if status != "inactive":
+        return 2
+    return 0
+"""
+    assert len(_check(src)) == 1
+
+
+def test_upstream_contract_role_tuple_fires_as_closed_set():
+    """An LLM message-role membership check is a genuine closed set; the rule
+    fires (documenting that external-contract tuples are not exempted)."""
+    src = """
+def route(role: str) -> int:
+    if role in ("user", "assistant", "system"):
+        return 1
+    return 0
+"""
+    assert len(_check(src)) == 1
+
+
+# --- Adversarial: known defects (xfail, strict) ------------------------------
+
+
+@pytest.mark.xfail(strict=True, reason="FN: match/case string patterns are not Compare nodes")
+def test_match_case_string_patterns_should_cluster():
+    src = """
+def handle(status: str) -> int:
+    match status:
+        case "active":
+            return 1
+        case "inactive":
+            return 2
+    return 0
+"""
+    assert len(_check(src)) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="FP: metric/log field-name keys are not a value enum")
+def test_metric_field_name_membership_should_not_cluster():
+    src = """
+def prune(k: str) -> bool:
+    return k not in ["diff_ms", "total_ms"]
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.xfail(strict=True, reason="FN: stringized `\"str\"` annotation unparses to `'str'`, not `str`")
+def test_stringized_str_annotation_choice_field_should_flag():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    status: "str"
+"""
+    assert len(_check(src)) == 1

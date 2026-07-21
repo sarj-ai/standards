@@ -425,3 +425,214 @@ def f(items):
         build()
 """
     assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# New adversarial coverage — compound statements wrapping an in-loop concat.   #
+# The visitor recurses via generic_visit, so loop_depth stays > 0 inside any   #
+# nested block and the concat must still fire.                                 #
+# --------------------------------------------------------------------------- #
+
+
+_WRAPPED_CONCAT_BODIES = [
+    pytest.param(
+        "        if x:\n            s += str(x)",
+        id="if-guarded",
+    ),
+    pytest.param(
+        "        if not x:\n            pass\n        else:\n            s += str(x)",
+        id="else-guarded",
+    ),
+    pytest.param(
+        "        try:\n            s += str(x)\n        except Exception:\n            pass",
+        id="try-body",
+    ),
+    pytest.param(
+        "        try:\n            pass\n        except Exception:\n            s += str(x)",
+        id="except-body",
+    ),
+    pytest.param(
+        "        try:\n            pass\n        finally:\n            s += str(x)",
+        id="finally-body",
+    ),
+    pytest.param(
+        "        with open('p') as _fh:\n            s += str(x)",
+        id="with-body",
+    ),
+]
+
+
+@pytest.mark.parametrize("body", _WRAPPED_CONCAT_BODIES)
+def test_flags_concat_wrapped_in_compound_statement(body: str):
+    src = f"""
+def f(items):
+    s = ""
+    for x in items:
+{body}
+    return s
+"""
+    assert _count(src) == 1
+
+
+def test_flags_concat_in_match_case_bodies_in_loop():
+    src = """
+def f(items):
+    s = ""
+    for x in items:
+        match x:
+            case 0:
+                s += "zero"
+            case _:
+                s += str(x)
+    return s
+"""
+    assert _count(src) == 2
+
+
+def test_flags_concat_in_inner_while_in_for():
+    src = """
+def f(items):
+    s = ""
+    for x in items:
+        while x:
+            s += str(x)
+            x -= 1
+    return s
+"""
+    assert _count(src) == 1
+
+
+def test_flags_concat_in_while_true_loop():
+    src = """
+def f(items):
+    s = ""
+    while True:
+        s += str(items)
+        break
+    return s
+"""
+    assert _count(src) == 1
+
+
+def test_flags_concat_over_generator_expression_iterable():
+    src = """
+def f(gen):
+    s = ""
+    for x in (i for i in gen):
+        s += str(x)
+    return s
+"""
+    assert _count(src) == 1
+
+
+def test_flags_async_for_concat_when_nested_in_sync_for():
+    """A pure async-for is a known gap, but the outer sync for keeps loop_depth
+    positive, so the concat is still flagged."""
+    src = """
+async def f(rows):
+    s = ""
+    for row in rows:
+        async for cell in row:
+            s += str(cell)
+    return s
+"""
+    assert _count(src) == 1
+
+
+def test_flags_sync_for_concat_when_nested_in_async_for():
+    src = """
+async def f(rows):
+    s = ""
+    async for row in rows:
+        for cell in row:
+            s += str(cell)
+    return s
+"""
+    assert _count(src) == 1
+
+
+def test_flags_implicit_adjacent_string_literal_concat():
+    """`"a" "b"` is parsed as a single str Constant, so it is flagged."""
+    src = """
+def f(items):
+    s = ""
+    for x in items:
+        s += "a" "b"
+    return s
+"""
+    assert _count(src) == 1
+
+
+def test_allows_bytes_encode_call_in_loop():
+    """`.encode()` yields bytes and is not in the string-method allowlist."""
+    src = """
+def f(items):
+    buf = b""
+    for x in items:
+        buf += f"{x}".encode()
+    return buf
+"""
+    assert _check(src) == []
+
+
+def test_allows_numeric_modulo_augassign_in_loop():
+    """`%` on a numeric RHS is Mod, not Add, and must not be flagged."""
+    src = """
+def f(items):
+    total = 0
+    for n in items:
+        total += n % 2
+    return total
+"""
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# New known gaps / suspected bugs — string-valued RHS shapes the heuristic     #
+# fails to recognise, so the O(n^2) concat goes undetected.                    #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.xfail(
+    reason="ternary IfExp RHS with two string branches is not recognised as string-ish",
+    strict=True,
+)
+def test_flags_ternary_string_rhs_in_loop():
+    src = """
+def f(items, c):
+    s = ""
+    for x in items:
+        s += "a" if c else "b"
+    return s
+"""
+    assert _count(src) == 1
+
+
+@pytest.mark.xfail(
+    reason="`%`-formatting RHS is a Mod BinOp; only Add BinOps are treated as string-ish",
+    strict=True,
+)
+def test_flags_percent_format_string_rhs_in_loop():
+    src = """
+def f(items):
+    s = ""
+    for x in items:
+        s += "row %s" % x
+    return s
+"""
+    assert _count(src) == 1
+
+
+@pytest.mark.xfail(
+    reason="walrus NamedExpr wrapping a string RHS is not unwrapped by the heuristic",
+    strict=True,
+)
+def test_flags_walrus_wrapped_string_rhs_in_loop():
+    src = """
+def f(items):
+    s = ""
+    for x in items:
+        s += (y := str(x))
+    return s
+"""
+    assert _count(src) == 1
