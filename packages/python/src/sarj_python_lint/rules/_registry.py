@@ -25,6 +25,7 @@ from sarj_python_lint.rules.prefer_constant_time_secret_compare import (
     PreferConstantTimeSecretCompare,
 )
 from sarj_python_lint.rules.prefer_str_enum import PreferStrEnum
+from sarj_python_lint.rules.single_public_export import SinglePublicExport
 from sarj_python_lint.rules.prefer_struct_over_namedtuple import (
     PreferStructOverNamedtuple,
 )
@@ -61,6 +62,7 @@ REGISTRY: dict[str, type[Rule]] = {
     NoQueryWithManyJoins.id: NoQueryWithManyJoins,
     NoAggregationInStoreQuery.id: NoAggregationInStoreQuery,
     NoSelectStar.id: NoSelectStar,
+    SinglePublicExport.id: SinglePublicExport,
 }
 
 __all__ = ["REGISTRY"]
