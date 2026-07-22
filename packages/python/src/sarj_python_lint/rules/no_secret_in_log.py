@@ -19,7 +19,7 @@ import ast
 import re
 from typing import TYPE_CHECKING, override
 
-from sarj_python_lint._secret_names import _tokens, is_secret_name
+from sarj_python_lint._secret_names import identifier_tokens, is_secret_name
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 from sarj_python_lint.rules._logging import is_logger_expr
 
@@ -50,7 +50,7 @@ def _is_secret_keyword(name: str) -> bool:
     """True if the keyword name names a raw secret (not a redacted derivative)."""
     if _REDACTION_RE.search(name):
         return False
-    if any(tok in _WHOLE_TOKEN_REDACTION_MARKERS for tok in _tokens(name)):
+    if any(tok in _WHOLE_TOKEN_REDACTION_MARKERS for tok in identifier_tokens(name)):
         return False
     return is_secret_name(name)
 

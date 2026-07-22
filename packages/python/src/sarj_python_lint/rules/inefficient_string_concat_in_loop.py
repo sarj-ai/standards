@@ -20,7 +20,7 @@ References:
 from __future__ import annotations
 
 import ast
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, TypeGuard, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
 
@@ -82,7 +82,7 @@ class _ConcatVisitor(ast.NodeVisitor):
             self.hits.append(node)
         super().generic_visit(node)
 
-    def _is_in_loop_concat(self, node: ast.AST) -> bool:
+    def _is_in_loop_concat(self, node: ast.AST) -> TypeGuard[ast.AugAssign | ast.Assign]:
         if isinstance(node, ast.AugAssign):
             return isinstance(node.op, ast.Add) and self._is_string_growth(node.target, node.value)
         if isinstance(node, ast.Assign):

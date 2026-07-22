@@ -95,7 +95,7 @@ _CAMEL_RE = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+")
 _SEGMENT_RE = re.compile(r"[^A-Za-z0-9]+")
 
 
-def _tokens(identifier: str) -> list[str]:
+def identifier_tokens(identifier: str) -> list[str]:
     """Ordered lowercase tokens from snake_case + camelCase decomposition.
 
     Also yields each whole snake/kebab segment lowercased, so a pathological
@@ -113,7 +113,7 @@ def _tokens(identifier: str) -> list[str]:
 
 def is_secret_name(identifier: str) -> bool:
     """True if `identifier` names raw secret material (a credential, not metadata)."""
-    tokens = _tokens(identifier)
+    tokens = identifier_tokens(identifier)
     if tokens and tokens[-1] in _INNOCUOUS_WORDS:
         return False
     if any(tok in _SECRET_WORDS for tok in tokens):
