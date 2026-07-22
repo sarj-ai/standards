@@ -260,9 +260,6 @@ export default ESLintUtils.RuleCreator(
         ) {
           return;
         }
-        if (node.left.type === AST_NODE_TYPES.PrivateIdentifier) {
-          return;
-        }
         const leftKey = refKey(node.left);
         const rightLit = strLiteral(node.right);
         const rightKey = refKey(node.right);
