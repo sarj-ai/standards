@@ -18,6 +18,12 @@ import preferShadcn from "./rules/prefer-shadcn.js";
 import requireAssertNever from "./rules/require-assert-never.js";
 import requireZodFormValidation from "./rules/require-zod-form-validation.js";
 import zodNamingConvention from "./rules/zod-naming-convention.js";
+import noCorsWildcardWithCredentials from "./rules/no-cors-wildcard-with-credentials.js";
+import noFatTryBlocks from "./rules/no-fat-try-blocks.js";
+import noSecretInLog from "./rules/no-secret-in-log.js";
+import noTemplateLiteralInLog from "./rules/no-template-literal-in-log.js";
+import preferStringLiteralUnion from "./rules/prefer-string-literal-union.js";
+import singlePublicExport from "./rules/single-public-export.js";
 
 const rules = {
   "enforce-file-structure": enforceFileStructure,
@@ -40,12 +46,18 @@ const rules = {
   "require-assert-never": requireAssertNever,
   "require-zod-form-validation": requireZodFormValidation,
   "zod-naming-convention": zodNamingConvention,
+  "no-cors-wildcard-with-credentials": noCorsWildcardWithCredentials,
+  "no-fat-try-blocks": noFatTryBlocks,
+  "no-secret-in-log": noSecretInLog,
+  "no-template-literal-in-log": noTemplateLiteralInLog,
+  "prefer-string-literal-union": preferStringLiteralUnion,
+  "single-public-export": singlePublicExport,
 };
 
 const plugin = {
   meta: {
     name: "@sarj/eslint-plugin",
-    version: "2.2.0",
+    version: "2.3.0",
   },
   rules,
   configs: {
@@ -71,6 +83,13 @@ const plugin = {
         "@sarj/no-comment-cruft": "warn",
         // Frontend / styling — distilled from frontend PR-review mining.
         "@sarj/prefer-semantic-colors": "warn",
+        // Ported from sarj-python-lint (SARJ), corpus-validated FP~0.
+        "@sarj/no-fat-try-blocks": "warn",
+        "@sarj/no-cors-wildcard-with-credentials": "warn",
+        "@sarj/no-template-literal-in-log": "warn",
+        "@sarj/no-secret-in-log": "warn",
+        "@sarj/single-public-export": "warn",
+        "@sarj/prefer-string-literal-union": "warn",
       },
     },
     strict: {
@@ -99,6 +118,14 @@ const plugin = {
         // Frontend / styling — distilled from frontend PR-review mining. Stylistic,
         // no autofix → warn (rollout should prove the FP rate before raising it).
         "@sarj/prefer-semantic-colors": "warn",
+        // Ported from sarj-python-lint (SARJ), corpus-validated FP~0.
+        "@sarj/no-fat-try-blocks": "error",
+        "@sarj/no-cors-wildcard-with-credentials": "error",
+        "@sarj/no-template-literal-in-log": "error",
+        "@sarj/no-secret-in-log": "error",
+        "@sarj/single-public-export": "error",
+        // High-volume/stylistic — warn until rollout proves FP rate.
+        "@sarj/prefer-string-literal-union": "warn",
       },
     },
   },
