@@ -1,6 +1,6 @@
 {
   "name": "@sarj/eslint-plugin",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "description": "Custom ESLint rules for hypermodern TypeScript / React / Next.js projects",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -60,9 +60,15 @@
     "vitest": "latest"
   },
   "peerDependencies": {
-    "eslint": ">=9.39.4"
+    "eslint": ">=9.39.4",
+    "typescript": ">=5.0.0"
   },
   "engines": {
     "node": ">=22.0.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
   }
 }

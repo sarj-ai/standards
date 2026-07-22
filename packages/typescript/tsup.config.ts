@@ -14,6 +14,7 @@ export default defineConfig({
   // (b) ship a second copy that can't see the host's rules / configs.
   external: [
     "eslint",
+    "typescript",
     "@typescript-eslint/utils",
     "@typescript-eslint/parser",
     "@typescript-eslint/rule-tester",

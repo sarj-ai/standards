@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import * as tsParser from "@typescript-eslint/parser";
 import { RuleTester } from "@typescript-eslint/rule-tester";
 import { afterAll, describe, it } from "vitest";
@@ -12,6 +14,12 @@ RuleTester.itOnly = it.only;
 const ruleTester = new RuleTester({
   languageOptions: {
     parser: tsParser,
+    parserOptions: {
+      projectService: {
+        allowDefaultProject: ["*.ts*", "*/*.ts*", "*/*/*.ts*"],
+      },
+      tsconfigRootDir: join(import.meta.dirname, "..", "fixtures"),
+    },
   },
 });
 
@@ -24,8 +32,7 @@ ruleTester.run("prefer-string-literal-union", rule, {
     { code: "interface ApiUser { id: string; status: string; name: string; }" },
     { code: "class Dto { status: string = ''; }" },
     // DB-row cast whose `status` is also compared in a cluster elsewhere in the
-    // file: the field must NOT be corroborated by the file-wide cluster (only
-    // the cluster diagnostic fires, at the comparison — asserted in `invalid`).
+    // file: the field must NOT be corroborated by the file-wide cluster.
     {
       code: "type Row = { status: string }; function ok(r: Row) { return true; }",
     },
@@ -44,18 +51,18 @@ ruleTester.run("prefer-string-literal-union", rule, {
     // Generated files opt out even with obvious violations.
     {
       code: "interface Foo { status: string; kind: 'a' | 'b'; } function g(x: string){ return x === 'a' || x === 'b'; }",
-      filename: "/repo/src/api.gen.ts",
+      filename: "api.gen.ts",
     },
     {
       code: "interface Foo { status: string; kind: 'a' | 'b'; }",
-      filename: "/repo/src/generated/api.ts",
+      filename: "src/generated/api.ts",
     },
     {
       code: "// @generated\ninterface Foo { status: string; kind: 'a' | 'b'; }",
     },
     {
       code: "interface Foo { status: string; kind: 'a' | 'b'; }",
-      filename: "/repo/src/api.d.ts",
+      filename: "api.d.ts",
     },
     // Uppercase / long literals are not enum-shaped tokens.
     {
@@ -85,14 +92,28 @@ ruleTester.run("prefer-string-literal-union", rule, {
     {
       code: "function f(s: string) { return s === '' || s === 'active'; }",
     },
-    // Discriminant already a string-literal union — comparing it is the target
-    // state, not a violation.
+    // Operand already a string-literal union — comparing it is the target state,
+    // not a violation. This is the whole point of the type-aware gate: without
+    // it, every one of these fired.
     {
       code: "function f(m: 'read' | 'write') { return m === 'read' || m === 'write'; }",
     },
     // Same, via a switch.
     {
       code: "function f(r: 'admin' | 'user') { switch (r) { case 'admin': return 1; case 'user': return 2; default: return 0; } }",
+    },
+    // Operand typed via a NAMED union (the dominant real-world false positive: a
+    // syntactic rule can't see through `CallStatus`; the type checker can).
+    {
+      code: "type CallStatus = 'open' | 'closed'; function h(s: CallStatus) { return s === 'open' || s === 'closed'; }",
+    },
+    // Named union reached through a member expression.
+    {
+      code: "type Tier = 'gold' | 'silver'; interface Account { plan: { tier: Tier } } function g(u: Account) { return u.plan.tier === 'gold' || u.plan.tier === 'silver'; }",
+    },
+    // Discriminated-union tag — `.type` is a literal union per member.
+    {
+      code: "type Ev = { type: 'add'; n: number } | { type: 'del'; id: string }; function r(e: Ev) { switch (e.type) { case 'add': return 1; case 'del': return 2; } }",
     },
     // Object-type param property already a union — member cluster is fine.
     {
@@ -107,23 +128,17 @@ ruleTester.run("prefer-string-literal-union", rule, {
     {
       code: "interface Api { status: string; type: string; mode: string; }",
     },
-    // Destructured prop already typed as a union (the shadcn/React shape) — the
-    // member is inline-annotated on the ObjectPattern param.
+    // Destructured prop already typed as a union (the shadcn/React shape).
     {
-      code: 'function SheetContent({ side = "right" }: Props & { side?: "top" | "right" | "bottom" | "left" }) { return side === "right" || side === "left"; }',
+      code: 'function SheetContent({ side = "right" }: { side?: "top" | "right" | "bottom" | "left" }) { return side === "right" || side === "left"; }',
     },
     // Shorthand destructure with a direct inline union annotation.
     {
       code: 'function Badge({ variant }: { variant: "default" | "outline" | "ghost" }) { return variant === "default" || variant === "outline"; }',
     },
-    // Local var annotated with a union that mixes a named type and a literal —
-    // already a closed union, so the switch is the target state.
+    // Union that mixes a named type and a literal — already a closed union.
     {
-      code: 'function f(state: AgentState, has: boolean) { const eff: AgentState | "connecting" = has ? state : "connecting"; switch (eff) { case "connecting": return 0; case "idle": return 1; default: return 2; } }',
-    },
-    // Param annotated with a mixed union (named type + literal).
-    {
-      code: 'function g(x: AgentState | "connecting") { return x === "connecting" || x === "idle"; }',
+      code: 'type AgentState = "idle" | "running"; function g(x: AgentState | "connecting") { return x === "connecting" || x === "idle"; }',
     },
   ],
   invalid: [
@@ -132,8 +147,7 @@ ruleTester.run("prefer-string-literal-union", rule, {
       code: 'interface Order { status: string; kind: "a" | "b"; }',
       errors: [{ messageId: "bareChoiceField", data: { name: "status" } }],
     },
-    // A comparison cluster fires the cluster diagnostic (but a bare field is
-    // NOT corroborated by a file-wide cluster — that would flag DTO fields).
+    // A comparison cluster on a raw-`string` field fires the cluster diagnostic.
     {
       code: "interface Order { callStatus: string; } function h(o: Order) { return o.callStatus === 'open' || o.callStatus === 'closed'; }",
       errors: [{ messageId: "comparisonCluster" }],
@@ -143,32 +157,36 @@ ruleTester.run("prefer-string-literal-union", rule, {
       code: 'class Job { state: string; priority: "low" | "high" = "low"; }',
       errors: [{ messageId: "bareChoiceField", data: { name: "state" } }],
     },
-    // Pure comparison cluster: 2 distinct literals via `===`.
+    // Pure comparison cluster on a raw-`string` param: 2 distinct literals.
     {
       code: "function route(mode: string) { if (mode === 'read') return 1; if (mode === 'write') return 2; return 0; }",
       errors: [{ messageId: "comparisonCluster", data: { key: "mode" } }],
     },
-    // Cluster via `switch` with 2+ string cases.
+    // Cluster via `switch` on a raw-`string` param.
     {
       code: "function pick(role: string) { switch (role) { case 'admin': return 1; case 'user': return 2; default: return 0; } }",
       errors: [{ messageId: "comparisonCluster", data: { key: "role" } }],
     },
-    // Member-expression cluster. The inline `tier: string` param has no sibling
-    // union, so only the cluster fires — the bare field is not corroborated.
+    // Member-expression cluster where the member is raw `string`.
     {
       code: "function f(o: { tier: string }) { return o.tier === 'gold' || o.tier === 'silver'; }",
       errors: [{ messageId: "comparisonCluster", data: { key: "o.tier" } }],
     },
-    // Bare member-expression cluster with no field declaration.
+    // Bare member-expression cluster, member typed `string` through a named type.
     {
-      code: "function g(u: Account) { return u.plan.tier === 'gold' || u.plan.tier === 'silver'; }",
+      code: "interface Account { plan: { tier: string } } function g(u: Account) { return u.plan.tier === 'gold' || u.plan.tier === 'silver'; }",
       errors: [{ messageId: "comparisonCluster", data: { key: "u.plan.tier" } }],
     },
-    // A genuine 2-element enum still fires (threshold stays at 2). The object
-    // param property is bare `string`, so it is not treated as already-union.
+    // A genuine 2-element enum on a raw-`string` member still fires.
     {
       code: "function d(o: { direction: string }) { return o.direction === 'inbound' || o.direction === 'outbound'; }",
       errors: [{ messageId: "comparisonCluster", data: { key: "o.direction" } }],
+    },
+    // `string | undefined` still counts as raw string — the general-string
+    // member is present, so a nullable pseudo-enum is flagged.
+    {
+      code: "function f(x: string | undefined) { return x === 'on' || x === 'off'; }",
+      errors: [{ messageId: "comparisonCluster", data: { key: "x" } }],
     },
   ],
 });
