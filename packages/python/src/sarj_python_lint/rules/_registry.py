@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING
 from sarj_python_lint.rules.inefficient_string_concat_in_loop import (
     InefficientStringConcatInLoop,
 )
-from sarj_python_lint.rules.json_response_not_parsed import JsonResponseNotParsed
-from sarj_python_lint.rules.len_as_truthiness import LenAsTruthiness
 from sarj_python_lint.rules.no_aggregation_in_store_query import (
     NoAggregationInStoreQuery,
 )
@@ -17,7 +15,6 @@ from sarj_python_lint.rules.no_cors_wildcard_with_credentials import (
 from sarj_python_lint.rules.no_fat_try_blocks import NoFatTryBlocks
 from sarj_python_lint.rules.no_fstring_in_log import NoFstringInLog
 from sarj_python_lint.rules.no_isinstance_union_chain import NoIsinstanceUnionChain
-from sarj_python_lint.rules.no_manual_log_prefix import NoManualLogPrefix
 from sarj_python_lint.rules.no_offset_pagination import NoOffsetPagination
 from sarj_python_lint.rules.no_query_with_many_joins import NoQueryWithManyJoins
 from sarj_python_lint.rules.no_repeated_string_literal import NoRepeatedStringLiteral
@@ -64,10 +61,7 @@ REGISTRY: dict[str, type[Rule]] = {
     NoIsinstanceUnionChain.id: NoIsinstanceUnionChain,
     NoOffsetPagination.id: NoOffsetPagination,
     PreferNamedtupleOverTupleReturn.id: PreferNamedtupleOverTupleReturn,
-    LenAsTruthiness.id: LenAsTruthiness,
     NoCorsWildcardWithCredentials.id: NoCorsWildcardWithCredentials,
-    NoManualLogPrefix.id: NoManualLogPrefix,
-    JsonResponseNotParsed.id: JsonResponseNotParsed,
     NoSleepInTestBody.id: NoSleepInTestBody,
     PydanticAtBoundaries.id: PydanticAtBoundaries,
     NoSentinelReturnOnExcept.id: NoSentinelReturnOnExcept,
