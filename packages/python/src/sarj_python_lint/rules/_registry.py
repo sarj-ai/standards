@@ -5,25 +5,36 @@ from typing import TYPE_CHECKING
 from sarj_python_lint.rules.inefficient_string_concat_in_loop import (
     InefficientStringConcatInLoop,
 )
+from sarj_python_lint.rules.json_response_not_parsed import JsonResponseNotParsed
+from sarj_python_lint.rules.len_as_truthiness import LenAsTruthiness
 from sarj_python_lint.rules.no_aggregation_in_store_query import (
     NoAggregationInStoreQuery,
 )
 from sarj_python_lint.rules.no_comment_cruft import NoCommentCruft
+from sarj_python_lint.rules.no_cors_wildcard_with_credentials import (
+    NoCorsWildcardWithCredentials,
+)
 from sarj_python_lint.rules.no_fat_try_blocks import NoFatTryBlocks
 from sarj_python_lint.rules.no_fstring_in_log import NoFstringInLog
 from sarj_python_lint.rules.no_isinstance_union_chain import NoIsinstanceUnionChain
+from sarj_python_lint.rules.no_manual_log_prefix import NoManualLogPrefix
+from sarj_python_lint.rules.no_offset_pagination import NoOffsetPagination
 from sarj_python_lint.rules.no_query_with_many_joins import NoQueryWithManyJoins
 from sarj_python_lint.rules.no_repeated_string_literal import NoRepeatedStringLiteral
 from sarj_python_lint.rules.no_secret_in_log import NoSecretInLog
 from sarj_python_lint.rules.no_select_star import NoSelectStar
 from sarj_python_lint.rules.no_sentinel_return_on_except import NoSentinelReturnOnExcept
 from sarj_python_lint.rules.no_sequential_await import NoSequentialAwait
+from sarj_python_lint.rules.no_sleep_in_test_body import NoSleepInTestBody
 from sarj_python_lint.rules.no_unreachable_after_terminal import (
     NoUnreachableAfterTerminal,
 )
 from sarj_python_lint.rules.prefer_class_row import PreferClassRow
 from sarj_python_lint.rules.prefer_constant_time_secret_compare import (
     PreferConstantTimeSecretCompare,
+)
+from sarj_python_lint.rules.prefer_namedtuple_over_tuple_return import (
+    PreferNamedtupleOverTupleReturn,
 )
 from sarj_python_lint.rules.prefer_str_enum import PreferStrEnum
 from sarj_python_lint.rules.prefer_struct_over_namedtuple import (
@@ -51,6 +62,13 @@ REGISTRY: dict[str, type[Rule]] = {
     PreferStrEnum.id: PreferStrEnum,
     NoFatTryBlocks.id: NoFatTryBlocks,
     NoIsinstanceUnionChain.id: NoIsinstanceUnionChain,
+    NoOffsetPagination.id: NoOffsetPagination,
+    PreferNamedtupleOverTupleReturn.id: PreferNamedtupleOverTupleReturn,
+    LenAsTruthiness.id: LenAsTruthiness,
+    NoCorsWildcardWithCredentials.id: NoCorsWildcardWithCredentials,
+    NoManualLogPrefix.id: NoManualLogPrefix,
+    JsonResponseNotParsed.id: JsonResponseNotParsed,
+    NoSleepInTestBody.id: NoSleepInTestBody,
     PydanticAtBoundaries.id: PydanticAtBoundaries,
     NoSentinelReturnOnExcept.id: NoSentinelReturnOnExcept,
     NoUnreachableAfterTerminal.id: NoUnreachableAfterTerminal,
