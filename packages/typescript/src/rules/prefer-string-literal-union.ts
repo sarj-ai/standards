@@ -151,6 +151,41 @@ function typeHasRawString(type: ts.Type): boolean {
   return parts.some((t) => (t.flags & ts.TypeFlags.String) !== 0);
 }
 
+function isExternalSourceFile(sf: ts.SourceFile | undefined): boolean {
+  if (sf === undefined) {
+    return false;
+  }
+  return sf.isDeclarationFile || sf.fileName.includes("/node_modules/");
+}
+
+function symbolIsExternallyDeclared(sym: ts.Symbol | undefined): boolean {
+  return (
+    sym?.declarations?.some((d) => isExternalSourceFile(d.getSourceFile())) ??
+    false
+  );
+}
+
+/**
+ * The iterable expression a destructuring binding element draws its value from,
+ * e.g. `Object.entries(x)` for `key` in `for (const [key] of Object.entries(x))`
+ * or the RHS of `const { a } = rhs`.
+ */
+function bindingSourceExpression(
+  decl: ts.BindingElement,
+): ts.Expression | undefined {
+  let node: ts.Node = decl.parent;
+  while (
+    !ts.isForOfStatement(node) &&
+    !(ts.isVariableDeclaration(node) && node.initializer !== undefined)
+  ) {
+    if (node.parent === undefined) {
+      return undefined;
+    }
+    node = node.parent;
+  }
+  return ts.isForOfStatement(node) ? node.expression : node.initializer;
+}
+
 /** A stable key for a plain identifier or non-computed member chain, else null. */
 function refKey(node: TSESTree.Node): string | null {
   if (node.type === AST_NODE_TYPES.Identifier) {
@@ -233,6 +268,54 @@ export default ESLintUtils.RuleCreator(
         return false;
       }
       return typeHasRawString(services.getTypeAtLocation(node));
+    }
+
+    /**
+     * Whether the compared value provably originates from a type we don't own —
+     * a property of a `.d.ts` / node_modules type (DOM `getComputedStyle().overflowY`,
+     * `Task.status` from another package), the return of such a method
+     * (`URLSearchParams.get()`, `str.toLowerCase()`), or a destructuring of one
+     * (`Object.entries()` keys). A string-literal union is not an available fix
+     * for these, so the cluster shape must not flag them.
+     */
+    function originIsExternal(node: ts.Node | undefined, depth: number): boolean {
+      if (node === undefined || services === null || depth > 6) {
+        return false;
+      }
+      const checker = services.program.getTypeChecker();
+      if (
+        ts.isParenthesizedExpression(node) ||
+        ts.isNonNullExpression(node) ||
+        ts.isAsExpression(node)
+      ) {
+        return originIsExternal(node.expression, depth + 1);
+      }
+      if (ts.isPropertyAccessExpression(node)) {
+        return symbolIsExternallyDeclared(checker.getSymbolAtLocation(node.name));
+      }
+      if (ts.isCallExpression(node)) {
+        return originIsExternal(node.expression, depth + 1);
+      }
+      if (ts.isIdentifier(node)) {
+        const decl = checker.getSymbolAtLocation(node)?.valueDeclaration;
+        if (decl === undefined) {
+          return false;
+        }
+        if (ts.isVariableDeclaration(decl) && decl.initializer !== undefined) {
+          return originIsExternal(decl.initializer, depth + 1);
+        }
+        if (ts.isBindingElement(decl)) {
+          return originIsExternal(bindingSourceExpression(decl), depth + 1);
+        }
+      }
+      return false;
+    }
+
+    function operandIsFlaggable(node: TSESTree.Node): boolean {
+      return (
+        operandIsRawString(node) &&
+        !originIsExternal(services?.esTreeNodeToTSNodeMap.get(node), 0)
+      );
     }
 
     function pushScope(): void {
@@ -318,11 +401,11 @@ export default ESLintUtils.RuleCreator(
         const rightKey = refKey(node.right);
         const leftLit = strLiteral(node.left);
         if (leftKey !== null && rightLit !== null) {
-          if (operandIsRawString(node.left)) {
+          if (operandIsFlaggable(node.left)) {
             accumulate(leftKey, [rightLit], node);
           }
         } else if (rightKey !== null && leftLit !== null) {
-          if (operandIsRawString(node.right)) {
+          if (operandIsFlaggable(node.right)) {
             accumulate(rightKey, [leftLit], node);
           }
         }
@@ -330,7 +413,7 @@ export default ESLintUtils.RuleCreator(
 
       SwitchStatement(node: TSESTree.SwitchStatement): void {
         const key = refKey(node.discriminant);
-        if (key === null || !operandIsRawString(node.discriminant)) {
+        if (key === null || !operandIsFlaggable(node.discriminant)) {
           return;
         }
         const literals: string[] = [];

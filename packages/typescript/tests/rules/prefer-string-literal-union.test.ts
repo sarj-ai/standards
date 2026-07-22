@@ -140,6 +140,32 @@ ruleTester.run("prefer-string-literal-union", rule, {
     {
       code: 'type AgentState = "idle" | "running"; function g(x: AgentState | "connecting") { return x === "connecting" || x === "idle"; }',
     },
+    // Provenance guard: the value comes from a type we do not own, so a union is
+    // not an available fix. DOM `getComputedStyle().overflowY` is `string` in
+    // lib.dom, read directly...
+    {
+      code: 'function f(el: Element) { return getComputedStyle(el).overflowY === "auto" || getComputedStyle(el).overflowY === "scroll"; }',
+    },
+    // ...and via a local const bound to that external property access.
+    {
+      code: 'function f(el: Element) { const o = getComputedStyle(el).overflowY; if (o === "auto" || o === "scroll") return 1; return 0; }',
+    },
+    // A property member on a DOM type (`Navigator.language`), typed `string`.
+    {
+      code: 'function f() { return navigator.language === "en" || navigator.language === "fr"; }',
+    },
+    // The return of an external method (`URLSearchParams.get`).
+    {
+      code: 'function f(p: URLSearchParams) { const e = p.get("error"); if (e === "duplicate" || e === "missing") return 1; return 0; }',
+    },
+    // A standard-library string method chain (`.toLowerCase()`).
+    {
+      code: 'function f(name: string) { const ext = name.split(".").pop()!.toLowerCase(); if (ext === "csv" || ext === "xlsx") return 1; return 0; }',
+    },
+    // Keys from `Object.entries` are structurally `string`, not our field.
+    {
+      code: 'function f(o: Record<string, unknown>) { for (const [key] of Object.entries(o)) { if (key === "from" || key === "to") continue; } }',
+    },
   ],
   invalid: [
     // Choice field corroborated by a sibling string-literal union.

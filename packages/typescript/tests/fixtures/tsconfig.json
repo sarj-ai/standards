@@ -4,6 +4,7 @@
     "target": "esnext",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "lib": ["esnext", "dom"],
     "jsx": "react-jsx"
   }
 }
