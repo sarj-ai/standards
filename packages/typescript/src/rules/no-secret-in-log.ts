@@ -92,6 +92,48 @@ const INNOCUOUS_WORDS: ReadonlySet<string> = new Set([
   "exists",
   "type",
   "types",
+  "name",
+  "names",
+  "label",
+  "labels",
+  "title",
+  "expiry",
+  "expiration",
+  "expires",
+  "ttl",
+  "version",
+  "versions",
+  "policy",
+  "rotation",
+  "arn",
+  "path",
+  "paths",
+  "issuer",
+  "audience",
+  "strength",
+  "manager",
+  "service",
+  "services",
+  "repository",
+  "provider",
+  "providers",
+  "store",
+  "factory",
+  "handler",
+  "controller",
+  "bucket",
+  "url",
+  "uri",
+  "endpoint",
+  "endpoints",
+  "scope",
+  "scopes",
+  "event",
+  "events",
+  "format",
+  "at",
+  "len",
+  "length",
 ]);
 
 const REDACTION_RE = /prefix|suffix|redact|mask|hash|hint|_len|length/i;
@@ -192,6 +234,20 @@ function isLoggerExpr(expr: TSESTree.Expression | TSESTree.PrivateIdentifier): b
   }
 }
 
+/**
+ * True if `prop`'s value is the raw secret rather than a redacted/derived form.
+ * Shorthand (`{ token }`), a bare identifier (`{ apiKey: theKey }`), or a plain
+ * member access (`{ apiKey: config.apiKey }`) all carry the secret verbatim. A
+ * call (`token.slice(0, 6)`, `mask(token)`), template literal, ternary, concat,
+ * or literal placeholder (`"***"`) is already redacted — logging it is safe.
+ */
+function isRawSecretValue(prop: TSESTree.Property): boolean {
+  if (prop.shorthand) {
+    return true;
+  }
+  return prop.value.type === "Identifier" || prop.value.type === "MemberExpression";
+}
+
 /** The static string name of an object-property key, or null when not statically named. */
 function propertyKeyName(prop: TSESTree.Property): string | null {
   if (prop.computed) {
@@ -257,7 +313,7 @@ export default ESLintUtils.RuleCreator(
                 continue;
               }
               const keyName = propertyKeyName(prop);
-              if (keyName !== null && isSecretKeyword(keyName)) {
+              if (keyName !== null && isSecretKeyword(keyName) && isRawSecretValue(prop)) {
                 context.report({
                   node: prop,
                   messageId: "noSecretInLog",

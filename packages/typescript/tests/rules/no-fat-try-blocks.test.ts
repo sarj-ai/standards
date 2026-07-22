@@ -179,6 +179,99 @@ ruleTester.run("no-fat-try-blocks", rule, {
         }
       `,
     },
+    // Long body of pure computation + a SINGLE awaited action. Only the await
+    // throws; reduce/map/filter/join and template literals are free.
+    {
+      code: `
+        async function f() {
+          try {
+            const sum = items.reduce((a, b) => a + b, 0);
+            const names = items.map((i) => i.name);
+            const filtered = names.filter(Boolean);
+            const joined = filtered.join(", ");
+            const label = \`Total: \${sum}\`;
+            const result = await save(label, joined);
+          } catch (e) { handle(e); }
+        }
+      `,
+    },
+    // ONE risky call then a fat tail of non-throwing cleanup: setState with a
+    // functional update, toast, console.log, analytics, optional callback.
+    {
+      code: `
+        async function f() {
+          try {
+            const res = await createOrder(payload);
+            setOrders((prev) => [...prev, res]);
+            toast.success("Created");
+            console.log("done", res.id);
+            analytics.track("order_created");
+            onDone?.();
+          } catch (e) { toast.error(String(e)); }
+        }
+      `,
+    },
+    // finally with MANY cleanup statements but the try holds one await — exempt.
+    {
+      code: `
+        async function f() {
+          try {
+            const conn = await pool.acquire();
+          } finally {
+            release();
+            reset();
+            clearTimers();
+            flushMetrics();
+            logDone();
+          }
+        }
+      `,
+    },
+    // Building an accumulator in a loop then one await — loop collapses to one.
+    {
+      code: `
+        async function f() {
+          try {
+            const acc = [];
+            for (const row of rows) {
+              acc.push(row.id);
+            }
+            const saved = await persist(acc);
+          } catch (e) { handle(e); }
+        }
+      `,
+    },
+    // Destructuring + pure Object/Array plumbing + one await.
+    {
+      code: `
+        async function f() {
+          try {
+            const entries = Object.entries(config);
+            const keys = Object.keys(config);
+            const merged = { ...defaults, ...config };
+            const list = Array.from(keys);
+            const data = await load(merged);
+          } catch (e) { handle(e); }
+        }
+      `,
+    },
+    // SSE / streaming API handler: ONE real await plus non-throwing web-platform
+    // constructors (TextEncoder / ReadableStream / Blob / Response). Only the
+    // await throws; the constructors are stream/response plumbing, not I/O.
+    {
+      code: `
+        async function GET() {
+          try {
+            await ensureDatabase();
+            const encoder = new TextEncoder();
+            const blob = new Blob(["ping"]);
+            const stream = new ReadableStream({ start() {} });
+            const res = new Response(stream);
+            return res;
+          } catch (e) { handle(e); }
+        }
+      `,
+    },
   ],
   invalid: [
     // Four result-using calls — boundary just over the limit.
@@ -282,6 +375,23 @@ ruleTester.run("no-fat-try-blocks", rule, {
             const b = two();
             const c = three();
             const d = four();
+          } catch (e) { handle(e); }
+        }
+      `,
+      errors: [{ messageId: "fatTryBlock" }],
+    },
+    // Non-throwing web constructors are free, but four real awaits alongside
+    // them are still four throwing ops — must fire (no under-firing).
+    {
+      code: `
+        async function f() {
+          try {
+            const encoder = new TextEncoder();
+            const a = await one();
+            const b = await two();
+            const c = await three();
+            const d = await four();
+            const res = new Response(null);
           } catch (e) { handle(e); }
         }
       `,

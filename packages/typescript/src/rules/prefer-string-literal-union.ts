@@ -59,6 +59,18 @@ const CHOICE_TOKENS: ReadonlySet<string> = new Set([
 const LOWER_TOKEN_RE = /^[a-z][a-z0-9_-]{0,30}$/;
 const MIN_CLUSTER_SIZE = 2;
 
+const BOOLEANISH: ReadonlySet<string> = new Set(["true", "false"]);
+
+/**
+ * An enum-shaped token worth a string-literal union: a short lowercase word of
+ * 2+ chars that isn't a boolean-string. Single characters (`'a'`), file
+ * paths/URLs/i18n keys (contain `/`, `:`, `.`), and `'true'`/`'false'` are NOT
+ * closed-enum members — comparing against them is a flag/path/boolean guard.
+ */
+function isEnumToken(lit: string): boolean {
+  return LOWER_TOKEN_RE.test(lit) && lit.length >= 2 && !BOOLEANISH.has(lit);
+}
+
 const IGNORE_PATTERNS: readonly RegExp[] = [
   /[\\/]generated[\\/]/,
   /\.gen\.tsx?$/,
@@ -102,18 +114,148 @@ function keyName(
   return null;
 }
 
+function isStringLiteralMember(t: TSESTree.TypeNode): boolean {
+  return (
+    t.type === AST_NODE_TYPES.TSLiteralType &&
+    t.literal.type === AST_NODE_TYPES.Literal &&
+    typeof t.literal.value === "string"
+  );
+}
+
 /** Whether a type node is a union of 2+ string-literal types. */
 function isStringLiteralUnion(node: TSESTree.TypeNode | undefined): boolean {
   if (node?.type !== AST_NODE_TYPES.TSUnionType) {
     return false;
   }
-  const stringMembers = node.types.filter(
-    (t) =>
-      t.type === AST_NODE_TYPES.TSLiteralType &&
-      t.literal.type === AST_NODE_TYPES.Literal &&
-      typeof t.literal.value === "string",
+  return node.types.filter(isStringLiteralMember).length >= MIN_CLUSTER_SIZE;
+}
+
+/**
+ * A union annotation that already expresses a closed set — it contains at least
+ * one string-literal member, even mixed with a named type reference
+ * (`AgentState | "connecting"`). Used to suppress comparison clusters on refs
+ * the author has already given a union type; looser than
+ * {@link isStringLiteralUnion}, which gates the DTO-sibling corroboration.
+ */
+function isLikelyClosedUnion(node: TSESTree.TypeNode | undefined): boolean {
+  return (
+    node?.type === AST_NODE_TYPES.TSUnionType &&
+    node.types.some(isStringLiteralMember)
   );
-  return stringMembers.length >= MIN_CLUSTER_SIZE;
+}
+
+type FunctionLike =
+  | TSESTree.FunctionDeclaration
+  | TSESTree.FunctionExpression
+  | TSESTree.ArrowFunctionExpression;
+
+/**
+ * Property names in a type node that are themselves string-literal unions,
+ * descending through inline object-type literals and their `&` / `|`
+ * combinations (e.g. `Props & { side: "a" | "b" }` -> `{ side }`). Type
+ * references to named types (`Props`) can't be resolved without type info and
+ * are skipped.
+ */
+function unionMemberNames(
+  typeNode: TSESTree.TypeNode | undefined,
+  out: Set<string>,
+): void {
+  if (typeNode === undefined) {
+    return;
+  }
+  if (
+    typeNode.type === AST_NODE_TYPES.TSIntersectionType ||
+    typeNode.type === AST_NODE_TYPES.TSUnionType
+  ) {
+    for (const t of typeNode.types) {
+      unionMemberNames(t, out);
+    }
+    return;
+  }
+  if (typeNode.type !== AST_NODE_TYPES.TSTypeLiteral) {
+    return;
+  }
+  for (const member of typeNode.members) {
+    if (
+      member.type === AST_NODE_TYPES.TSPropertySignature &&
+      isLikelyClosedUnion(member.typeAnnotation?.typeAnnotation)
+    ) {
+      const propName = keyName(member.key);
+      if (propName !== null) {
+        out.add(propName);
+      }
+    }
+  }
+}
+
+function bindingName(node: TSESTree.Node): string | null {
+  const id = node.type === AST_NODE_TYPES.AssignmentPattern ? node.left : node;
+  return id.type === AST_NODE_TYPES.Identifier ? id.name : null;
+}
+
+/**
+ * Ref keys already declared with a string-literal union type — a comparison
+ * cluster on such a ref is the target state, not a violation. Covers an
+ * identifier param typed as a union (`m: "a" | "b"` -> `m`), an object-type
+ * param property typed as a union (`o: { tier: "a" | "b" }` -> `o.tier`), and a
+ * destructured prop typed as a union (`{ side }: Props & { side: "a" | "b" }`
+ * -> `side`).
+ */
+function addUnionRefsFromBinding(
+  param: TSESTree.Parameter,
+  out: Set<string>,
+): void {
+  const binding =
+    param.type === AST_NODE_TYPES.AssignmentPattern ? param.left : param;
+
+  if (binding.type === AST_NODE_TYPES.ObjectPattern) {
+    const members = new Set<string>();
+    unionMemberNames(binding.typeAnnotation?.typeAnnotation, members);
+    if (members.size === 0) {
+      return;
+    }
+    for (const prop of binding.properties) {
+      if (prop.type !== AST_NODE_TYPES.Property) {
+        continue;
+      }
+      const propKey = keyName(prop.key);
+      const local = bindingName(prop.value);
+      if (propKey !== null && local !== null && members.has(propKey)) {
+        out.add(local);
+      }
+    }
+    return;
+  }
+
+  if (binding.type !== AST_NODE_TYPES.Identifier) {
+    return;
+  }
+  const typeNode = binding.typeAnnotation?.typeAnnotation;
+  if (isLikelyClosedUnion(typeNode)) {
+    out.add(binding.name);
+    return;
+  }
+  if (typeNode?.type === AST_NODE_TYPES.TSTypeLiteral) {
+    for (const member of typeNode.members) {
+      if (
+        member.type === AST_NODE_TYPES.TSPropertySignature &&
+        isLikelyClosedUnion(member.typeAnnotation?.typeAnnotation)
+      ) {
+        const propName = keyName(member.key);
+        if (propName !== null) {
+          out.add(`${binding.name}.${propName}`);
+        }
+      }
+    }
+  }
+}
+
+function unionRefsFromParams(fn: FunctionLike): Set<string> {
+  const out = new Set<string>();
+  for (const param of fn.params) {
+    addUnionRefsFromBinding(param, out);
+  }
+  return out;
 }
 
 /** A stable key for a plain identifier or non-computed member chain, else null. */
@@ -142,6 +284,11 @@ interface ClusterEntry {
   node: TSESTree.Node;
   literals: Set<string>;
   allTokens: boolean;
+}
+
+interface Scope {
+  clusters: Map<string, ClusterEntry>;
+  unionRefs: Set<string>;
 }
 
 interface CollectedProperty {
@@ -177,22 +324,36 @@ export default ESLintUtils.RuleCreator(
       return {};
     }
 
-    const scopeStack: Map<string, ClusterEntry>[] = [];
+    const scopeStack: Scope[] = [];
     const validClusters: TSESTree.Node[] = [];
     const bareChoiceProps: CollectedProperty[] = [];
     const containersWithUnion = new Set<TSESTree.Node>();
 
-    function pushScope(): void {
-      scopeStack.push(new Map());
+    function pushScope(fn: FunctionLike): void {
+      scopeStack.push({
+        clusters: new Map(),
+        unionRefs: unionRefsFromParams(fn),
+      });
+    }
+
+    function isUnionTypedRef(key: string, current: Set<string>): boolean {
+      if (current.has(key)) {
+        return true;
+      }
+      return scopeStack.some((s) => s.unionRefs.has(key));
     }
 
     function popScope(): void {
-      const clusters = scopeStack.pop();
-      if (clusters === undefined) {
+      const scope = scopeStack.pop();
+      if (scope === undefined) {
         return;
       }
-      for (const entry of clusters.values()) {
-        if (entry.allTokens && entry.literals.size >= MIN_CLUSTER_SIZE) {
+      for (const [key, entry] of scope.clusters) {
+        if (
+          entry.allTokens &&
+          entry.literals.size >= MIN_CLUSTER_SIZE &&
+          !isUnionTypedRef(key, scope.unionRefs)
+        ) {
           validClusters.push(entry.node);
         }
       }
@@ -207,10 +368,10 @@ export default ESLintUtils.RuleCreator(
       if (scope === undefined) {
         return;
       }
-      const allTokens = literals.every((lit) => LOWER_TOKEN_RE.test(lit));
-      const existing = scope.get(key);
+      const allTokens = literals.every((lit) => isEnumToken(lit));
+      const existing = scope.clusters.get(key);
       if (existing === undefined) {
-        scope.set(key, {
+        scope.clusters.set(key, {
           node,
           literals: new Set(literals),
           allTokens,
@@ -250,6 +411,19 @@ export default ESLintUtils.RuleCreator(
       "FunctionExpression:exit": popScope,
       ArrowFunctionExpression: pushScope,
       "ArrowFunctionExpression:exit": popScope,
+
+      VariableDeclarator(node: TSESTree.VariableDeclarator): void {
+        const scope = scopeStack[scopeStack.length - 1];
+        if (
+          scope === undefined ||
+          node.id.type !== AST_NODE_TYPES.Identifier
+        ) {
+          return;
+        }
+        if (isLikelyClosedUnion(node.id.typeAnnotation?.typeAnnotation)) {
+          scope.unionRefs.add(node.id.name);
+        }
+      },
 
       BinaryExpression(node: TSESTree.BinaryExpression): void {
         if (

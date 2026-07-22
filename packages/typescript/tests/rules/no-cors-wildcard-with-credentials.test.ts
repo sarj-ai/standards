@@ -54,6 +54,45 @@ ruleTester.run("no-cors-wildcard-with-credentials", rule, {
     // Non-cors call named something else with a wildcard+credentials-shaped
     // object should still be safe when keys are unrelated.
     { code: "configure({ origin: '*', credentials: true });" },
+    // origin is a validator FUNCTION (echoes the request origin) with
+    // credentials — no `"*"` literal, safe.
+    {
+      code: "app.use(cors({ origin: (origin, callback) => callback(null, true), credentials: true }));",
+    },
+    {
+      code: "app.use(cors({ origin: function (origin, cb) { cb(null, origin); }, credentials: true }));",
+    },
+    // origin is a RegExp (source text has `*`, but the literal value is a
+    // RegExp, not the string `"*"`) with credentials — safe.
+    {
+      code: "app.use(cors({ origin: /https:\\/\\/.*\\.example\\.com$/, credentials: true }));",
+    },
+    // origin is a dynamic variable/array reference with credentials — safe.
+    {
+      code: "app.use(cors({ origin: allowedOrigins, credentials: true }));",
+    },
+    // origin is a template literal with credentials — safe.
+    {
+      code: "app.use(cors({ origin: `${base}.example.com`, credentials: true }));",
+    },
+    // A wildcard ROUTE/glob (`path: '*'`) alongside an unrelated `credentials`
+    // flag — not a CORS header object, not a cors() call. Safe.
+    { code: "const route = { path: '*', credentials: true };" },
+    { code: "router.get('*', handler);" },
+    // Header object that pairs wildcard origin with a NON-credentials header —
+    // safe.
+    {
+      code: "const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Credentials': 'false' };",
+    },
+    // cors() with wildcard origin and NO credentials key — the common safe case.
+    { code: "app.use(cors({ origin: '*', methods: ['GET', 'POST'] }));" },
+    // credentials value is a non-true expression on a wildcard cors() — safe.
+    { code: "app.use(cors({ origin: '*', credentials: isProd }));" },
+    // setHeader wildcard origin paired with a credentials set whose value is a
+    // variable (not literally true) — safe.
+    {
+      code: "res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Credentials', allowCreds);",
+    },
   ],
   invalid: [
     // cors() bare "*" origin + credentials.

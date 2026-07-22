@@ -61,6 +61,70 @@ ruleTester.run("prefer-string-literal-union", rule, {
     {
       code: "function f(x: string) { return x === 'Active Status Here' || x === 'Another Long Value'; }",
     },
+    // Boolean-ish string comparison is not a closed enum — it wants a boolean.
+    {
+      code: "function f(x: string) { return x === 'true' || x === 'false'; }",
+    },
+    // File paths are not enum tokens (contain `/` and `.`).
+    {
+      code: "function f(p: string) { return p === 'src/index.ts' || p === 'src/main.ts'; }",
+    },
+    // URLs are not enum tokens (contain `:` and `/`).
+    {
+      code: "function f(u: string) { return u === 'https://a.com' || u === 'https://b.com'; }",
+    },
+    // Dotted i18n keys are not enum tokens.
+    {
+      code: "function f(k: string) { return k === 'common.save' || k === 'common.cancel'; }",
+    },
+    // Single-character comparisons are flags/algebra, not a closed enum.
+    {
+      code: "function f(c: string) { return c === 'a' || c === 'b'; }",
+    },
+    // Empty-string guard mixed with a token stays below the token bar.
+    {
+      code: "function f(s: string) { return s === '' || s === 'active'; }",
+    },
+    // Discriminant already a string-literal union — comparing it is the target
+    // state, not a violation.
+    {
+      code: "function f(m: 'read' | 'write') { return m === 'read' || m === 'write'; }",
+    },
+    // Same, via a switch.
+    {
+      code: "function f(r: 'admin' | 'user') { switch (r) { case 'admin': return 1; case 'user': return 2; default: return 0; } }",
+    },
+    // Object-type param property already a union — member cluster is fine.
+    {
+      code: "function f(o: { tier: 'gold' | 'silver' }) { return o.tier === 'gold' || o.tier === 'silver'; }",
+    },
+    // Local variable already typed as a union.
+    {
+      code: "function f(x: string) { const m: 'read' | 'write' = x as 'read' | 'write'; return m === 'read' || m === 'write'; }",
+    },
+    // Multiple bare choice fields but no union sibling to corroborate — a
+    // passthrough DTO from an untyped backend.
+    {
+      code: "interface Api { status: string; type: string; mode: string; }",
+    },
+    // Destructured prop already typed as a union (the shadcn/React shape) — the
+    // member is inline-annotated on the ObjectPattern param.
+    {
+      code: 'function SheetContent({ side = "right" }: Props & { side?: "top" | "right" | "bottom" | "left" }) { return side === "right" || side === "left"; }',
+    },
+    // Shorthand destructure with a direct inline union annotation.
+    {
+      code: 'function Badge({ variant }: { variant: "default" | "outline" | "ghost" }) { return variant === "default" || variant === "outline"; }',
+    },
+    // Local var annotated with a union that mixes a named type and a literal —
+    // already a closed union, so the switch is the target state.
+    {
+      code: 'function f(state: AgentState, has: boolean) { const eff: AgentState | "connecting" = has ? state : "connecting"; switch (eff) { case "connecting": return 0; case "idle": return 1; default: return 2; } }',
+    },
+    // Param annotated with a mixed union (named type + literal).
+    {
+      code: 'function g(x: AgentState | "connecting") { return x === "connecting" || x === "idle"; }',
+    },
   ],
   invalid: [
     // Choice field corroborated by a sibling string-literal union.
@@ -99,6 +163,12 @@ ruleTester.run("prefer-string-literal-union", rule, {
     {
       code: "function g(u: Account) { return u.plan.tier === 'gold' || u.plan.tier === 'silver'; }",
       errors: [{ messageId: "comparisonCluster", data: { key: "u.plan.tier" } }],
+    },
+    // A genuine 2-element enum still fires (threshold stays at 2). The object
+    // param property is bare `string`, so it is not treated as already-union.
+    {
+      code: "function d(o: { direction: string }) { return o.direction === 'inbound' || o.direction === 'outbound'; }",
+      errors: [{ messageId: "comparisonCluster", data: { key: "o.direction" } }],
     },
   ],
 });

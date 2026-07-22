@@ -95,6 +95,81 @@ ruleTester.run("single-public-export", rule, {
       filename: "src/lib/utils.ts",
       code: `export function cn(...inputs: unknown[]) { return inputs.join(" "); }`,
     },
+    // Value export co-located with its own companion type alias — two exports,
+    // the type is a second export so the rename target is ambiguous.
+    {
+      filename: "src/utils.ts",
+      code: `
+        export type ClientConfig = { retries: number };
+        export function makeClient(c: ClientConfig) { return c; }
+      `,
+    },
+    // Function-const co-located with a companion interface.
+    {
+      filename: "src/common.ts",
+      code: `
+        export interface ParseResult { ok: boolean }
+        export const parse = (s: string): ParseResult => ({ ok: s.length > 0 });
+      `,
+    },
+    // Config const paired with the type that describes it.
+    {
+      filename: "src/constants.ts",
+      code: `
+        export type Config = { verbose: boolean };
+        export const config: Config = { verbose: false };
+      `,
+    },
+    // Component paired with its Props interface — two exports, not flagged.
+    {
+      filename: "src/common.tsx",
+      code: `
+        export interface Props { title: string }
+        export default function Widget(props: Props) { return props.title; }
+      `,
+    },
+    // Pure type-only module exporting several type aliases.
+    {
+      filename: "src/types.ts",
+      code: `
+        export type UserId = string;
+        export type OrgId = string;
+        export type Pair = [UserId, OrgId];
+      `,
+    },
+    // Function export alongside a local type-only re-specifier export.
+    {
+      filename: "src/helpers.ts",
+      code: `
+        type Opts = { loud: boolean };
+        export function run(o: Opts) { return o; }
+        export type { Opts };
+      `,
+    },
+    // Type-only re-export barrel with a junk stem — a re-export, skip.
+    {
+      filename: "src/types.ts",
+      code: `export type { UserId } from "./user-id.js";`,
+    },
+    // Lone enum in a junk stem — not a fn/class/const candidate, do not fire.
+    {
+      filename: "src/constants.ts",
+      code: `export enum Direction { Up, Down }`,
+    },
+    // Lone value-object const (not a function) — no rename candidate.
+    {
+      filename: "src/constants.ts",
+      code: `export const DEFAULTS = { retries: 3, timeout: 1000 } as const;`,
+    },
+    // Mixed re-export barrel: a local decl plus a wildcard re-export — the
+    // re-export marks this as an aggregator, not a single-responsibility owner.
+    {
+      filename: "src/shared.ts",
+      code: `
+        export * from "./primitives.js";
+        export function helper() {}
+      `,
+    },
   ],
   invalid: [
     // Junk stem `utils` with a single exported function.

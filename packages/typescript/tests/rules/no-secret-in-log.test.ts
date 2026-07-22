@@ -49,6 +49,46 @@ ruleTester.run("no-secret-in-log", rule, {
     // console is a logger, but innocuous names still do not fire.
     { code: 'console.log("usage", { tokenCount });' },
     { code: 'console.error("user", { userId });' },
+    // Secret word appears mid-identifier but the trailing token is a metadata
+    // descriptor — this is data ABOUT a secret, not the secret value.
+    { code: 'logger.info("santa", { secretSantaName });' },
+    { code: 'logger.info("key", { apiKeyLabel });' },
+    { code: 'logger.info("auth", { refreshTokenExpiry });' },
+    { code: 'logger.info("auth", { tokenExpiry });' },
+    { code: 'logger.info("auth", { tokenExpiresAt });' },
+    { code: 'logger.info("auth", { passwordChangedAt });' },
+    { code: 'logger.info("auth", { secretVersion });' },
+    { code: 'logger.info("aws", { secretArn });' },
+    { code: 'logger.info("sm", { secretPath });' },
+    { code: 'logger.info("oauth", { tokenIssuer, tokenAudience });' },
+    { code: 'logger.info("oauth", { tokenScopes });' },
+    { code: 'logger.info("oauth", { tokenUrl });' },
+    { code: 'logger.info("cfg", { passwordPolicy });' },
+    { code: 'logger.info("cfg", { passwordStrength });' },
+    { code: 'logger.info("di", { apiKeyService, credentialProvider });' },
+    { code: 'logger.info("di", { secretStore, apiKeyManager });' },
+    { code: 'logger.info("rate", { tokenBucket });' },
+    // Non-secret compounds that merely embed a secret word as a substring.
+    { code: 'logger.info("kbd", { keyboardEvent });' },
+    { code: 'logger.info("auth", { passwordless });' },
+    { code: 'logger.info("crypto", { publicKey });' },
+    { code: 'logger.info("cfg", { keyName });' },
+    // Logging length / presence of a secret is the safe form.
+    { code: 'logger.info("auth", { tokenLen });' },
+    { code: 'logger.info("auth", secret.length);' },
+    { code: 'logger.info("auth", token.length);' },
+    // String literal that merely mentions the word — not an identifier value.
+    { code: 'logger.info("api key rotated");' },
+    { code: 'logger.warn("password reset requested for user");' },
+    // Redacted object-property values: the key is secret-named but the VALUE is
+    // already truncated / masked / a placeholder, so nothing sensitive leaks.
+    { code: 'logger.info("cfg", { apiKey: config.apiKey ? `${config.apiKey.substring(0, 10)}...` : "(missing)" });' },
+    { code: 'logger.info("auth", { token: token.slice(0, 6) });' },
+    { code: 'logger.info("auth", { password: mask(password) });' },
+    { code: 'logger.info("auth", { secret: redact(secret) });' },
+    { code: 'logger.info("auth", { apiKey: "***" });' },
+    { code: 'logger.info("auth", { token: `${token.slice(0, 4)}...` });' },
+    { code: 'logger.info("auth", { credentials: hasCreds ? "set" : "unset" });' },
   ],
   invalid: [
     // Object property: shorthand secret names.
@@ -81,6 +121,22 @@ ruleTester.run("no-secret-in-log", rule, {
     // Bare secret-named positional identifier.
     {
       code: 'logger.info("x", secret);',
+      errors: [{ messageId: "noSecretInLog" }],
+    },
+    // Trailing `key` preceded by a secret word is real secret material — the
+    // metadata-descriptor exemption must not swallow this.
+    {
+      code: 'logger.error("cfg", { secretKey });',
+      errors: [{ messageId: "noSecretInLog" }],
+    },
+    // Real credential value with a non-descriptor trailing token still fires.
+    {
+      code: 'logger.info("auth", { secretValue });',
+      errors: [{ messageId: "noSecretInLog" }],
+    },
+    // Raw member-access value carries the secret verbatim — still fires.
+    {
+      code: 'logger.info("auth", { token: config.token });',
       errors: [{ messageId: "noSecretInLog" }],
     },
     // Builder/factory chains still resolve to a logger.

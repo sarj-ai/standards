@@ -77,6 +77,8 @@ const PURE_NAMESPACES = new Set<string>([
 const PURE_CONSTRUCTORS = new Set<string>([
   "Map", "Set", "WeakMap", "WeakSet", "Date", "Error", "TypeError",
   "RangeError", "Array", "Object", "Headers", "URLSearchParams", "FormData",
+  "TextEncoder", "TextDecoder", "Blob", "ReadableStream", "WritableStream",
+  "TransformStream", "Response", "AbortController",
 ]);
 
 function isNode(value: unknown): value is TSESTree.Node {
