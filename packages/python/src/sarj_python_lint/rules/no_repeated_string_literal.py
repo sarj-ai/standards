@@ -1,7 +1,7 @@
 """SARJ024: a structured string literal repeated across functions — extract a named constant.
 
-The same long, *structured* string literal appearing in two or more different
-functions of a module is a real maintenance hazard: when one copy is edited the
+The same long, *structured* string literal repeated three or more times across
+two or more different functions of a module is a real maintenance hazard: when one copy is edited the
 others silently drift, and (unlike SQL/log/prompt scaffolding) the strings that
 qualify here cannot plausibly be equal by coincidence. Derived from the
 magic-values audit corpus ("Repeated Complex String Literal").
@@ -56,7 +56,7 @@ if TYPE_CHECKING:
 
 
 _MIN_LENGTH = 40
-_MIN_OCCURRENCES = 2
+_MIN_OCCURRENCES = 3
 _MIN_DISTINCT_SCOPES = 2
 _PREVIEW_LENGTH = 40
 

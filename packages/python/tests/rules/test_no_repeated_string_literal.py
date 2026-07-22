@@ -24,9 +24,12 @@ def insert():
 
 def fetch():
     return """{_LONG_SQL}"""
+
+def upsert():
+    return """{_LONG_SQL}"""
 '''
     diags = _check(src)
-    assert len(diags) == 1
+    assert len(diags) == 2
     assert diags[0].code == "SARJ024"
     assert "first use at line 3" in diags[0].message
 
@@ -45,6 +48,25 @@ def c():
     assert len(diags) == 2
 
 
+def test_min_occurrences_threshold_is_three():
+    two = f'''
+def a():
+    return """{_LONG_SQL}"""
+def b():
+    return """{_LONG_SQL}"""
+'''
+    assert _check(two) == []
+    three = f'''
+def a():
+    return """{_LONG_SQL}"""
+def b():
+    return """{_LONG_SQL}"""
+def c():
+    return """{_LONG_SQL}"""
+'''
+    assert len(_check(three)) == 2
+
+
 def test_flags_constraint_name_across_methods():
     constraint = "custom_scenario_organization_id_name_key"
     assert len(constraint) >= 40
@@ -54,8 +76,10 @@ class Store:
         return "{constraint}"
     def update(self):
         return "{constraint}"
+    def delete(self):
+        return "{constraint}"
 """
-    assert len(_check(src)) == 1
+    assert len(_check(src)) == 2
 
 
 def test_allows_single_occurrence():
@@ -148,8 +172,11 @@ def get():
 
 def list_all():
     return "{template}".format(fields="id, status")
+
+def count():
+    return "{template}".format(fields="count(*)")
 """
-    assert len(_check(src)) == 1
+    assert len(_check(src)) == 2
 
 
 def test_allows_repeated_docstring():
@@ -220,9 +247,11 @@ def a():
     return "{long_value}"
 def b():
     return "{long_value}"
+def c():
+    return "{long_value}"
 """
     diags = _check(src)
-    assert len(diags) == 1
+    assert len(diags) == 2
     assert "x" * 41 not in diags[0].message
 
 
@@ -233,8 +262,10 @@ class Store:
         return """{_LONG_SQL}"""
     def b(self):
         return """{_LONG_SQL}"""
+    def c(self):
+        return """{_LONG_SQL}"""
 '''
-    assert len(_check(src)) == 1
+    assert len(_check(src)) == 2
 
 
 def test_flags_dotted_identifier_across_functions():
@@ -245,8 +276,10 @@ def a():
     return "{ident}"
 def b():
     return "{ident}"
+def c():
+    return "{ident}"
 """
-    assert len(_check(src)) == 1
+    assert len(_check(src)) == 2
 
 
 def test_flags_lambda_bodies_in_two_functions():
@@ -256,8 +289,10 @@ def a():
     return (lambda: """{_LONG_SQL}""")()
 def b():
     return (lambda: """{_LONG_SQL}""")()
+def c():
+    return (lambda: """{_LONG_SQL}""")()
 '''
-    assert len(_check(src)) == 1
+    assert len(_check(src)) == 2
 
 
 def test_flags_nested_function_versus_outer_body():
@@ -266,8 +301,10 @@ def outer():
     def inner():
         return """{_LONG_SQL}"""
     return inner, """{_LONG_SQL}"""
+def sibling():
+    return """{_LONG_SQL}"""
 '''
-    assert len(_check(src)) == 1
+    assert len(_check(src)) == 2
 
 
 def test_allows_two_module_level_lambdas():
@@ -289,8 +326,10 @@ def b():
     return "{text}"
 def c():
     return "{text}"
+def d():
+    return "{text}"
 """
-    assert len(_check(src)) == 1
+    assert len(_check(src)) == 2
 
 
 def test_scaffolding_copy_plus_single_plain_copy_is_not_flagged():
@@ -334,8 +373,10 @@ def a():
     return "{ident40}"
 def b():
     return "{ident40}"
+def c():
+    return "{ident40}"
 """
-    assert len(_check(src)) == 1
+    assert len(_check(src)) == 2
 
 
 def test_module_level_plus_single_function_should_not_flag():
@@ -363,6 +404,8 @@ def test_uppercase_sql_keyword_in_prose_should_not_flag():
 def a():
     return "{prose}"
 def b():
+    return "{prose}"
+def c():
     return "{prose}"
 """
     assert _check(src) == []
