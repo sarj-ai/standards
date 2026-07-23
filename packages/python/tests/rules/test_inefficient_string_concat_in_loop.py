@@ -346,6 +346,69 @@ def f(rows):
     assert _check(src) == []
 
 
+def test_allows_loop_local_target_rebound_before_concat():
+    """homeassistant/helpers/json.py — `desc = ...` then `desc += ...` is loop-local."""
+    src = """
+def f(objs):
+    for obj in objs:
+        desc = obj.__class__.__name__
+        if obj:
+            desc += f": {obj.entity_id}"
+        emit(desc)
+"""
+    assert _check(src) == []
+
+
+def test_allows_loop_local_target_from_tuple_unpack():
+    """`obj, path = q.popleft()` then `path += ...` — path is freshly bound each pass."""
+    src = """
+def f(q):
+    while q:
+        obj, obj_path = q.popleft()
+        obj_path += f"({obj})"
+        emit(obj_path)
+"""
+    assert _check(src) == []
+
+
+def test_flags_before_loop_accumulator_not_rebound_in_body():
+    """`msg = ""` before the loop, only `+=` inside — a true cross-iteration accumulator."""
+    src = """
+def f(lines):
+    msg = ""
+    for line in lines:
+        msg += line
+    return msg
+"""
+    assert _count(src) == 1
+
+
+def test_flags_inner_loop_accumulator_reset_in_outer_body_only():
+    """`buf = ""` resets per OUTER pass but accumulates across the INNER loop — O(n²)."""
+    src = """
+def f(rows):
+    for row in rows:
+        buf = ""
+        for cell in row:
+            buf += f"{cell}"
+        emit(buf)
+"""
+    assert _count(src) == 1
+
+
+def test_flags_when_rebind_comes_after_concat():
+    """A rebind lexically AFTER the concat does not make the concat loop-local."""
+    src = """
+def f(items):
+    s = ""
+    for x in items:
+        s += f"{x}"
+        s = base()
+    return s
+"""
+    assert _count(src) == 1
+
+
 def test_allows_subscript_fstring_write_in_loop():
     """requests/utils.py — `parts[i] = f"%{parts[i]}"` writes a distinct slot."""
     src = """

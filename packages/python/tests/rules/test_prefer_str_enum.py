@@ -804,6 +804,138 @@ def grade(g: str) -> int:
     assert "g" in diags[0].message
 
 
+# --- Real-world FP class 4: already-closed Literal domains --------------------
+
+
+def test_module_alias_literal_param_not_flagged():
+    """A param annotated with a module-level `Literal` alias is already closed."""
+    src = """
+from typing import Literal
+
+Mode = Literal["left", "center", "right"]
+
+def render(align: Mode) -> int:
+    if align == "left":
+        return 1
+    if align == "center":
+        return 2
+    if align == "right":
+        return 3
+    return 0
+"""
+    assert _check(src) == []
+
+
+def test_module_alias_literal_valueset_not_flagged():
+    """Rich `align.py`: `align = self.align` compared against the alias's values.
+
+    The variable carries no annotation at the comparison site, but every literal
+    is a member of the module's `AlignMethod = Literal[...]` alias, so the closed
+    set already exists.
+    """
+    src = """
+from typing import Literal
+
+AlignMethod = Literal["left", "center", "right"]
+
+class Align:
+    def render(self):
+        align = self.align
+        def emit():
+            if align == "left":
+                return 1
+            elif align == "center":
+                return 2
+            elif align == "right":
+                return 3
+            return 0
+        return emit
+"""
+    assert _check(src) == []
+
+
+def test_inline_literal_param_cluster_not_flagged():
+    src = """
+from typing import Literal
+
+def handle(status: Literal["active", "inactive"]) -> int:
+    if status == "active":
+        return 1
+    if status == "inactive":
+        return 2
+    return 0
+"""
+    assert _check(src) == []
+
+
+def test_typealias_statement_literal_not_flagged():
+    src = """
+from typing import Literal
+
+type Mode = Literal["on", "off"]
+
+def toggle(mode: Mode) -> int:
+    if mode == "on":
+        return 1
+    if mode == "off":
+        return 2
+    return 0
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize("name", ["language", "lang", "country", "currency", "timezone", "locale", "region", "code"])
+def test_open_domain_code_cluster_not_flagged(name: str):
+    """Home Assistant `language.py`: `if language == "en": elif language == "zh":`."""
+    src = f"""
+def regions({name}: str) -> int:
+    if {name} == "en":
+        return 1
+    if {name} == "zh":
+        return 2
+    if {name} == "es":
+        return 3
+    return 0
+"""
+    assert _check(src) == []
+
+
+def test_open_domain_field_not_flagged_via_cluster():
+    src = """
+from pydantic import BaseModel
+
+class Prefs(BaseModel):
+    language: str
+
+def pick(language: str) -> int:
+    if language == "en":
+        return 1
+    if language == "ar":
+        return 2
+    return 0
+"""
+    assert _check(src) == []
+
+
+def test_genuine_closed_choice_cluster_still_fires_alongside_alias():
+    """An unrelated closed-choice dispatch still fires when an alias exists."""
+    src = """
+from typing import Literal
+
+AlignMethod = Literal["left", "center", "right"]
+
+def route(kind: str) -> int:
+    if kind == "menu":
+        return 1
+    if kind == "submenu":
+        return 2
+    return 0
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "kind" in diags[0].message
+
+
 # --- Comparand shapes that are excluded ---------------------------------------
 
 

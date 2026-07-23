@@ -1576,3 +1576,211 @@ def f():
         pass
 """
     assert _check(src) == []
+
+
+# ---------------------------------------------------------------------------
+# Optional-contract exemption: a function annotated `X | None` whose narrow
+# handler returns the None arm is the Optional idiom, not a swallow (dominant
+# Home Assistant / SQLAlchemy false-positive class).
+# ---------------------------------------------------------------------------
+
+
+def test_optional_return_multi_statement_try_narrow_except_is_exempt():
+    # homeassistant.util.dt.parse_time — multi-statement try, narrow except,
+    # `-> time | None` returning None. The single-`return` lookup restriction
+    # misflagged this; the Optional contract exempts it.
+    src = """
+def parse_time(time_str: str) -> dt.time | None:
+    parts = str(time_str).split(":")
+    try:
+        hour = int(parts[0])
+        minute = int(parts[1])
+        second = int(parts[2]) if len(parts) > 2 else 0
+        return dt.time(hour, minute, second)
+    except ValueError:
+        return None
+"""
+    assert _check(src) == []
+
+
+def test_optional_return_sqlalchemy_inspect_shape_is_exempt():
+    # sqlalchemy.orm.base._inspect_mapped_class — Optional[Mapper] with a narrow
+    # domain exception returning None.
+    src = """
+def _inspect_mapped_class(class_, configure=False) -> Optional[Mapper]:
+    try:
+        class_manager = opt_manager_of_class(class_)
+        if class_manager is None:
+            return None
+        mapper = class_manager.mapper
+    except exc.NO_STATE:
+        return None
+    else:
+        return mapper
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    ["int | None", "None | int", "Optional[int]", "Union[int, None]", "list[str] | None"],
+)
+def test_optional_annotation_shapes_all_exempt(annotation: str):
+    src = f"""
+def f(x) -> {annotation}:
+    try:
+        y = compute(x)
+        return y
+    except ValueError:
+        return None
+"""
+    assert _check(src) == []
+
+
+def test_optional_return_empty_container_narrow_except_is_exempt():
+    src = """
+def f(x) -> list[str] | None:
+    try:
+        y = compute(x)
+        return y
+    except KeyError:
+        return []
+"""
+    assert _check(src) == []
+
+
+def test_optional_with_broad_except_still_fires():
+    # A broad `except Exception:` in an Optional function is still the swallow the
+    # rule targets — the annotation alone does not license swallowing everything.
+    src = """
+def f(x) -> int | None:
+    try:
+        y = compute(x)
+        return y
+    except Exception:
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_optional_with_bare_except_still_fires():
+    src = """
+def f(x) -> int | None:
+    try:
+        y = compute(x)
+        return y
+    except:
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_non_optional_return_narrow_except_still_fires():
+    # No `| None` in the annotation -> not the Optional contract; a data function
+    # swallowing to None under a narrow except still fires.
+    src = """
+def f(x) -> int:
+    try:
+        y = compute(x)
+        return y
+    except ValueError:
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_optional_return_false_is_not_optional_match_still_fires():
+    # `False` is not the None arm of an Optional; the bool path does not apply
+    # (no bool success return), so the swallow still fires.
+    src = """
+def f(x) -> int | None:
+    try:
+        y = compute(x)
+        return y
+    except ValueError:
+        return False
+"""
+    assert len(_check(src)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Starred exception groups (`except (*GROUP, ValueError):`) are narrow and must
+# not defeat the lookup-with-default / narrowness checks (Home Assistant
+# util.package.async_get_installed_packages).
+# ---------------------------------------------------------------------------
+
+
+def test_starred_exception_group_lookup_with_default_is_exempt():
+    src = """
+def f() -> list:
+    try:
+        return cast(list, json_loads_array(data))
+    except (*JSON_DECODE_EXCEPTIONS, ValueError):
+        return []
+"""
+    assert _check(src) == []
+
+
+def test_starred_only_exception_group_lookup_with_default_is_exempt():
+    src = """
+def f():
+    try:
+        return table[key].value
+    except (*NARROW_ERRORS,):
+        return ""
+"""
+    assert _check(src) == []
+
+
+# ---------------------------------------------------------------------------
+# Logger-name matching is case-insensitive so the stdlib `_LOGGER` module-level
+# convention counts (largest Home Assistant false-positive class).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "log_call",
+    [
+        '_LOGGER.error("boom")',
+        '_LOGGER.exception("boom")',
+        'LOG.warning("boom")',
+        'self._LOGGER.error("boom")',
+        'LOGGING.error("boom")',
+    ],
+)
+def test_uppercase_logger_before_return_is_exempt(log_call: str):
+    src = f"""
+def f():
+    try:
+        risky()
+    except Exception:
+        {log_call}
+        return None
+"""
+    assert _check(src) == []
+
+
+def test_uppercase_logger_bare_return_is_exempt():
+    src = """
+def f():
+    try:
+        risky()
+    except OSError as ex:
+        _LOGGER.error("unable: %s", ex)
+        return
+"""
+    assert _check(src) == []
+
+
+def test_uppercase_non_logger_receiver_still_fires():
+    # `METRICS` ends in neither log/logger/logging, so case-insensitivity does not
+    # turn a non-logger into a logger.
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        METRICS.error("count")
+        return None
+"""
+    assert len(_check(src)) == 1
