@@ -14,6 +14,9 @@ def _check(source: str, path: str = "<t>.py") -> list[Diagnostic]:
     return PreferStrEnum().check(Path(path), source)
 
 
+# --- Trigger 1: sibling choices attribute -------------------------------------
+
+
 def test_flags_choice_attr_with_str_field():
     src = """
 from pydantic import BaseModel
@@ -25,35 +28,216 @@ class Order(BaseModel):
     assert len(_check(src)) == 1
 
 
-def test_flags_status_suffix_name():
-    src = """
+@pytest.mark.parametrize("attr", ["choices", "states", "statuses", "values", "allowed"])
+def test_all_choices_attr_names_corroborate_free_name(attr: str):
+    src = f"""
 from pydantic import BaseModel
 
-class Order(BaseModel):
-    payment_status: str
+class Rec(BaseModel):
+    {attr} = ("a", "b")
+    label: str
 """
     assert len(_check(src)) == 1
 
 
+@pytest.mark.parametrize("coll", ['["a", "b"]', '("a", "b")', '{"a", "b"}'])
+def test_choices_collection_list_tuple_set(coll: str):
+    src = f"""
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    choices = {coll}
+    label: str
+"""
+    assert len(_check(src)) == 1
+
+
+def test_choices_attr_name_is_case_insensitive():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    CHOICES = ["a", "b"]
+    label: str
+"""
+    assert len(_check(src)) == 1
+
+
+def test_choices_attr_annassign_form_corroborates():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    choices: list = ["a", "b"]
+    label: str
+"""
+    assert len(_check(src)) == 1
+
+
+def test_empty_choices_collection_still_corroborates():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    choices = []
+    label: str
+"""
+    assert len(_check(src)) == 1
+
+
+def test_choices_corroborates_all_free_form_fields():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    choices = ["a", "b"]
+    label: str
+    caption: str
+"""
+    assert len(_check(src)) == 2
+
+
+def test_non_string_collection_does_not_corroborate():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    choices = [1, 2, 3]
+    label: str
+"""
+    assert _check(src) == []
+
+
+def test_scalar_string_choices_does_not_corroborate():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    choices = "active"
+    label: str
+"""
+    assert _check(src) == []
+
+
+def test_unrecognised_collection_attr_does_not_corroborate():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    options = ["a", "b"]
+    label: str
+"""
+    assert _check(src) == []
+
+
+def test_choices_attr_without_str_field_is_silent():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    choices = ["a", "b"]
+    count: int
+"""
+    assert _check(src) == []
+
+
+def test_field_col_offset_is_reported():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    choices = ["a", "b"]
+    status: str
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].line == 6
+    assert diags[0].col == 5
+
+
+@pytest.mark.parametrize("ann", ["str | None", "Optional[str]", "list[str]", "dict[str, str]", "tuple[str, ...]"])
+def test_non_bare_str_annotation_not_flagged(ann: str):
+    """Only an annotation of exactly `str` fires; wrappers/unions do not."""
+    src = f"""
+from pydantic import BaseModel
+from typing import Optional
+
+class Rec(BaseModel):
+    choices = ["a", "b"]
+    status: {ann}
+"""
+    assert _check(src) == []
+
+
+def test_stringized_str_annotation_choice_field_should_flag():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    choices = ["a", "b"]
+    status: "str"
+"""
+    assert len(_check(src)) == 1
+
+
+def test_bare_assignment_without_annotation_not_flagged():
+    src = """
+from pydantic import BaseModel
+
+class Rec(BaseModel):
+    choices = ["a", "b"]
+    status = "pending"
+"""
+    assert _check(src) == []
+
+
+# --- Dropped bare-name heuristic (real-world FP class 2) ----------------------
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["status", "state", "kind", "role", "priority", "severity", "direction", "tier", "stage", "type", "mode"],
+)
+def test_bare_choice_like_name_alone_not_flagged(field: str):
+    """A field name alone is too weak — a free-form `status: str` must not fire."""
+    src = f"""
+from pydantic import BaseModel
+
+class Config(BaseModel):
+    {field}: str
+"""
+    assert _check(src) == []
+
+
+def test_bare_status_suffix_name_not_flagged():
+    src = """
+from pydantic import BaseModel
+
+class Call(BaseModel):
+    payment_status: str
+    call_direction: str
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize("field", ["name", "email", "provider_name", "description", "url"])
+def test_free_text_names_not_flagged(field: str):
+    src = f"""
+from pydantic import BaseModel
+
+class User(BaseModel):
+    {field}: str
+"""
+    assert _check(src) == []
+
+
 def test_allows_literal_type():
-    """Per user L234: Literal[...] is acceptable."""
     src = """
 from pydantic import BaseModel
 from typing import Literal
 
 class Order(BaseModel):
     status: Literal["pending", "shipped", "delivered"]
-"""
-    assert _check(src) == []
-
-
-def test_allows_str_for_free_text_field():
-    src = """
-from pydantic import BaseModel
-
-class User(BaseModel):
-    name: str
-    email: str
 """
     assert _check(src) == []
 
@@ -68,118 +252,59 @@ class Status(StrEnum):
     assert _check(src) == []
 
 
-# --- Trigger 1: widened name heuristic ---------------------------------------
-
-
-@pytest.mark.parametrize(
-    "field",
-    [
-        "status",
-        "state",
-        "kind",
-        "role",
-        "priority",
-        "severity",
-        "direction",
-        "tier",
-        "stage",
-    ],
-)
-def test_flags_exact_choice_like_name(field: str):
+@pytest.mark.parametrize("base", ["Enum", "StrEnum", "IntEnum", "enum.StrEnum", "enum.Enum"])
+def test_enum_bases_are_all_skipped(base: str):
     src = f"""
+class Status({base}):
+    choices = ["a", "b"]
+    state: str
+    active = "active"
+"""
+    assert _check(src) == []
+
+
+# --- Field corroborated by an equality cluster on the same name ---------------
+
+
+def test_field_corroborated_by_cluster_on_same_name():
+    src = """
 from pydantic import BaseModel
 
-class Config(BaseModel):
-    {field}: str
+class Order(BaseModel):
+    kind: str
+
+def route(kind: str) -> int:
+    if kind == "menu":
+        return 1
+    if kind == "submenu":
+        return 2
+    return 0
+"""
+    diags = _check(src)
+    assert len(diags) == 2
+    assert [d.line for d in diags] == sorted(d.line for d in diags)
+
+
+def test_field_not_corroborated_when_cluster_is_on_a_different_name():
+    src = """
+from pydantic import BaseModel
+
+class Order(BaseModel):
+    status: str
+
+def route(kind: str) -> int:
+    if kind == "menu":
+        return 1
+    if kind == "submenu":
+        return 2
+    return 0
 """
     diags = _check(src)
     assert len(diags) == 1
-    assert field in diags[0].message
+    assert "kind" in diags[0].message
 
 
-@pytest.mark.parametrize(
-    "field",
-    # Free-form-prone tokens removed from the name heuristic (too noisy).
-    ["type", "provider", "level", "mode", "category", "channel", "method", "format", "source", "language", "env"],
-)
-def test_allows_dropped_choice_tokens(field: str):
-    """These names are too free-form to flag on the name alone (need corroboration)."""
-    src = f"""
-from pydantic import BaseModel
-
-class Config(BaseModel):
-    {field}: str
-"""
-    assert _check(src) == []
-
-
-def test_flags_choice_like_suffix_name():
-    src = """
-from pydantic import BaseModel
-
-class Call(BaseModel):
-    payment_status: str
-    call_direction: str
-"""
-    assert len(_check(src)) == 2
-
-
-@pytest.mark.parametrize("field", ["name", "email", "provider_name", "description", "url"])
-def test_allows_non_choice_like_names(field: str):
-    src = f"""
-from pydantic import BaseModel
-
-class User(BaseModel):
-    {field}: str
-"""
-    assert _check(src) == []
-
-
-def test_allows_choice_like_name_with_non_str_annotation():
-    src = """
-from pydantic import BaseModel
-
-class Config(BaseModel):
-    provider: Provider
-    language: Literal["en", "ar"]
-"""
-    assert _check(src) == []
-
-
-# --- Trigger 2: literal defaults (plain and Field(default=...)) ---------------
-
-
-def test_flags_choice_like_name_with_plain_literal_default():
-    src = """
-from pydantic import BaseModel
-
-class Job(BaseModel):
-    priority: str = "high"
-"""
-    assert len(_check(src)) == 1
-
-
-def test_flags_choice_like_name_with_field_default():
-    src = """
-from pydantic import BaseModel, Field
-
-class Job(BaseModel):
-    status: str = Field(default="pending")
-"""
-    assert len(_check(src)) == 1
-
-
-def test_allows_literal_default_on_free_text_name():
-    src = """
-from pydantic import BaseModel
-
-class User(BaseModel):
-    nickname: str = "anon"
-"""
-    assert _check(src) == []
-
-
-# --- Trigger 3: comparison clusters -------------------------------------------
+# --- Trigger 2: equality comparison clusters ----------------------------------
 
 
 def test_flags_comparison_cluster():
@@ -198,26 +323,19 @@ def handle(status: str) -> int:
     assert "StrEnum" in diags[0].message
 
 
-def test_flags_attribute_comparison_cluster():
+def test_local_kind_dispatch_single_char_fires():
+    """The must-preserve true positive: a genuine two-way dispatch on a local."""
     src = """
-def handle(call) -> int:
-    if call.direction == "inbound":
+def route(kind: str) -> int:
+    if kind == "a":
         return 1
-    if call.direction != "outbound":
+    elif kind == "b":
         return 2
     return 0
 """
     diags = _check(src)
     assert len(diags) == 1
-    assert "call.direction" in diags[0].message
-
-
-def test_flags_in_tuple_of_literals():
-    src = """
-def handle(status: str) -> bool:
-    return status in ("active", "pending")
-"""
-    assert len(_check(src)) == 1
+    assert "kind" in diags[0].message
 
 
 def test_allows_single_comparison():
@@ -360,268 +478,241 @@ def handle(status: str) -> int:
     assert _check(src, path=path) == []
 
 
-def test_name_heuristic_still_applies_in_test_files():
+def test_sibling_choices_still_applies_in_test_files():
     """Only the comparison-cluster trigger is test-file-scoped."""
     src = """
 from pydantic import BaseModel
 
 class Order(BaseModel):
+    choices = ["a", "b"]
     payment_status: str
 """
     assert len(_check(src, path="test_models.py")) == 1
 
 
-def test_flags_single_char_literal_cluster():
-    """Single-character literals now cluster (`{0,30}` quantifier fix)."""
+def test_pure_not_equal_cluster():
     src = """
-def grade(g: str) -> int:
-    if g == "a":
-        return 4
-    if g == "b":
-        return 3
+def handle(status: str) -> int:
+    if status != "active":
+        return 1
+    if status != "inactive":
+        return 2
+    return 0
+"""
+    assert len(_check(src)) == 1
+
+
+def test_mixed_eq_and_in_operators_form_one_cluster():
+    """A membership test contributes literals to a cluster that also has an
+    equality comparison; the equality is what makes the cluster real."""
+    src = """
+def handle(status: str) -> int:
+    if status == "active":
+        return 1
+    if status in ("pending", "queued"):
+        return 2
     return 0
 """
     diags = _check(src)
     assert len(diags) == 1
-    assert "g" in diags[0].message
+    assert "status" in diags[0].message
 
 
-# --- Trigger 1: every token as a `_<token>` suffix ---------------------------
-
-
-_CHOICE_TOKENS = [
-    "status",
-    "state",
-    "kind",
-    "role",
-    "priority",
-    "severity",
-    "direction",
-    "tier",
-    "stage",
-]
-
-
-@pytest.mark.parametrize("token", _CHOICE_TOKENS)
-def test_flags_every_token_as_suffix(token: str):
-    src = f"""
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    record_{token}: str
-"""
-    diags = _check(src)
-    assert len(diags) == 1
-    assert f"record_{token}" in diags[0].message
-
-
-@pytest.mark.parametrize("token", _CHOICE_TOKENS)
-def test_token_as_prefix_not_flagged(token: str):
-    """A token must be the trailing segment; `status_code` etc. are free-form."""
-    src = f"""
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    {token}_code: str
-"""
-    assert _check(src) == []
-
-
-@pytest.mark.parametrize("name", ["status_code", "state_id", "role_arn", "kind_name", "stage_name", "tier_list"])
-def test_real_world_prefix_names_not_flagged(name: str):
-    src = f"""
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    {name}: str
-"""
-    assert _check(src) == []
-
-
-@pytest.mark.parametrize("name", ["Status", "STATE", "Role", "Payment_Status", "call_DIRECTION"])
-def test_choice_name_match_is_case_insensitive(name: str):
-    src = f"""
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    {name}: str
+def test_exactly_two_distinct_literals_is_the_boundary():
+    src = """
+def handle(status: str) -> int:
+    if status == "on":
+        return 1
+    if status == "off":
+        return 2
+    return 0
 """
     assert len(_check(src)) == 1
 
 
-@pytest.mark.parametrize("ann", ["str | None", "Optional[str]", "list[str]", "dict[str, str]", "tuple[str, ...]"])
-def test_non_bare_str_annotation_not_flagged(ann: str):
-    """Only an annotation of exactly `str` fires; wrappers/unions do not."""
+@pytest.mark.parametrize("lit", ["in-progress", "not_started", "v2", "a-b-c_d"])
+def test_hyphen_and_underscore_tokens_still_cluster(lit: str):
     src = f"""
-from pydantic import BaseModel
-from typing import Optional
+def handle(status: str) -> int:
+    if status == "{lit}":
+        return 1
+    if status == "done":
+        return 2
+    return 0
+"""
+    assert len(_check(src)) == 1
 
-class Rec(BaseModel):
-    status: {ann}
+
+def test_mid_uppercase_literal_disqualifies_cluster():
+    src = """
+def handle(status: str) -> int:
+    if status == "activeState":
+        return 1
+    if status == "inactive":
+        return 2
+    return 0
 """
     assert _check(src) == []
 
 
-def test_bare_assignment_without_annotation_not_flagged():
-    """Only AnnAssign fields fire; a plain assignment is not annotated."""
-    src = """
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    status = "pending"
-"""
-    assert _check(src) == []
-
-
-def test_field_col_offset_is_reported():
-    src = """
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    status: str
-"""
-    diags = _check(src)
-    assert len(diags) == 1
-    assert diags[0].line == 5
-    assert diags[0].col == 5
-
-
-# --- Trigger 2: sibling choices attribute (all names / forms) -----------------
-
-
-@pytest.mark.parametrize("attr", ["choices", "states", "statuses", "values", "allowed"])
-def test_all_choices_attr_names_corroborate_free_name(attr: str):
-    """A recognised sibling collection flags even a free-form str field."""
+def test_thirtyone_char_token_clusters():
+    t1 = "a" + "b" * 30
+    t2 = "c" + "d" * 30
+    assert len(t1) == 31
     src = f"""
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    {attr} = ("a", "b")
-    label: str
+def handle(s: str) -> int:
+    if s == "{t1}":
+        return 1
+    if s == "{t2}":
+        return 2
+    return 0
 """
     assert len(_check(src)) == 1
 
 
-@pytest.mark.parametrize("coll", ['["a", "b"]', '("a", "b")', '{"a", "b"}'])
-def test_choices_collection_list_tuple_set(coll: str):
+def test_thirtytwo_char_token_disqualifies_cluster():
+    long = "a" + "b" * 31
+    assert len(long) == 32
     src = f"""
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    choices = {coll}
-    label: str
-"""
-    assert len(_check(src)) == 1
-
-
-def test_choices_attr_name_is_case_insensitive():
-    src = """
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    CHOICES = ["a", "b"]
-    label: str
-"""
-    assert len(_check(src)) == 1
-
-
-def test_choices_attr_annassign_form_corroborates():
-    src = """
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    choices: list = ["a", "b"]
-    label: str
-"""
-    assert len(_check(src)) == 1
-
-
-def test_empty_choices_collection_still_corroborates():
-    """An empty string-collection is still a string-collection (all() over [])."""
-    src = """
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    choices = []
-    label: str
-"""
-    assert len(_check(src)) == 1
-
-
-def test_choices_corroborates_all_free_form_fields():
-    src = """
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    choices = ["a", "b"]
-    label: str
-    caption: str
-"""
-    assert len(_check(src)) == 2
-
-
-def test_non_string_collection_does_not_corroborate():
-    src = """
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    choices = [1, 2, 3]
-    label: str
+def handle(s: str) -> int:
+    if s == "active":
+        return 1
+    if s == "{long}":
+        return 2
+    return 0
 """
     assert _check(src) == []
 
 
-def test_scalar_string_choices_does_not_corroborate():
-    src = """
-from pydantic import BaseModel
+# --- Real-world FP class 1: external attribute comparands ---------------------
 
-class Rec(BaseModel):
-    choices = "active"
-    label: str
+
+def test_external_attribute_membership_not_flagged():
+    """httpx `_config.py`: `url.scheme not in ("http", "https", "socks5", ...)`."""
+    src = """
+def build(url) -> None:
+    if url.scheme not in ("http", "https", "socks5", "socks5h"):
+        raise ValueError()
 """
     assert _check(src) == []
 
 
-def test_unrecognised_collection_attr_does_not_corroborate():
+def test_external_attribute_equality_cluster_not_flagged():
+    """fastapi `_compat/v2.py`: `field.mode == "validation"` — pydantic-core attr."""
     src = """
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    options = ["a", "b"]
-    label: str
+def read(field) -> int:
+    if field.mode == "validation":
+        return 1
+    if field.mode == "serialization":
+        return 2
+    return 0
 """
     assert _check(src) == []
 
 
-def test_choices_attr_without_str_field_is_silent():
+def test_self_attribute_cluster_not_flagged():
     src = """
-from pydantic import BaseModel
-
-class Rec(BaseModel):
-    choices = ["a", "b"]
-    count: int
+class Worker:
+    def run(self) -> int:
+        if self.status == "active":
+            return 1
+        if self.status == "inactive":
+            return 2
+        return 0
 """
     assert _check(src) == []
 
 
-# --- Trigger 3: comparison operators & membership forms -----------------------
+def test_deep_attribute_chain_not_flagged():
+    src = """
+def handle(ctx) -> int:
+    if ctx.call.direction == "inbound":
+        return 1
+    if ctx.call.direction == "outbound":
+        return 2
+    return 0
+"""
+    assert _check(src) == []
+
+
+# --- Real-world FP class 3: lone membership guards ----------------------------
+
+
+def test_reflection_key_membership_not_flagged():
+    """httpx `_main.py`: `name in ("subject", "issuer")` over an ssl cert dict."""
+    src = """
+def show(cert) -> None:
+    for name in cert:
+        if name in ("subject", "issuer"):
+            print(name)
+"""
+    assert _check(src) == []
+
+
+def test_reflection_dunder_dict_membership_not_flagged():
+    """httpx `_models.py`: `name not in ["extensions", "stream"]` over __dict__."""
+    src = """
+def copy(self) -> None:
+    for name in self.__dict__:
+        if name not in ["extensions", "stream"]:
+            continue
+"""
+    assert _check(src) == []
+
+
+def test_file_mode_membership_not_flagged():
+    """flask `blueprints.py` / `app.py`: `mode not in {"r", "rt", "rb"}`."""
+    src = """
+def opener(mode: str) -> None:
+    if mode not in {"r", "rt", "rb"}:
+        raise ValueError()
+"""
+    assert _check(src) == []
+
+
+def test_lone_membership_in_tuple_not_flagged():
+    src = """
+def handle(status: str) -> bool:
+    return status in ("active", "pending")
+"""
+    assert _check(src) == []
 
 
 @pytest.mark.parametrize("coll", ['["active", "pending"]', '{"active", "pending"}', '("active", "pending")'])
-def test_flags_in_list_set_tuple_of_literals(coll: str):
+def test_lone_membership_all_containers_not_flagged(coll: str):
     src = f"""
 def handle(status: str) -> bool:
     return status in {coll}
 """
-    assert len(_check(src)) == 1
+    assert _check(src) == []
 
 
-def test_flags_not_in_cluster():
+def test_lone_not_in_membership_not_flagged():
     src = """
 def handle(status: str) -> bool:
     return status not in {"active", "pending"}
 """
-    assert len(_check(src)) == 1
+    assert _check(src) == []
+
+
+def test_upstream_role_membership_not_flagged():
+    """An LLM message-role membership check is a lone guard, not an app enum."""
+    src = """
+def route(role: str) -> int:
+    if role in ("user", "assistant", "system"):
+        return 1
+    return 0
+"""
+    assert _check(src) == []
+
+
+def test_metric_field_name_membership_not_flagged():
+    """Metric/log field-name keys are not a value enum."""
+    src = """
+def prune(k: str) -> bool:
+    return k not in ["diff_ms", "total_ms"]
+"""
+    assert _check(src) == []
 
 
 def test_in_single_literal_below_boundary():
@@ -640,45 +731,77 @@ def handle(status: str) -> bool:
     assert _check(src) == []
 
 
-def test_pure_not_equal_cluster():
+def test_membership_against_a_variable_collection_not_flagged():
     src = """
-def handle(status: str) -> int:
-    if status != "active":
+def handle(status: str, allowed) -> bool:
+    return status in allowed
+"""
+    assert _check(src) == []
+
+
+def test_membership_against_non_literal_elements_not_flagged():
+    src = """
+def handle(status: str, a, b) -> bool:
+    return status in (a, b)
+"""
+    assert _check(src) == []
+
+
+def test_duplicate_literals_inside_in_tuple_do_not_reach_threshold():
+    src = """
+def handle(status: str) -> bool:
+    return status in ("active", "active")
+"""
+    assert _check(src) == []
+
+
+# --- Real-world FP class 3: tokenizers ----------------------------------------
+
+
+def test_single_char_scanner_cluster_not_flagged():
+    """django `defaultfilters`: `last_char == "g"` is a char scan, not an enum."""
+    src = """
+def stem(last_char: str) -> int:
+    if last_char == "g":
         return 1
-    if status != "inactive":
+    if last_char == "y":
         return 2
     return 0
 """
-    assert len(_check(src)) == 1
+    assert _check(src) == []
 
 
-def test_mixed_eq_and_in_operators_form_one_cluster():
+def test_language_keyword_tokenizer_not_flagged():
+    """django `smartif`: `token == "is" / "not" / "in"` is a keyword vocabulary."""
     src = """
-def handle(status: str) -> int:
-    if status == "active":
+def parse(token: str) -> int:
+    if token == "is":
         return 1
-    if status in ("pending", "queued"):
+    if token == "not":
         return 2
+    if token == "in":
+        return 3
+    return 0
+"""
+    assert _check(src) == []
+
+
+def test_non_scanner_single_char_cluster_still_fires():
+    """A single-char dispatch on a non-scanner variable (grades) is a real enum."""
+    src = """
+def grade(g: str) -> int:
+    if g == "a":
+        return 4
+    if g == "b":
+        return 3
     return 0
 """
     diags = _check(src)
     assert len(diags) == 1
-    assert "status" in diags[0].message
+    assert "g" in diags[0].message
 
 
-def test_exactly_two_distinct_literals_is_the_boundary():
-    src = """
-def handle(status: str) -> int:
-    if status == "a":
-        return 1
-    if status == "b":
-        return 2
-    return 0
-"""
-    assert len(_check(src)) == 1
-
-
-# --- Trigger 3: comparand shapes that are excluded ----------------------------
+# --- Comparand shapes that are excluded ---------------------------------------
 
 
 def test_call_comparand_excluded():
@@ -737,65 +860,49 @@ def handle(status: str) -> int:
     assert _check(src) == []
 
 
-@pytest.mark.parametrize("lit", ["in-progress", "not_started", "v2", "a-b-c_d"])
-def test_hyphen_and_underscore_tokens_still_cluster(lit: str):
-    src = f"""
-def handle(status: str) -> int:
-    if status == "{lit}":
+def test_walrus_target_in_comparison_is_not_clustered():
+    src = """
+def handle(get) -> int:
+    if (s := get()) == "active":
         return 1
-    if status == "done":
+    if s == "inactive":
+        return 2
+    return 0
+"""
+    assert _check(src) == []
+
+
+def test_yoda_and_not_equal_mix_into_one_cluster():
+    src = """
+def handle(status: str) -> int:
+    if "active" == status:
+        return 1
+    if status != "inactive":
         return 2
     return 0
 """
     assert len(_check(src)) == 1
 
 
-def test_mid_uppercase_literal_disqualifies_cluster():
+# --- Scope attribution --------------------------------------------------------
+
+
+def test_comparison_reports_first_line_and_col():
     src = """
 def handle(status: str) -> int:
-    if status == "activeState":
+    if status == "active":
         return 1
     if status == "inactive":
         return 2
     return 0
 """
-    assert _check(src) == []
-
-
-def test_thirtyone_char_token_clusters():
-    t1 = "a" + "b" * 30
-    t2 = "c" + "d" * 30
-    assert len(t1) == 31
-    src = f"""
-def handle(s: str) -> int:
-    if s == "{t1}":
-        return 1
-    if s == "{t2}":
-        return 2
-    return 0
-"""
-    assert len(_check(src)) == 1
-
-
-def test_thirtytwo_char_token_disqualifies_cluster():
-    long = "a" + "b" * 31
-    assert len(long) == 32
-    src = f"""
-def handle(s: str) -> int:
-    if s == "active":
-        return 1
-    if s == "{long}":
-        return 2
-    return 0
-"""
-    assert _check(src) == []
-
-
-# --- Trigger 3: scope attribution ---------------------------------------------
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].line == 3
+    assert diags[0].col == 8
 
 
 def test_nested_function_isolates_outer_cluster():
-    """A comparison in a nested def is not attributed to the enclosing def."""
     src = """
 def outer(status: str) -> int:
     if status == "active":
@@ -824,7 +931,6 @@ def outer() -> int:
 
 
 def test_lambda_comparisons_are_not_attributed():
-    """Lambdas are a skipped nested scope and are never given their own cluster."""
     src = """
 def build():
     return lambda s: 1 if s == "active" else (2 if s == "inactive" else 0)
@@ -844,132 +950,22 @@ async def handle(status: str) -> int:
     assert len(_check(src)) == 1
 
 
-def test_method_self_attribute_cluster():
+def test_method_plain_local_cluster_fires():
     src = """
 class Worker:
-    def run(self) -> int:
-        if self.status == "active":
+    def run(self, status: str) -> int:
+        if status == "active":
             return 1
-        if self.status == "inactive":
+        if status == "inactive":
             return 2
         return 0
 """
     diags = _check(src)
     assert len(diags) == 1
-    assert "self.status" in diags[0].message
-
-
-def test_deep_attribute_chain_clusters_on_full_key():
-    src = """
-def handle(ctx) -> int:
-    if ctx.call.direction == "inbound":
-        return 1
-    if ctx.call.direction == "outbound":
-        return 2
-    return 0
-"""
-    diags = _check(src)
-    assert len(diags) == 1
-    assert "ctx.call.direction" in diags[0].message
-
-
-def test_distinct_attribute_chains_do_not_cluster():
-    src = """
-def handle(o) -> int:
-    if o.status == "active":
-        return 1
-    if o.state == "inactive":
-        return 2
-    return 0
-"""
-    assert _check(src) == []
-
-
-def test_comparison_reports_first_line_and_col():
-    src = """
-def handle(status: str) -> int:
-    if status == "active":
-        return 1
-    if status == "inactive":
-        return 2
-    return 0
-"""
-    diags = _check(src)
-    assert len(diags) == 1
-    assert diags[0].line == 3
-    assert diags[0].col == 8
-
-
-# --- Edge cases: parsing, nesting, combined -----------------------------------
-
-
-def test_empty_source_returns_empty():
-    assert _check("") == []
-
-
-def test_syntax_error_returns_empty():
-    assert _check("def broken(:\n    pass\n") == []
-
-
-def test_nested_classes_are_both_flagged():
-    src = """
-from pydantic import BaseModel
-
-class Outer(BaseModel):
-    status: str
-
-    class Inner(BaseModel):
-        kind: str
-"""
-    assert len(_check(src)) == 2
-
-
-@pytest.mark.parametrize("base", ["Enum", "StrEnum", "IntEnum", "enum.StrEnum", "enum.Enum"])
-def test_enum_bases_are_all_skipped(base: str):
-    src = f"""
-class Status({base}):
-    state: str
-    active = "active"
-"""
-    assert _check(src) == []
-
-
-def test_non_enum_base_with_choice_field_still_flags():
-    src = """
-from pydantic import BaseModel
-
-class Status(BaseModel):
-    state: str
-"""
-    assert len(_check(src)) == 1
-
-
-def test_field_and_cluster_coexist_and_sort_by_position():
-    src = """
-from pydantic import BaseModel
-
-class Order(BaseModel):
-    status: str
-
-def route(kind: str) -> int:
-    if kind == "a":
-        return 1
-    if kind == "b":
-        return 2
-    return 0
-"""
-    diags = _check(src)
-    assert len(diags) == 2
-    assert [d.line for d in diags] == sorted(d.line for d in diags)
-
-
-# --- Adversarial: scope attribution across nested boundaries ------------------
+    assert "status" in diags[0].message
 
 
 def test_method_accumulates_across_a_nested_helper_def():
-    """The method's own cluster must survive a nested def dropped in the middle:
-    `active` + `pending` = 2 distinct -> one diag; the helper's `inactive` is
-    isolated in its own cluster (below threshold)."""
     src = """
 class W:
     def run(self, status: str) -> int:
@@ -990,9 +986,6 @@ class W:
 
 
 def test_class_nested_in_function_resets_the_cluster_scope():
-    """A class body opened inside a function is its own (module-like) scope: the
-    class-body comparison is not merged into the enclosing function's cluster,
-    so neither side reaches the 2-literal threshold."""
     src = """
 def outer(status):
     class C:
@@ -1004,8 +997,6 @@ def outer(status):
 
 
 def test_comprehension_condition_clusters_within_its_function():
-    """A comprehension makes no def/lambda node, so its `if` comparisons stay in
-    the enclosing function's cluster."""
     src = """
 def f(items):
     return [x for x in items if x == "active" or x == "inactive"]
@@ -1014,9 +1005,6 @@ def f(items):
 
 
 def test_decorator_expression_comparisons_attribute_to_decorated_function():
-    """Both comparisons live in a decorator call expression on the inner def;
-    the DFS attributes them to that def's cluster, so the closed set still
-    fires once."""
     src = """
 def outer(status):
     @deco(status == "active" or status == "inactive")
@@ -1027,72 +1015,7 @@ def outer(status):
     assert len(_check(src)) == 1
 
 
-# --- Adversarial: comparand shapes -------------------------------------------
-
-
-def test_walrus_target_in_comparison_is_not_clustered():
-    """A `(s := ...)` left-hand side is a NamedExpr, not a plain name/attribute,
-    so it is excluded; the later bare `s` sees only one literal."""
-    src = """
-def handle(get) -> int:
-    if (s := get()) == "active":
-        return 1
-    if s == "inactive":
-        return 2
-    return 0
-"""
-    assert _check(src) == []
-
-
-def test_membership_against_a_variable_collection_not_flagged():
-    src = """
-def handle(status: str, allowed) -> bool:
-    return status in allowed
-"""
-    assert _check(src) == []
-
-
-def test_membership_against_non_literal_elements_not_flagged():
-    src = """
-def handle(status: str, a, b) -> bool:
-    return status in (a, b)
-"""
-    assert _check(src) == []
-
-
-def test_duplicate_literals_inside_in_tuple_do_not_reach_threshold():
-    src = """
-def handle(status: str) -> bool:
-    return status in ("active", "active")
-"""
-    assert _check(src) == []
-
-
-def test_yoda_and_not_equal_mix_into_one_cluster():
-    src = """
-def handle(status: str) -> int:
-    if "active" == status:
-        return 1
-    if status != "inactive":
-        return 2
-    return 0
-"""
-    assert len(_check(src)) == 1
-
-
-def test_upstream_contract_role_tuple_fires_as_closed_set():
-    """An LLM message-role membership check is a genuine closed set; the rule
-    fires (documenting that external-contract tuples are not exempted)."""
-    src = """
-def route(role: str) -> int:
-    if role in ("user", "assistant", "system"):
-        return 1
-    return 0
-"""
-    assert len(_check(src)) == 1
-
-
-# --- match/case string patterns cluster on the subject ----------------------
+# --- match/case string patterns cluster on the subject ------------------------
 
 
 def test_match_case_string_patterns_should_cluster():
@@ -1159,23 +1082,45 @@ def handle(status: str) -> int:
     assert len(_check(src)) == 1
 
 
-def test_stringized_str_annotation_choice_field_should_flag():
+def test_match_on_attribute_subject_not_flagged():
+    src = """
+def handle(obj) -> int:
+    match obj.kind:
+        case "active":
+            return 1
+        case "inactive":
+            return 2
+    return 0
+"""
+    assert _check(src) == []
+
+
+# --- Edge cases: parsing, nesting, combined -----------------------------------
+
+
+def test_empty_source_returns_empty():
+    assert _check("") == []
+
+
+def test_syntax_error_returns_empty():
+    assert _check("def broken(:\n    pass\n") == []
+
+
+def test_field_and_cluster_coexist_and_sort_by_position():
     src = """
 from pydantic import BaseModel
 
-class Rec(BaseModel):
-    status: "str"
+class Order(BaseModel):
+    choices = ["a", "b"]
+    status: str
+
+def route(kind: str) -> int:
+    if kind == "a":
+        return 1
+    if kind == "b":
+        return 2
+    return 0
 """
-    assert len(_check(src)) == 1
-
-
-# --- Adversarial: known defects (xfail, strict) ------------------------------
-
-
-@pytest.mark.xfail(strict=True, reason="FP: metric/log field-name keys are not a value enum")
-def test_metric_field_name_membership_should_not_cluster():
-    src = """
-def prune(k: str) -> bool:
-    return k not in ["diff_ms", "total_ms"]
-"""
-    assert _check(src) == []
+    diags = _check(src)
+    assert len(diags) == 2
+    assert [d.line for d in diags] == sorted(d.line for d in diags)

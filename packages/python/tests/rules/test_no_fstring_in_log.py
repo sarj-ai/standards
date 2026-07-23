@@ -87,9 +87,7 @@ def test_flags_attribute_chain_ending_in_logger_name(receiver: str):
     [
         'logger.bind(call_id=cid).info(f"done {x}")',
         'logger.opt(lazy=True).debug(f"v={value}")',
-        'logging.getLogger(__name__).warning(f"slow {dt}")',
         'logger.getChild("sub").info(f"{v}")',
-        'logging.getLogger("svc").getChild("sub").error(f"{e}")',
         'logger.bind(a=1).bind(b=2).info(f"{x}")',
     ],
 )
@@ -98,7 +96,7 @@ def test_flags_builder_and_factory_chains(call: str):
 
 
 def test_flags_fstring_as_first_positional_with_trailing_kwargs():
-    assert len(_check('logger.info(f"{x}", extra={"k": 1})\n')) == 1
+    assert len(_check('logger.info(f"{x}", call_id=cid)\n')) == 1
 
 
 def test_flags_fstring_as_first_positional_with_trailing_positional():
@@ -299,3 +297,39 @@ def test_flags_fstring_concatenated_with_plus():
 
 def test_ignores_getchild_on_non_logger_receiver():
     assert _check('widget.getChild("panel").info(f"{x}")\n') == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'logging.getLogger(__name__).error(f"boom {x}", exc_info=e)\n',
+        'logging.getLogger("svc").warning(f"slow {dt}")\n',
+        'logging.getLogger("svc").getChild("sub").error(f"{e}")\n',
+        'getLogger(__name__).info(f"{x}")\n',
+    ],
+)
+def test_ignores_stdlib_getlogger_chain(source: str):
+    assert _check(source) == []
+
+
+@pytest.mark.parametrize(
+    "kwarg",
+    ["exc_info=e", "stack_info=True", 'extra={"k": 1}'],
+)
+def test_ignores_stdlib_only_kwargs(kwarg: str):
+    assert _check(f'self.logger.error(f"Exception on {{path}}", {kwarg})\n') == []
+
+
+def test_ignores_flask_style_self_logger_with_exc_info():
+    assert _check('self.logger.error(f"Exception on {path}", exc_info=sys.exc_info())\n') == []
+
+
+def test_flags_loguru_import_and_bare_logger():
+    src = 'from loguru import logger\nlogger.info(f"val {x}")\n'
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].code == "SARJ017"
+
+
+def test_still_flags_loguru_exception_method_without_stdlib_kwargs():
+    assert len(_check('logger.exception(f"failed for {call_id}")\n')) == 1

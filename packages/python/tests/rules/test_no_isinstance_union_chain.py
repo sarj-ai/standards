@@ -53,18 +53,46 @@ def _check(source: str) -> list[Diagnostic]:
     return NoIsinstanceUnionChain().check(Path("<t>.py"), source)
 
 
-def _chain(target: str, *type_names: str, indent: str = "    ") -> str:
-    """Render an if/elif isinstance chain over `target` for the given class names."""
-    lines: list[str] = ["def handle(subject, other):"]
+def _classdefs(*names: str) -> str:
+    return "\n".join(f"class {n}: ..." for n in dict.fromkeys(names))
+
+
+def _chain(
+    target: str,
+    *type_names: str,
+    terminal: str = "raise ValueError()",
+) -> str:
+    """Render a local-closed-union dispatch: class defs, then an if/elif isinstance chain
+    over `target` with an exhaustive terminal `else`."""
+    lines: list[str] = [_classdefs(*type_names), "", "def handle(subject, other):"]
     for i, name in enumerate(type_names):
         kw = "if" if i == 0 else "elif"
         lines.extend(
             [
-                f"{indent}{kw} isinstance({target}, {name}):",
-                f"{indent}    branch_{i}()",
+                f"    {kw} isinstance({target}, {name}):",
+                f"        branch_{i}()",
             ]
         )
+    lines.extend(["    else:", f"        {terminal}"])
     return "\n".join(lines) + "\n"
+
+
+def _two_arm(
+    test0: str,
+    test1: str,
+    *,
+    terminal: str = "raise ValueError()",
+    classes: tuple[str, ...] = ("Foo", "Bar", "Baz"),
+) -> str:
+    """Two-arm dispatch with local classes + exhaustive terminal, for target-equality
+    adversarial cases where `test0`/`test1` carry the interesting target expressions."""
+    return (
+        f"{_classdefs(*classes)}\n"
+        "def handle(o, a, b):\n"
+        f"    if {test0}:\n        x()\n"
+        f"    elif {test1}:\n        y()\n"
+        f"    else:\n        {terminal}\n"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -74,20 +102,29 @@ def _chain(target: str, *type_names: str, indent: str = "    ") -> str:
 
 def test_flags_two_branch_chain_over_local_classes():
     src = """
+class ApiKeySubject: ...
+class JwtSubject: ...
+
 def handle(subject):
     if isinstance(subject, ApiKeySubject):
         a()
     elif isinstance(subject, JwtSubject):
         b()
+    else:
+        raise ValueError()
 """
     diags = _check(src)
     assert len(diags) == 1
     assert diags[0].code == "SARJ003"
-    assert "2 types" in diags[0].message
+    assert "2 local classes" in diags[0].message
 
 
-def test_flags_three_branch_chain_with_else():
+def test_flags_three_branch_chain_with_assert_never_terminal():
     src = """
+class DraftScenario: ...
+class PublishedScenario: ...
+class ArchivedScenario: ...
+
 def handle(node):
     if isinstance(node, DraftScenario):
         a()
@@ -96,20 +133,42 @@ def handle(node):
     elif isinstance(node, ArchivedScenario):
         c()
     else:
-        d()
+        assert_never(node)
 """
     diags = _check(src)
     assert len(diags) == 1
-    assert "3 types" in diags[0].message
+    assert "3 local classes" in diags[0].message
 
 
-def test_flags_chain_with_dotted_class_refs():
+def test_flags_chain_terminated_by_typing_assert_never_attribute():
     src = """
-def handle(evt):
-    if isinstance(evt, events.Created):
+import typing
+class Foo: ...
+class Bar: ...
+
+def handle(x):
+    if isinstance(x, Foo):
         a()
-    elif isinstance(evt, events.Deleted):
+    elif isinstance(x, Bar):
         b()
+    else:
+        typing.assert_never(x)
+"""
+    assert len(_check(src)) == 1
+
+
+def test_flags_chain_terminated_by_return():
+    src = """
+class Foo: ...
+class Bar: ...
+
+def handle(x):
+    if isinstance(x, Foo):
+        return a()
+    elif isinstance(x, Bar):
+        return b()
+    else:
+        return None
 """
     assert len(_check(src)) == 1
 
@@ -119,89 +178,121 @@ def test_flags_chains_of_every_length_and_reports_count(branches: int):
     type_names = tuple(f"Variant{i}" for i in range(branches))
     diags = _check(_chain("subject", *type_names))
     assert len(diags) == 1
-    assert f"{branches} types" in diags[0].message
+    assert f"{branches} local classes" in diags[0].message
 
 
 def test_flags_chain_on_attribute_target():
     src = """
+class TextBody: ...
+class BinaryBody: ...
+
 def handle(msg):
     if isinstance(msg.payload, TextBody):
         a()
     elif isinstance(msg.payload, BinaryBody):
         b()
+    else:
+        raise ValueError()
 """
     assert len(_check(src)) == 1
 
 
 def test_flags_chain_on_subscript_target():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle(items):
     if isinstance(items[0], Foo):
         a()
     elif isinstance(items[0], Bar):
         b()
+    else:
+        raise ValueError()
 """
     assert len(_check(src)) == 1
 
 
 def test_flags_chain_on_call_target_with_identical_dump():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle():
     if isinstance(get(), Foo):
         a()
     elif isinstance(get(), Bar):
         b()
+    else:
+        raise ValueError()
 """
     assert len(_check(src)) == 1
 
 
 def test_flags_chain_with_parenthesized_tests():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle(x):
     if (isinstance(x, Foo)):
         a()
     elif (isinstance(x, Bar)):
         b()
+    else:
+        raise ValueError()
 """
     assert len(_check(src)) == 1
 
 
 def test_flags_chain_written_as_else_nested_if():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle(x):
     if isinstance(x, Foo):
         a()
     else:
         if isinstance(x, Bar):
             b()
+        else:
+            raise ValueError()
 """
     assert len(_check(src)) == 1
 
 
 def test_flags_chain_with_bodies_that_reassign_target():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle(x):
     if isinstance(x, Foo):
         x = adapt(x)
     elif isinstance(x, Bar):
         x = adapt(x)
+    else:
+        raise ValueError()
 """
     assert len(_check(src)) == 1
 
 
-def test_mixed_local_and_dotted_still_flagged():
+def test_flags_chain_over_locally_nested_classes():
     src = """
+def make():
+    class Foo: ...
+    class Bar: ...
+
 def handle(x):
     if isinstance(x, Foo):
         a()
-    elif isinstance(x, pkg.mod.Bar):
+    elif isinstance(x, Bar):
         b()
-    elif isinstance(x, Baz):
-        c()
+    else:
+        raise ValueError()
 """
-    diags = _check(src)
-    assert len(diags) == 1
-    assert "3 types" in diags[0].message
+    assert len(_check(src)) == 1
 
 
 # --------------------------------------------------------------------------- #
@@ -211,15 +302,24 @@ def handle(x):
 
 def test_two_sibling_chains_each_flagged():
     src = """
+class Foo: ...
+class Bar: ...
+class Baz: ...
+class Qux: ...
+
 def handle(a, b):
     if isinstance(b, Foo):
         x()
     elif isinstance(b, Bar):
         y()
+    else:
+        raise ValueError()
     if isinstance(a, Baz):
         x()
     elif isinstance(a, Qux):
         y()
+    else:
+        raise ValueError()
 """
     diags = _check(src)
     assert len(diags) == 2
@@ -227,15 +327,24 @@ def handle(a, b):
 
 def test_sibling_chains_reported_in_source_order():
     src = """
+class Foo: ...
+class Bar: ...
+class Baz: ...
+class Qux: ...
+
 def handle(a, b):
     if isinstance(b, Foo):
         x()
     elif isinstance(b, Bar):
         y()
+    else:
+        raise ValueError()
     if isinstance(a, Baz):
         x()
     elif isinstance(a, Qux):
         y()
+    else:
+        raise ValueError()
 """
     lines = [d.line for d in _check(src)]
     assert lines == sorted(lines)
@@ -243,14 +352,23 @@ def handle(a, b):
 
 def test_nested_chain_inside_branch_body_also_flagged():
     src = """
+class Outer1: ...
+class Outer2: ...
+class Inner1: ...
+class Inner2: ...
+
 def handle(x, y):
     if isinstance(x, Outer1):
         if isinstance(y, Inner1):
             a()
         elif isinstance(y, Inner2):
             b()
+        else:
+            raise ValueError()
     elif isinstance(x, Outer2):
         c()
+    else:
+        raise ValueError()
 """
     diags = _check(src)
     assert len(diags) == 2
@@ -267,7 +385,12 @@ def test_chain_reported_once_at_head_not_per_arm():
 
 
 def test_line_and_col_at_module_level():
-    src = "if isinstance(x, Foo):\n    a()\nelif isinstance(x, Bar):\n    b()\n"
+    src = (
+        "if isinstance(x, Foo):\n    a()\n"
+        "elif isinstance(x, Bar):\n    b()\n"
+        "else:\n    raise ValueError()\n"
+        "class Foo: ...\nclass Bar: ...\n"
+    )
     diags = _check(src)
     assert len(diags) == 1
     assert diags[0].line == 1
@@ -281,6 +404,10 @@ def handle(x):
         a()
     elif isinstance(x, Bar):
         b()
+    else:
+        raise ValueError()
+class Foo: ...
+class Bar: ...
 """
     diags = _check(src)
     assert len(diags) == 1
@@ -296,6 +423,10 @@ class C:
             a()
         elif isinstance(x, Bar):
             b()
+        else:
+            raise ValueError()
+class Foo: ...
+class Bar: ...
 """
     diags = _check(src)
     assert len(diags) == 1
@@ -304,7 +435,157 @@ class C:
 
 
 # --------------------------------------------------------------------------- #
-# Negative: excluded builtin / stdlib / sentinel types                        #
+# Negative: the local-union gate — non-local / open-set type probes            #
+# --------------------------------------------------------------------------- #
+
+
+def test_property_cached_property_probe_not_flagged():
+    # pydantic/fields.py-shaped false positive: both are stdlib open-set types the module
+    # does not own, so this is a runtime probe, not a closed local-union dispatch.
+    src = """
+from functools import cached_property
+
+def resolve(property_):
+    if isinstance(property_, property):
+        a()
+    elif isinstance(property_, cached_property):
+        b()
+    else:
+        raise ValueError()
+"""
+    assert _check(src) == []
+
+
+def test_dotted_dataclasses_field_probe_not_flagged():
+    src = """
+import dataclasses
+
+def resolve(f):
+    if isinstance(f, dataclasses.Field):
+        a()
+    elif isinstance(f, Other):
+        b()
+    else:
+        raise ValueError()
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize(
+    "type_name",
+    ["Path", "Decimal", "UUID", "Enum", "IntEnum", "partial", "PathLike", "IOBase"],
+)
+def test_common_stdlib_probe_not_flagged(type_name: str):
+    src = f"""
+class LocalVariant: ...
+
+def resolve(x):
+    if isinstance(x, LocalVariant):
+        a()
+    elif isinstance(x, {type_name}):
+        b()
+    else:
+        raise ValueError()
+"""
+    assert _check(src) == []
+
+
+def test_imported_class_not_defined_locally_not_flagged():
+    src = """
+from other.module import ApiKeySubject, JwtSubject
+
+def handle(subject):
+    if isinstance(subject, ApiKeySubject):
+        a()
+    elif isinstance(subject, JwtSubject):
+        b()
+    else:
+        raise ValueError()
+"""
+    assert _check(src) == []
+
+
+def test_dotted_class_refs_not_flagged():
+    src = """
+def handle(evt):
+    if isinstance(evt, events.Created):
+        a()
+    elif isinstance(evt, events.Deleted):
+        b()
+    else:
+        raise ValueError()
+"""
+    assert _check(src) == []
+
+
+def test_mixed_local_and_dotted_not_flagged():
+    src = """
+class Foo: ...
+class Baz: ...
+
+def handle(x):
+    if isinstance(x, Foo):
+        a()
+    elif isinstance(x, pkg.mod.Bar):
+        b()
+    elif isinstance(x, Baz):
+        c()
+    else:
+        raise ValueError()
+"""
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Negative: the exhaustiveness gate — open chains / permissive fall-through     #
+# --------------------------------------------------------------------------- #
+
+
+def test_open_chain_without_else_not_flagged():
+    src = """
+class Foo: ...
+class Bar: ...
+
+def handle(x):
+    if isinstance(x, Foo):
+        a()
+    elif isinstance(x, Bar):
+        b()
+"""
+    assert _check(src) == []
+
+
+def test_permissive_else_that_falls_through_not_flagged():
+    src = """
+class Foo: ...
+class Bar: ...
+
+def handle(x):
+    if isinstance(x, Foo):
+        a()
+    elif isinstance(x, Bar):
+        b()
+    else:
+        log_unknown(x)
+"""
+    assert _check(src) == []
+
+
+def test_single_arm_with_terminal_else_not_flagged():
+    src = """
+class CustomScenario: ...
+
+def handle(x):
+    if isinstance(x, CustomScenario):
+        a()
+    else:
+        raise ValueError()
+"""
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Negative: excluded builtin / stdlib / sentinel names (belt-and-suspenders)   #
 # --------------------------------------------------------------------------- #
 
 
@@ -322,6 +603,9 @@ def test_excluded_type_in_first_arm_suppresses_chain(excluded: str):
 
 def test_excluded_type_in_middle_arm_suppresses_whole_chain():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle(x):
     if isinstance(x, Foo):
         a()
@@ -329,30 +613,16 @@ def handle(x):
         b()
     elif isinstance(x, Bar):
         c()
+    else:
+        raise ValueError()
 """
     assert _check(src) == []
 
 
-def test_excluded_type_as_dotted_attribute_still_excluded():
-    src = """
-def handle(x):
-    if isinstance(x, Foo):
-        a()
-    elif isinstance(x, builtins.dict):
-        b()
-"""
-    assert _check(src) == []
-
-
-def test_all_excluded_chain_not_flagged():
-    src = """
-def handle(x):
-    if isinstance(x, str):
-        a()
-    elif isinstance(x, bytes):
-        b()
-"""
-    assert _check(src) == []
+def test_local_class_colliding_with_excluded_name_suppresses_chain():
+    # A local domain class named like an ABC (`Sequence`) is treated as excluded, so this
+    # real 2-type dispatch is intentionally not flagged (belt-and-suspenders denylist).
+    assert _check(_chain("x", "Node", "Sequence")) == []
 
 
 # --------------------------------------------------------------------------- #
@@ -360,17 +630,11 @@ def handle(x):
 # --------------------------------------------------------------------------- #
 
 
-def test_allows_single_isinstance_guard():
-    src = """
-def handle(x):
-    if isinstance(x, CustomScenario):
-        a()
-"""
-    assert _check(src) == []
-
-
 def test_allows_tuple_membership_check():
     src = """
+class ApiKeySubject: ...
+class JwtSubject: ...
+
 def handle(x):
     if isinstance(x, (ApiKeySubject, JwtSubject)):
         a()
@@ -382,146 +646,115 @@ def handle(x):
 
 def test_allows_tuple_membership_arm_inside_chain():
     src = """
+class Foo: ...
+class Bar: ...
+class Baz: ...
+
 def handle(x):
     if isinstance(x, (Foo, Bar)):
         a()
     elif isinstance(x, Baz):
         b()
+    else:
+        raise ValueError()
 """
     assert _check(src) == []
 
 
 def test_allows_chain_on_different_name_targets():
-    src = """
-def handle(x, y):
-    if isinstance(x, Foo):
-        a()
-    elif isinstance(y, Bar):
-        b()
-"""
+    src = _two_arm("isinstance(x, Foo)", "isinstance(y, Bar)")
     assert _check(src) == []
 
 
 def test_allows_chain_on_different_attribute_targets():
-    src = """
-def handle(o):
-    if isinstance(o.a, Foo):
-        a()
-    elif isinstance(o.b, Bar):
-        b()
-"""
+    src = _two_arm("isinstance(o.a, Foo)", "isinstance(o.b, Bar)")
     assert _check(src) == []
 
 
 def test_allows_chain_on_different_subscript_indices():
-    src = """
-def handle(o):
-    if isinstance(o[0], Foo):
-        a()
-    elif isinstance(o[1], Bar):
-        b()
-"""
+    src = _two_arm("isinstance(o[0], Foo)", "isinstance(o[1], Bar)")
     assert _check(src) == []
 
 
 def test_allows_isinstance_joined_by_and():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle(x):
     if isinstance(x, Foo) and isinstance(x, Bar):
         a()
+    else:
+        raise ValueError()
 """
     assert _check(src) == []
 
 
 def test_allows_isinstance_joined_by_or_within_one_test():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle(x):
     if isinstance(x, Foo) or isinstance(x, Bar):
         a()
+    else:
+        raise ValueError()
 """
     assert _check(src) == []
 
 
 def test_allows_isinstance_combined_with_boolean_attr():
-    src = """
-def handle(x):
-    if isinstance(x, Foo) and x.ready:
-        a()
-    elif isinstance(x, Bar):
-        b()
-"""
+    src = _two_arm("isinstance(x, Foo) and x.ready", "isinstance(x, Bar)")
     assert _check(src) == []
 
 
 def test_allows_negated_isinstance_chain():
-    src = """
-def handle(x):
-    if not isinstance(x, Foo):
-        a()
-    elif not isinstance(x, Bar):
-        b()
-"""
+    src = _two_arm("not isinstance(x, Foo)", "not isinstance(x, Bar)")
     assert _check(src) == []
 
 
 def test_allows_mixed_isinstance_and_hasattr_guard():
     src = """
+class Foo: ...
+
 def handle(first_mapping):
     if hasattr(first_mapping, "scenario_id"):
         a()
-    elif isinstance(first_mapping, dict):
+    elif isinstance(first_mapping, Foo):
         b()
+    else:
+        raise ValueError()
 """
     assert _check(src) == []
 
 
 def test_allows_isinstance_mixed_with_comparison():
-    src = """
-def handle(x):
-    if isinstance(x, Foo):
-        a()
-    elif x == SENTINEL:
-        b()
-"""
+    src = _two_arm("isinstance(x, Foo)", "x == SENTINEL")
     assert _check(src) == []
 
 
 def test_allows_isinstance_with_keyword_arguments():
-    src = """
-def handle(x):
-    if isinstance(x, Foo):
-        a()
-    elif isinstance(obj=x, class_or_tuple=Bar):
-        b()
-"""
+    src = _two_arm("isinstance(x, Foo)", "isinstance(obj=x, class_or_tuple=Bar)")
     assert _check(src) == []
 
 
 def test_allows_three_argument_pseudo_isinstance():
-    src = """
-def handle(x):
-    if isinstance(x, Foo, extra):
-        a()
-    elif isinstance(x, Bar):
-        b()
-"""
+    src = _two_arm("isinstance(x, Foo, extra)", "isinstance(x, Bar)")
     assert _check(src) == []
 
 
 def test_allows_attribute_call_named_isinstance():
-    src = """
-def handle(x):
-    if obj.isinstance(x, Foo):
-        a()
-    elif obj.isinstance(x, Bar):
-        b()
-"""
+    src = _two_arm("obj.isinstance(x, Foo)", "obj.isinstance(x, Bar)")
     assert _check(src) == []
 
 
 def test_allows_already_using_match():
     src = """
 from typing import assert_never
+
+class ApiKeySubject: ...
+class JwtSubject: ...
 
 def handle(subject):
     match subject:
@@ -537,6 +770,9 @@ def handle(subject):
 
 def test_broken_chain_reset_by_non_isinstance_middle_not_flagged():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle(x):
     if isinstance(x, Foo):
         a()
@@ -544,6 +780,8 @@ def handle(x):
         b()
     elif isinstance(x, Bar):
         c()
+    else:
+        raise ValueError()
 """
     assert _check(src) == []
 
@@ -567,6 +805,9 @@ def test_syntax_error_returns_empty():
 
 def test_syntax_error_amid_valid_chain_returns_empty():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle(x):
     if isinstance(x, Foo):
         a()
@@ -592,13 +833,7 @@ def test_ternary_isinstance_not_flagged():
 
 
 def test_nested_boolean_ops_in_single_test_not_flagged():
-    src = """
-def handle(x):
-    if (isinstance(x, Foo) or isinstance(x, Bar)) and x.ready:
-        a()
-    elif isinstance(x, Baz):
-        b()
-"""
+    src = _two_arm("(isinstance(x, Foo) or isinstance(x, Bar)) and x.ready", "isinstance(x, Baz)")
     assert _check(src) == []
 
 
@@ -624,11 +859,16 @@ def test_diagnostic_carries_path_and_code():
 
 def test_check_does_not_honor_inline_suppression_comment():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle(x):
     if isinstance(x, Foo):  # sarj-noqa: SARJ003 — boundary
         a()
     elif isinstance(x, Bar):
         b()
+    else:
+        raise ValueError()
 """
     assert len(_check(src)) == 1
 
@@ -640,90 +880,42 @@ def handle(x):
 
 
 def test_deep_attribute_target_equal_flagged():
-    src = """
-def handle(o):
-    if isinstance(o.a.b.c, Foo):
-        x()
-    elif isinstance(o.a.b.c, Bar):
-        y()
-"""
+    src = _two_arm("isinstance(o.a.b.c, Foo)", "isinstance(o.a.b.c, Bar)")
     assert len(_check(src)) == 1
 
 
 def test_subscript_hex_and_decimal_index_are_equal_value_flagged():
-    src = """
-def handle(o):
-    if isinstance(o[0x1], Foo):
-        x()
-    elif isinstance(o[1], Bar):
-        y()
-"""
+    src = _two_arm("isinstance(o[0x1], Foo)", "isinstance(o[1], Bar)")
     assert len(_check(src)) == 1
 
 
 def test_subscript_string_quote_styles_equal_flagged():
-    src = """
-def handle(o):
-    if isinstance(o["k"], Foo):
-        x()
-    elif isinstance(o['k'], Bar):
-        y()
-"""
+    src = _two_arm('isinstance(o["k"], Foo)', "isinstance(o['k'], Bar)")
     assert len(_check(src)) == 1
 
 
 def test_negative_index_target_equal_flagged():
-    src = """
-def handle(o):
-    if isinstance(o[-1], Foo):
-        x()
-    elif isinstance(o[-1], Bar):
-        y()
-"""
+    src = _two_arm("isinstance(o[-1], Foo)", "isinstance(o[-1], Bar)")
     assert len(_check(src)) == 1
 
 
 def test_call_target_with_identical_args_and_kwargs_flagged():
-    src = """
-def handle():
-    if isinstance(get(1, k=2), Foo):
-        x()
-    elif isinstance(get(1, k=2), Bar):
-        y()
-"""
+    src = _two_arm("isinstance(get(1, k=2), Foo)", "isinstance(get(1, k=2), Bar)")
     assert len(_check(src)) == 1
 
 
 def test_walrus_target_equal_flagged():
-    src = """
-def handle():
-    if isinstance((y := f()), Foo):
-        x()
-    elif isinstance((y := f()), Bar):
-        z()
-"""
+    src = _two_arm("isinstance((y := f()), Foo)", "isinstance((y := f()), Bar)")
     assert len(_check(src)) == 1
 
 
 def test_boolop_target_equal_flagged():
-    src = """
-def handle(a, b):
-    if isinstance(a and b, Foo):
-        x()
-    elif isinstance(a and b, Bar):
-        y()
-"""
+    src = _two_arm("isinstance(a and b, Foo)", "isinstance(a and b, Bar)")
     assert len(_check(src)) == 1
 
 
 def test_fstring_target_equal_flagged():
-    src = """
-def handle(a):
-    if isinstance(f'{a}', Foo):
-        x()
-    elif isinstance(f'{a}', Bar):
-        y()
-"""
+    src = _two_arm("isinstance(f'{a}', Foo)", "isinstance(f'{a}', Bar)")
     assert len(_check(src)) == 1
 
 
@@ -734,106 +926,56 @@ def handle(a):
 
 
 def test_subscript_int_vs_float_index_not_flagged():
-    src = """
-def handle(o):
-    if isinstance(o[1], Foo):
-        x()
-    elif isinstance(o[1.0], Bar):
-        y()
-"""
+    src = _two_arm("isinstance(o[1], Foo)", "isinstance(o[1.0], Bar)")
     assert _check(src) == []
 
 
 def test_subscript_int_vs_bool_index_not_flagged():
-    src = """
-def handle(o):
-    if isinstance(o[1], Foo):
-        x()
-    elif isinstance(o[True], Bar):
-        y()
-"""
+    src = _two_arm("isinstance(o[1], Foo)", "isinstance(o[True], Bar)")
     assert _check(src) == []
 
 
 def test_subscript_str_vs_bytes_index_not_flagged():
-    src = """
-def handle(o):
-    if isinstance(o["a"], Foo):
-        x()
-    elif isinstance(o[b"a"], Bar):
-        y()
-"""
+    src = _two_arm('isinstance(o["a"], Foo)', 'isinstance(o[b"a"], Bar)')
     assert _check(src) == []
 
 
 def test_negative_vs_positive_constant_index_not_flagged():
-    src = """
-def handle(o):
-    if isinstance(o[-1], Foo):
-        x()
-    elif isinstance(o[1], Bar):
-        y()
-"""
+    src = _two_arm("isinstance(o[-1], Foo)", "isinstance(o[1], Bar)")
     assert _check(src) == []
 
 
 def test_unary_minus_vs_unary_plus_index_not_flagged():
-    src = """
-def handle(o):
-    if isinstance(o[-1], Foo):
-        x()
-    elif isinstance(o[+1], Bar):
-        y()
-"""
+    src = _two_arm("isinstance(o[-1], Foo)", "isinstance(o[+1], Bar)")
     assert _check(src) == []
 
 
 def test_walrus_different_binding_name_not_flagged():
-    src = """
-def handle():
-    if isinstance((y := f()), Foo):
-        x()
-    elif isinstance((z := f()), Bar):
-        w()
-"""
+    src = _two_arm("isinstance((y := f()), Foo)", "isinstance((z := f()), Bar)")
     assert _check(src) == []
 
 
 def test_call_target_different_keyword_value_not_flagged():
-    src = """
-def handle():
-    if isinstance(get(k=1), Foo):
-        x()
-    elif isinstance(get(k=2), Bar):
-        y()
-"""
+    src = _two_arm("isinstance(get(k=1), Foo)", "isinstance(get(k=2), Bar)")
     assert _check(src) == []
 
 
 def test_boolop_different_operator_not_flagged():
-    src = """
-def handle(a, b):
-    if isinstance(a and b, Foo):
-        x()
-    elif isinstance(a or b, Bar):
-        y()
-"""
+    src = _two_arm("isinstance(a and b, Foo)", "isinstance(a or b, Bar)")
     assert _check(src) == []
 
 
 # --------------------------------------------------------------------------- #
-# Adversarial: heuristic boundaries — match/case, elif resets, name-exclusion  #
+# Adversarial: heuristic boundaries — match/case, elif resets                  #
 # --------------------------------------------------------------------------- #
-
-
-def test_local_class_colliding_with_excluded_name_suppresses_chain():
-    # Name-based exclusion is intentional: a local domain class named like an ABC
-    # (`Sequence`) is treated as excluded, so this real 2-type dispatch is not flagged.
-    assert _check(_chain("x", "Node", "Sequence")) == []
 
 
 def test_two_valid_arms_before_non_isinstance_reset_not_flagged():
     src = """
+class Foo: ...
+class Bar: ...
+class Baz: ...
+
 def handle(x):
     if isinstance(x, Foo):
         a()
@@ -843,12 +985,17 @@ def handle(x):
         c()
     elif isinstance(x, Baz):
         d()
+    else:
+        raise ValueError()
 """
     assert _check(src) == []
 
 
 def test_none_guard_head_before_isinstance_dispatch_not_flagged():
     src = """
+class Foo: ...
+class Bar: ...
+
 def handle(x):
     if x is None:
         a()
@@ -856,12 +1003,17 @@ def handle(x):
         b()
     elif isinstance(x, Bar):
         c()
+    else:
+        raise ValueError()
 """
     assert _check(src) == []
 
 
 def test_match_with_class_patterns_and_guard_not_flagged():
     src = """
+class ApiKeySubject: ...
+class JwtSubject: ...
+
 def handle(subject):
     match subject:
         case ApiKeySubject() if subject.active:
@@ -875,11 +1027,5 @@ def handle(subject):
 
 
 def test_nested_boolop_walrus_mixed_guard_not_flagged():
-    src = """
-def handle(x):
-    if isinstance(x, Foo) and (y := x.v):
-        a()
-    elif isinstance(x, Bar):
-        b()
-"""
+    src = _two_arm("isinstance(x, Foo) and (y := x.v)", "isinstance(x, Bar)")
     assert _check(src) == []

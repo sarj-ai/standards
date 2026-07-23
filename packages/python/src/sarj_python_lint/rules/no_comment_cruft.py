@@ -20,7 +20,10 @@ readability audit, not this rule):
    block of `#` lines.
 
 Deliberately NOT flagged: trailing/standalone *prose* comments (the legitimate
-"why"), and directive comments — `# type:`, `# noqa`, `# sarj-noqa`,
+"why"); code-shaped *illustrations* — a line that parses as Python but sits
+under a prose lead-in (`# For example:`, a wrapped sentence) or carries
+pseudo-code markers (`%sent%`, `[opt]`, `<FunctionBody>`, `...`); and directive
+comments — `# type:`, `# noqa`, `# sarj-noqa`,
 `# pragma:`, `# pyright:`, `# mypy:`, `# fmt:`, `# isort:`, `# ruff:`,
 `# nosec`, `# TODO`, `# FIXME`, shebangs, and coding declarations.
 
@@ -43,6 +46,7 @@ if TYPE_CHECKING:
 
 
 _LEADING_PREAMBLE_MIN = 4
+_PROSE_MIN_WORDS = 3
 
 _DIRECTIVE_PREFIXES = (
     "type:",
@@ -90,6 +94,11 @@ _CODE_HEADER_RE = re.compile(
 )
 _ASSIGN_OR_CALL_RE = re.compile(r"^[A-Za-z_][\w.\[\]]*\s*(?:=|:=|\+=|-=|\*=|/=)\s*\S|^[A-Za-z_][\w.]*\(")
 
+# Pseudo-code / grammar-example markers (`%sent%`, `[opt]`, `<FunctionBody>`,
+# `...`). Real commented-out code doesn't carry these — they mark an
+# illustration inside a doc comment, not a line that was once executed.
+_PSEUDOCODE_RE = re.compile(r"%[^%\s]+%|\[opt\]|<[^<>]+>|\.\.\.")
+
 
 def _comment_body(raw: str) -> str:
     return raw.lstrip("#").strip()
@@ -125,6 +134,8 @@ def _looks_like_code(body: str) -> bool:
     c = body.strip()
     if not c:
         return False
+    if _PSEUDOCODE_RE.search(c):
+        return False
     if _CODE_STMT_RE.match(c):
         return _compiles(c)
     if _RISKY_STMT_RE.match(c):
@@ -136,6 +147,23 @@ def _looks_like_code(body: str) -> bool:
     if _ASSIGN_OR_CALL_RE.match(c):
         return _is_assign_or_call(c)
     return False
+
+
+def _is_prose_line(body: str) -> bool:
+    """Return True if `body` reads as a natural-language sentence, not code.
+
+    Used to spot a doc/prose comment that immediately precedes a code-shaped
+    line: `# For example:` above `# result = {**a, **b}`, or a wrapped sentence
+    whose second line happens to parse as an expression. Such a line is an
+    illustration / prose continuation, not commented-out code.
+    """
+    c = body.strip()
+    if not c or _is_banner(c) or _is_directive(c) or _looks_like_code(c):
+        return False
+    if c.endswith(":"):
+        return True
+    words = [w for w in re.split(r"\s+", c) if any(ch.isalpha() for ch in w)]
+    return len(words) >= _PROSE_MIN_WORDS
 
 
 def _compiles(snippet: str) -> bool:
@@ -176,20 +204,24 @@ class NoCommentCruft(Rule):
         except tokenize.TokenError, IndentationError, SyntaxError:
             return []
         diags: dict[int, Diagnostic] = {}
+        by_line = {line: body for line, _, body in standalone}
         for line, col, body in standalone:
             if _is_directive(body):
                 continue
-            msg = self._classify(body)
+            prev_body = by_line.get(line - 1)
+            msg = self._classify(body, prev_body)
             if msg is not None:
                 diags[line] = Diagnostic(path=path, line=line, col=col + 1, code=self.code, message=msg)
         self._flag_leading_preamble(standalone, first_code_line, path, diags)
         return [diags[k] for k in sorted(diags)]
 
     @staticmethod
-    def _classify(body: str) -> str | None:
+    def _classify(body: str, prev_body: str | None) -> str | None:
         if _is_banner(body):
             return "Section-banner / region comment — structure code with functions, not ASCII rules."
         if _looks_like_code(body):
+            if prev_body is not None and _is_prose_line(prev_body):
+                return None
             return "Commented-out code — delete it; git history remembers."
         return None
 

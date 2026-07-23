@@ -38,7 +38,7 @@ import re
 from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
-from sarj_python_lint.rules._sql import sql_string_value, strip_sql_noise
+from sarj_python_lint.rules._sql import is_store_module, sql_string_value, strip_sql_noise
 
 
 if TYPE_CHECKING:
@@ -121,6 +121,8 @@ class NoAggregationInStoreQuery(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
+        if not is_store_module(path):
+            return []
         # A diagnostic needs some string literal that carries both a query verb
         # and an aggregation keyword; `source` is a strict superset of every
         # literal, so if either class is absent from the whole file no diagnostic

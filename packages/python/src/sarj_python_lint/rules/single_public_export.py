@@ -22,9 +22,11 @@ with the export name is strictly an improvement.
 Public = a top-level `class` / `def` / `async def` whose name has no leading
 underscore. Constants (assignments), `__all__`, and imports are ignored.
 
-Skipped entirely: `__init__.py`, `conftest.py`, and test files (`test_*.py` or
-under a `tests/` directory). Modules whose single export already snake-cases to
-the stem are not flagged (there is nothing to improve).
+Skipped entirely: `__init__.py`, `conftest.py`, test files (`test_*.py` or under
+a `tests/` directory), and framework-convention filenames whose stem is fixed by
+a framework/tool and cannot be renamed (`models.py`, `views.py`, `base.py`, ...).
+Modules whose single export already snake-cases to the stem are not flagged
+(there is nothing to improve).
 """
 
 from __future__ import annotations
@@ -41,6 +43,33 @@ if TYPE_CHECKING:
 
 
 _SKIPPED_FILENAMES = frozenset({"__init__.py", "conftest.py"})
+
+# Filenames whose stem is fixed by a framework or tool convention and therefore
+# cannot be renamed without breaking discovery: Django reads models/views/urls/
+# admin/apps/forms/settings/middleware/signals by filename, DRF `serializers.py`,
+# Channels `routing.py`, Celery `tasks.py`, pytest `conftest.py`, `__main__.py`.
+# Even when the stem is also a junk-drawer name (`models.py`, `base.py`), the
+# rename the rule would suggest is not actionable, so these are never flagged.
+_FRAMEWORK_CONVENTION_FILENAMES = frozenset(
+    {
+        "models.py",
+        "admin.py",
+        "apps.py",
+        "views.py",
+        "urls.py",
+        "forms.py",
+        "serializers.py",
+        "base.py",
+        "settings.py",
+        "conftest.py",
+        "__main__.py",
+        "__init__.py",
+        "middleware.py",
+        "tasks.py",
+        "signals.py",
+        "routing.py",
+    }
+)
 
 # Generic module stems that describe no responsibility. Curated conservatively:
 # every entry is a name that, standing alone as a module, tells a reader nothing
@@ -131,6 +160,8 @@ def _snake_case(name: str) -> str:
 
 def _is_skipped_path(path: Path) -> bool:
     if path.name in _SKIPPED_FILENAMES:
+        return True
+    if path.name.lower() in _FRAMEWORK_CONVENTION_FILENAMES:
         return True
     if path.name.startswith("test_"):
         return True

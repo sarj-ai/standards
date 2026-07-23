@@ -21,23 +21,20 @@ def _count(source: str) -> int:
 
 
 # --------------------------------------------------------------------------- #
-# Positive — `s += <string-ish>` inside a loop fires exactly once.            #
+# Positive — obviously-string RHS accumulated with `+=` fires exactly once.    #
 # --------------------------------------------------------------------------- #
 
 
 _STRINGISH_RHS = [
     pytest.param('"literal"', id="rhs-str-constant"),
     pytest.param('f"row {x}"', id="rhs-fstring"),
-    pytest.param("str(x)", id="rhs-str-call"),
-    pytest.param("repr(x)", id="rhs-repr-call"),
-    pytest.param("format(x)", id="rhs-format-builtin"),
-    pytest.param('"{}".format(x)', id="rhs-format-method"),
-    pytest.param('dt.strftime("%Y")', id="rhs-strftime-method"),
-    pytest.param('",".join(bits)', id="rhs-join-method"),
     pytest.param('"prefix " + str(x)', id="rhs-binop-const-left"),
     pytest.param('str(x) + " suffix"', id="rhs-binop-const-right"),
     pytest.param('"a" + "b" + str(x)', id="rhs-binop-nested"),
     pytest.param('prefix + "x"', id="rhs-binop-name-plus-const"),
+    pytest.param('"a" if x else "b"', id="rhs-ternary-both-str"),
+    pytest.param('"row %s" % x', id="rhs-percent-format"),
+    pytest.param('(y := f"{x}")', id="rhs-walrus-fstring"),
 ]
 
 
@@ -65,22 +62,66 @@ def f(items, dt, bits, prefix):
     assert _count(src) == 1
 
 
-_TARGETS = [
+# --------------------------------------------------------------------------- #
+# Coercion / join / os.path.join RHS is NOT accumulation — never fires.        #
+# These are the prescribed remedy or a bounded transform, not the O(n²) bug.   #
+# --------------------------------------------------------------------------- #
+
+
+_NON_ACCUMULATION_RHS = [
+    pytest.param("str(x)", id="rhs-str-call"),
+    pytest.param("repr(x)", id="rhs-repr-call"),
+    pytest.param("format(x)", id="rhs-format-builtin"),
+    pytest.param('"{}".format(x)', id="rhs-format-method"),
+    pytest.param('dt.strftime("%Y")', id="rhs-strftime-method"),
+    pytest.param('",".join(bits)', id="rhs-join-method"),
+    pytest.param("os.path.join(root, x)", id="rhs-ospath-join"),
+    pytest.param("len(x)", id="rhs-len-call"),
+]
+
+
+@pytest.mark.parametrize("rhs", _NON_ACCUMULATION_RHS)
+def test_allows_coercion_or_join_rhs_in_loop(rhs: str):
+    src = f"""
+def f(items, dt, bits, prefix, root, os):
+    s = ""
+    for x in items:
+        s += {rhs}
+"""
+    assert _check(src) == []
+
+
+_ACCUMULATOR_TARGETS = [
     pytest.param("s", id="target-name"),
     pytest.param("self.buf", id="target-attribute"),
+]
+
+
+@pytest.mark.parametrize("target", _ACCUMULATOR_TARGETS)
+def test_flags_name_and_attribute_targets(target: str):
+    src = f"""
+def f(self, items):
+    for x in items:
+        {target} += f"{{x}}"
+"""
+    assert _count(src) == 1
+
+
+_SUBSCRIPT_TARGETS = [
     pytest.param('acc["k"]', id="target-subscript"),
     pytest.param("obj.rows[i]", id="target-attr-subscript"),
 ]
 
 
-@pytest.mark.parametrize("target", _TARGETS)
-def test_flags_regardless_of_target_shape(target: str):
+@pytest.mark.parametrize("target", _SUBSCRIPT_TARGETS)
+def test_allows_subscript_targets(target: str):
+    """Per-slot writes are not single-string growth — excluded even for `+=`."""
     src = f"""
-def f(self, items, acc, obj, i):
+def f(items, acc, obj, i):
     for x in items:
-        {target} += str(x)
+        {target} += f"{{x}}"
 """
-    assert _count(src) == 1
+    assert _check(src) == []
 
 
 def test_flags_for_over_comprehension_iterable():
@@ -88,7 +129,7 @@ def test_flags_for_over_comprehension_iterable():
 def f(items):
     s = ""
     for x in [i for i in items]:
-        s += str(x)
+        s += f"{x}"
     return s
 """
     assert _count(src) == 1
@@ -116,14 +157,14 @@ def test_flags_concat_after_walrus_condition():
 def f(it):
     s = ""
     while (n := next(it, None)) is not None:
-        s += str(n)
+        s += f"{n}"
     return s
 """
     assert _count(src) == 1
 
 
 # --------------------------------------------------------------------------- #
-# Nesting — each concat is flagged once, never once per ancestor loop.        #
+# Nesting — each concat is flagged once, never once per ancestor loop.         #
 # --------------------------------------------------------------------------- #
 
 
@@ -133,7 +174,7 @@ def f(rows):
     s = ""
     for row in rows:
         for cell in row:
-            s += str(cell)
+            s += f"{cell}"
     return s
 """
     diags = _check(src)
@@ -147,7 +188,7 @@ def f(rows, n):
     s = ""
     while n > 0:
         for cell in rows:
-            s += str(cell)
+            s += f"{cell}"
         n -= 1
 """
     assert _count(src) == 1
@@ -160,7 +201,7 @@ def f(a):
     for i in a:
         for j in a:
             for k in a:
-                s += str(k)
+                s += f"{k}"
     return s
 """
     assert _count(src) == 1
@@ -171,9 +212,9 @@ def test_two_sibling_loops_report_two_diagnostics():
 def f(a, b):
     s = ""
     for x in a:
-        s += str(x)
+        s += f"{x}"
     for y in b:
-        s += repr(y)
+        s += f"{y}"
     return s
 """
     assert _count(src) == 2
@@ -185,20 +226,20 @@ def f(items):
     s = ""
     t = ""
     for x in items:
-        s += str(x)
-        t += repr(x)
+        s += f"{x}"
+        t += f"{x!r}"
     return s, t
 """
     assert _count(src) == 2
 
 
 # --------------------------------------------------------------------------- #
-# Diagnostic content — line, col (1-based), code, message.                    #
+# Diagnostic content — line, col (1-based), code, message.                     #
 # --------------------------------------------------------------------------- #
 
 
 def test_reports_line_and_one_based_column():
-    src = 'def f(it):\n    s = ""\n    for x in it:\n        s += str(x)\n'
+    src = 'def f(it):\n    s = ""\n    for x in it:\n        s += f"{x}"\n'
     (diag,) = _check(src)
     assert (diag.line, diag.col) == (4, 9)
     assert diag.code == "SARJ002"
@@ -206,13 +247,118 @@ def test_reports_line_and_one_based_column():
 
 
 def test_reports_distinct_positions_in_source_order():
-    src = 'def f(a, b):\n    s = ""\n    for x in a:\n        s += str(x)\n    for y in b:\n        s += repr(y)\n'
+    src = 'def f(a, b):\n    s = ""\n    for x in a:\n        s += f"{x}"\n    for y in b:\n        s += f"{y}"\n'
     positions = [(d.line, d.col) for d in _check(src)]
     assert positions == [(4, 9), (6, 9)]
 
 
 # --------------------------------------------------------------------------- #
-# Negative / exempt — the correct patterns and out-of-scope shapes.           #
+# Recall — bare-name accumulation of a string-typed accumulator now fires.     #
+# --------------------------------------------------------------------------- #
+
+
+def test_flags_bare_name_augassign_when_target_is_string():
+    """`buf += line` where `buf` was initialised to a string is genuine O(n²)."""
+    src = """
+def f(lines):
+    buf = ""
+    for line in lines:
+        buf += line
+    return buf
+"""
+    assert _count(src) == 1
+
+
+def test_flags_bare_name_self_add_when_target_is_string():
+    """`out = out + chunk` where `out` was initialised to a string is O(n²)."""
+    src = """
+def f(chunks):
+    out = ""
+    for chunk in chunks:
+        out = out + chunk
+    return out
+"""
+    assert _count(src) == 1
+
+
+def test_allows_bare_name_augassign_when_target_is_numeric():
+    """`total += x` with `total = 0` is numeric — the string-var signal is absent."""
+    src = """
+def f(items):
+    total = 0
+    for x in items:
+        total += x
+    return total
+"""
+    assert _check(src) == []
+
+
+def test_allows_bare_name_augassign_with_unknown_target_type():
+    """No local string initialiser for the target — stay conservative."""
+    src = """
+def f(items, chunk, s):
+    for x in items:
+        s += chunk
+    return s
+"""
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Real-world false-positive regressions (Flask / requests / Django sweep).     #
+# --------------------------------------------------------------------------- #
+
+
+def test_allows_join_reassignment_in_loop():
+    """requests/sessions.py — `url = ":".join([scheme, url])` is a one-shot join."""
+    src = """
+def f(parts):
+    url = ""
+    for scheme in parts:
+        url = ":".join([scheme, url])
+    return url
+"""
+    assert _check(src) == []
+
+
+def test_allows_os_path_join_reassignment_in_loop():
+    """django/forms/fields.py — `f = os.path.join(root, f)` is a bounded rebind."""
+    src = """
+def build(segments):
+    import os
+    f = ""
+    for root in segments:
+        f = os.path.join(root, f)
+    return f
+"""
+    assert _check(src) == []
+
+
+def test_allows_str_coercion_reassignment_in_loop():
+    """requests/models.py — `val = str(val)` is a single type coercion."""
+    src = """
+def f(rows):
+    val = ""
+    for _ in rows:
+        val = str(val)
+    return val
+"""
+    assert _check(src) == []
+
+
+def test_allows_subscript_fstring_write_in_loop():
+    """requests/utils.py — `parts[i] = f"%{parts[i]}"` writes a distinct slot."""
+    src = """
+def f(parts):
+    for i in range(len(parts)):
+        parts[i] = f"%{parts[i]}"
+    return parts
+"""
+    assert _check(src) == []
+
+
+# --------------------------------------------------------------------------- #
+# Negative / exempt — the correct patterns and out-of-scope shapes.            #
 # --------------------------------------------------------------------------- #
 
 
@@ -220,8 +366,8 @@ def test_allows_concat_outside_any_loop():
     src = """
 def f(a, b):
     s = ""
-    s += str(a)
-    s += str(b)
+    s += f"{a}"
+    s += f"{b}"
     return s
 """
     assert _check(src) == []
@@ -255,7 +401,7 @@ def f(items):
 
 _NON_STRING_AUGASSIGN = [
     pytest.param("total += 1", id="int-literal"),
-    pytest.param("total += x", id="name-rhs"),
+    pytest.param("total += x", id="name-rhs-numeric-target"),
     pytest.param("total += len(x)", id="len-call-rhs"),
     pytest.param("total += x * 2", id="binop-mult-rhs"),
     pytest.param("acc += [x]", id="list-literal-rhs"),
@@ -292,24 +438,12 @@ def f(items):
 
 
 def test_allows_fresh_binop_assignment_each_iteration():
-    """A plain (non-augmented) assignment to a fresh local is not accumulation."""
+    """A plain (non-self) assignment to a fresh local is not accumulation."""
     src = """
 def f(items):
     for x in items:
         line = "row " + str(x)
         emit(line)
-"""
-    assert _check(src) == []
-
-
-def test_allows_string_augassign_from_name_only():
-    """RHS is a bare Name — the conservative heuristic does not assume it is a str."""
-    src = """
-def f(items, chunk):
-    s = ""
-    for x in items:
-        s += chunk
-    return s
 """
     assert _check(src) == []
 
@@ -335,7 +469,7 @@ def test_non_parseable_or_trivial_sources_yield_no_diagnostics(source: str):
 
 
 # --------------------------------------------------------------------------- #
-# False-positive guards — accumulators that only look adjacent to strings.    #
+# False-positive guards — accumulators that only look adjacent to strings.     #
 # --------------------------------------------------------------------------- #
 
 
@@ -384,7 +518,7 @@ def test_flags_string_concat_in_async_for():
 async def f(stream):
     s = ""
     async for chunk in stream:
-        s += str(chunk)
+        s += f"{chunk}"
     return s
 """
     assert _count(src) == 1
@@ -395,7 +529,7 @@ def test_flags_plain_reassignment_concat_in_loop():
 def f(items):
     s = ""
     for x in items:
-        s = s + str(x)
+        s = s + f"{x}"
     return s
 """
     assert _count(src) == 1
@@ -415,35 +549,35 @@ def f(items):
 
 
 # --------------------------------------------------------------------------- #
-# New adversarial coverage — compound statements wrapping an in-loop concat.   #
-# The visitor recurses via generic_visit, so loop_depth stays > 0 inside any   #
-# nested block and the concat must still fire.                                 #
+# Adversarial coverage — compound statements wrapping an in-loop concat.        #
+# The visitor recurses via generic_visit, so loop_depth stays > 0 inside any    #
+# nested block and the concat must still fire.                                  #
 # --------------------------------------------------------------------------- #
 
 
 _WRAPPED_CONCAT_BODIES = [
     pytest.param(
-        "        if x:\n            s += str(x)",
+        '        if x:\n            s += f"{x}"',
         id="if-guarded",
     ),
     pytest.param(
-        "        if not x:\n            pass\n        else:\n            s += str(x)",
+        '        if not x:\n            pass\n        else:\n            s += f"{x}"',
         id="else-guarded",
     ),
     pytest.param(
-        "        try:\n            s += str(x)\n        except Exception:\n            pass",
+        '        try:\n            s += f"{x}"\n        except Exception:\n            pass',
         id="try-body",
     ),
     pytest.param(
-        "        try:\n            pass\n        except Exception:\n            s += str(x)",
+        '        try:\n            pass\n        except Exception:\n            s += f"{x}"',
         id="except-body",
     ),
     pytest.param(
-        "        try:\n            pass\n        finally:\n            s += str(x)",
+        '        try:\n            pass\n        finally:\n            s += f"{x}"',
         id="finally-body",
     ),
     pytest.param(
-        "        with open('p') as _fh:\n            s += str(x)",
+        '        with open(\'p\') as _fh:\n            s += f"{x}"',
         id="with-body",
     ),
 ]
@@ -470,7 +604,7 @@ def f(items):
             case 0:
                 s += "zero"
             case _:
-                s += str(x)
+                s += f"{x}"
     return s
 """
     assert _count(src) == 2
@@ -482,7 +616,7 @@ def f(items):
     s = ""
     for x in items:
         while x:
-            s += str(x)
+            s += f"{x}"
             x -= 1
     return s
 """
@@ -494,7 +628,7 @@ def test_flags_concat_in_while_true_loop():
 def f(items):
     s = ""
     while True:
-        s += str(items)
+        s += f"{items}"
         break
     return s
 """
@@ -506,7 +640,7 @@ def test_flags_concat_over_generator_expression_iterable():
 def f(gen):
     s = ""
     for x in (i for i in gen):
-        s += str(x)
+        s += f"{x}"
     return s
 """
     assert _count(src) == 1
@@ -520,7 +654,7 @@ async def f(rows):
     s = ""
     for row in rows:
         async for cell in row:
-            s += str(cell)
+            s += f"{cell}"
     return s
 """
     assert _count(src) == 1
@@ -532,7 +666,7 @@ async def f(rows):
     s = ""
     async for row in rows:
         for cell in row:
-            s += str(cell)
+            s += f"{cell}"
     return s
 """
     assert _count(src) == 1
@@ -551,7 +685,7 @@ def f(items):
 
 
 def test_allows_bytes_encode_call_in_loop():
-    """`.encode()` yields bytes and is not in the string-method allowlist."""
+    """`.encode()` yields bytes and, as a call, is not treated as string growth."""
     src = """
 def f(items):
     buf = b""
@@ -606,7 +740,7 @@ def test_flags_walrus_wrapped_string_rhs_in_loop():
 def f(items):
     s = ""
     for x in items:
-        s += (y := str(x))
+        s += (y := f"{x}")
     return s
 """
     assert _count(src) == 1

@@ -230,17 +230,20 @@ def test_diagnostic_line_is_suppressible_by_sarj_noqa() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Path behavior — the rule does NOT gate on `*_store.py`; store-file scoping   #
-# happens at the CLI/invocation layer, so any path with a bare INSERT fires.   #
+# Path gate — the rule fires only on store-layer modules (`*_store.py` basename #
+# or a file under a `stores/` directory). Non-store SQL (Flask view handlers)   #
+# legitimately writes bare INSERTs and is out of scope.                         #
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.parametrize(
-    "path",
-    ["foo_store.py", "not_a_store.py", "services/handler.py", "random.py"],
-)
-def test_fires_regardless_of_filename(path: str) -> None:
+@pytest.mark.parametrize("path", ["foo_store.py", "stores/foo.py"])
+def test_store_file_flagged(path: str) -> None:
     assert _count('q = "INSERT INTO t (id) VALUES (1)"', path) == 1
+
+
+@pytest.mark.parametrize("path", ["handler.py", "services/handler.py", "app/views.py", "random.py"])
+def test_nonstore_file_not_flagged(path: str) -> None:
+    assert _count('q = "INSERT INTO t (id) VALUES (1)"', path) == 0
 
 
 # --------------------------------------------------------------------------- #

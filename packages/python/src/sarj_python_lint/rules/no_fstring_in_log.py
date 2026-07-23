@@ -18,9 +18,16 @@ To keep false positives near zero we require BOTH a logger-like receiver
 (`logger`/`log`/`logging`/`loguru` and common aliases) AND a logging method
 name — an f-string passed to some unrelated `.info(...)` is not flagged. The
 receiver chain is resolved, so builder/factory forms are still caught:
-`logger.bind(...).info(...)`, `logger.opt(lazy=True).debug(...)`, and
-`logging.getLogger(__name__).warning(...)`. Only the first positional argument
-(the message) is inspected.
+`logger.bind(...).info(...)`, `logger.opt(lazy=True).debug(...)`. Only the first
+positional argument (the message) is inspected.
+
+The structured-keyword advice is loguru-specific: stdlib `logging` treats
+trailing positional args as %-format parameters and reserves `exc_info` /
+`stack_info` / `extra` keywords, so rewriting a stdlib call to
+`logger.info("msg", key=value)` would silently break it. We therefore suppress
+calls that carry a stdlib tell — a `logging.getLogger(...)` factory anywhere in
+the receiver chain, or an `exc_info` / `stack_info` / `extra` keyword — and keep
+firing on the loguru-shaped calls the advice actually applies to.
 
 Suppress an intentional case with `# sarj-noqa: SARJ017 — <reason>`.
 """
@@ -54,6 +61,11 @@ _LOG_METHODS = frozenset(
     }
 )
 
+# Keyword arguments defined by stdlib `logging` (and never structured fields).
+# Their presence marks the call as a stdlib logger, for which the loguru-style
+# structured-keyword rewrite is wrong.
+_STDLIB_ONLY_KWARGS = frozenset({"exc_info", "stack_info", "extra"})
+
 
 class NoFstringInLog(Rule):
     """f-string passed as a logging message — use structured keyword arguments."""
@@ -75,6 +87,8 @@ class NoFstringInLog(Rule):
             if not isinstance(node, ast.Call) or not _is_logging_call(node):
                 continue
             if not node.args:
+                continue
+            if _is_stdlib_logging_call(node):
                 continue
             offending = _interpolating_fstring(node.args[0])
             if offending is not None:
@@ -98,6 +112,36 @@ def _is_logging_call(node: ast.Call) -> bool:
     if not isinstance(func, ast.Attribute) or func.attr not in _LOG_METHODS:
         return False
     return is_logger_expr(func.value)
+
+
+def _is_stdlib_logging_call(node: ast.Call) -> bool:
+    """True when the call carries a stdlib-`logging` tell the loguru advice breaks.
+
+    Either a stdlib-reserved keyword (`exc_info`/`stack_info`/`extra`) or a
+    `logging.getLogger(...)` factory anywhere in the receiver chain marks the
+    logger as stdlib, whose message API is %-style positional, not structured
+    keywords — so the rule must stay silent to avoid recommending a broken fix.
+    """
+    if any(kw.arg in _STDLIB_ONLY_KWARGS for kw in node.keywords):
+        return True
+    func = node.func
+    return isinstance(func, ast.Attribute) and _chain_has_getlogger(func.value)
+
+
+def _chain_has_getlogger(expr: ast.expr) -> bool:
+    node = expr
+    while True:
+        if isinstance(node, ast.Call):
+            called = node.func
+            if isinstance(called, ast.Attribute) and called.attr == "getLogger":
+                return True
+            if isinstance(called, ast.Name) and called.id == "getLogger":
+                return True
+            node = called
+        elif isinstance(node, ast.Attribute):
+            node = node.value
+        else:
+            return False
 
 
 def _interpolating_fstring(node: ast.expr) -> ast.JoinedStr | None:

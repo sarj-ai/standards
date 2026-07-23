@@ -449,3 +449,59 @@ def test_identifier_starting_with_noqa_is_not_a_directive():
     diags = _standalone("noqant = fetch()")
     assert len(diags) == 1
     assert "Commented-out code" in diags[0].message
+
+
+def test_illustration_under_for_example_lead_in_is_not_flagged():
+    src = "x = 1\n# For example:\n# result = {**a, **b}\ny = 2\n"
+    assert _check(src) == []
+
+
+def test_prose_continuation_line_that_parses_is_not_flagged():
+    src = (
+        "x = 1\n"
+        "# passes a value that already called\n"
+        "# self._type_adapter.validate_python(value)\n"
+        "y = 2\n"
+    )
+    assert _check(src) == []
+
+
+def test_prose_describing_else_branch_over_isinstance_call_is_not_flagged():
+    src = (
+        "x = 1\n"
+        "# matches when the argument is a request, i.e.\n"
+        "# isinstance(args[0], BaseRequest)\n"
+        "y = 2\n"
+    )
+    assert _check(src) == []
+
+
+def test_pseudocode_placeholder_markers_are_not_flagged():
+    for body in ("_a = %sent%", "config[...] = default", "handler = <FunctionBody>", "opt = value[opt]"):
+        assert _standalone(body) == [], body
+
+
+def test_real_two_line_commented_block_after_prose_lead_still_fires_on_both():
+    src = "x = 1\n# old = compute()\n# save(old)\ny = 2\n"
+    diags = _check(src)
+    assert len(diags) == 2
+    assert all("Commented-out code" in d.message for d in diags)
+
+
+def test_dead_code_after_short_prose_reason_still_suppressed_conservatively():
+    src = "x = 1\n# reason we keep this note\n# self.retry()\ny = 2\n"
+    assert _check(src) == []
+
+
+def test_banner_preceding_code_line_does_not_suppress_it():
+    src = "x = 1\n# ================\n# return legacy\ny = 2\n"
+    diags = _check(src)
+    assert len(diags) == 2
+    assert "Section-banner" in diags[0].message
+    assert "Commented-out code" in diags[1].message
+
+
+def test_single_dead_code_line_adjacent_to_live_code_still_fires():
+    diags = _standalone("x = foo()")
+    assert len(diags) == 1
+    assert "Commented-out code" in diags[0].message

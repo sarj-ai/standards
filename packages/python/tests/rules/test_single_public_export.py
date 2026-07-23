@@ -58,9 +58,9 @@ def gc_once() -> None: ...
 
 def test_junk_drawer_export_already_matches_stem_not_flagged():
     src = """
-class Base: ...
+class Utils: ...
 """
-    assert _check(src, path="base.py") == []
+    assert _check(src, path="utils.py") == []
 
 
 def test_junk_drawer_private_helpers_and_constants_ignored():
@@ -115,7 +115,7 @@ def test_snake_case_acronym_shapes_in_rename_suggestion(name: str, expected: str
     src = f"""
 class {name}: ...
 """
-    diags = _check(src, path="base.py")
+    diags = _check(src, path="utils.py")
     assert len(diags) == 1
     assert f"`{expected}.py`" in diags[0].message
 
@@ -130,7 +130,6 @@ class SalesforceOAuthService: ...
 @pytest.mark.parametrize(
     "stem",
     [
-        "base",
         "common",
         "constant",
         "constants",
@@ -141,7 +140,6 @@ class SalesforceOAuthService: ...
         "helpers",
         "misc",
         "model",
-        "models",
         "shared",
         "stuff",
         "type",
@@ -226,7 +224,7 @@ import functools
 @functools.total_ordering
 class OrderedWidget: ...
 """
-    diags = _check(src, path="base.py")
+    diags = _check(src, path="utils.py")
     assert len(diags) == 1
     assert "ordered_widget.py" in diags[0].message
 
@@ -271,7 +269,7 @@ def test_additional_acronym_shapes(name: str, expected: str):
     src = f"""
 class {name}: ...
 """
-    diags = _check(src, path="base.py")
+    diags = _check(src, path="utils.py")
     assert len(diags) == 1
     assert f"`{expected}.py`" in diags[0].message
 
@@ -280,7 +278,7 @@ def test_graphql_acronym_should_be_single_token():
     src = """
 class GraphQLSchema: ...
 """
-    diags = _check(src, path="base.py")
+    diags = _check(src, path="utils.py")
     assert len(diags) == 1
     assert "`graphql_schema.py`" in diags[0].message
 
@@ -289,7 +287,7 @@ def test_grpc_acronym_should_be_single_token():
     src = """
 class gRPCServer: ...
 """
-    diags = _check(src, path="base.py")
+    diags = _check(src, path="utils.py")
     assert len(diags) == 1
     assert "`grpc_server.py`" in diags[0].message
 
@@ -299,3 +297,41 @@ def test_capitalized_junk_drawer_stem_should_fire():
 class DataPipelineRunner: ...
 """
     assert len(_check(src, path="Utils.py")) == 1
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "models.py",
+        "admin.py",
+        "apps.py",
+        "views.py",
+        "urls.py",
+        "forms.py",
+        "serializers.py",
+        "base.py",
+        "settings.py",
+        "middleware.py",
+        "tasks.py",
+        "signals.py",
+        "routing.py",
+        "__main__.py",
+    ],
+)
+def test_framework_convention_filenames_not_flagged(filename: str):
+    src = """
+class DataPipelineRunner: ...
+"""
+    assert _check(src, path=filename) == []
+
+
+def test_django_models_module_with_single_model_not_flagged():
+    src = """
+class FlatPage: ...
+"""
+    assert _check(src, path="contrib/flatpages/models.py") == []
+
+
+def test_genuine_junk_drawer_still_fires_alongside_allowlist():
+    assert len(_check("def do_thing() -> None: ...\n", path="utils.py")) == 1
+    assert len(_check("class HelperThing: ...\n", path="helpers.py")) == 1

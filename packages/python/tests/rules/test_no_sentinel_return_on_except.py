@@ -1218,3 +1218,356 @@ def f():
         return None
 """
     assert len(_check(src)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Intended-typed-result exemptions (real sweep false positives: requests, httpx,
+# FastAPI, Django). These sentinel returns are the function's contract, not a
+# swallow, and MUST NOT fire.
+# ---------------------------------------------------------------------------
+
+
+# --- 1. predicate name: is_/has_/can_/should_ (+ underscore-prefixed) ---
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        # requests.utils.is_ipv4_address
+        """
+def is_ipv4_address(string_ip):
+    try:
+        socket.inet_aton(string_ip)
+    except OSError:
+        return False
+    return True
+""",
+        # requests.utils.is_valid_cidr
+        """
+def is_valid_cidr(string_network):
+    try:
+        mask = int(string_network.split("/")[1])
+    except ValueError:
+        return False
+    return True
+""",
+        # httpx._models._is_known_encoding (underscore-prefixed is_)
+        """
+def _is_known_encoding(encoding: str) -> bool:
+    try:
+        codecs.lookup(encoding)
+    except LookupError:
+        return False
+    return True
+""",
+    ],
+)
+def test_predicate_named_probe_is_exempt(src: str):
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["is_ready", "has_access", "can_send", "should_retry", "_is_ready", "__has_perm"],
+)
+def test_predicate_name_prefixes_exempt_any_sentinel(name: str):
+    src = f"""
+def {name}(x):
+    try:
+        probe(x)
+    except Exception:
+        return False
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize("name", ["disable_thing", "vision_check", "assist_user", "island_hop"])
+def test_non_predicate_lookalike_names_still_fire(name: str):
+    # `is`/`has`/`can`/`should` embedded mid-word is NOT a predicate prefix.
+    src = f"""
+def {name}(x):
+    try:
+        probe(x)
+    except Exception:
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+# --- 2. boolean probe: handler False/None + success path returns a boolean ---
+
+
+def test_boolean_probe_with_true_success_path_is_exempt():
+    # requests.utils.unicode_is_ascii — name is not is_-prefixed, but success
+    # `return True` vs handler `return False` is the classic predicate shape.
+    src = """
+def unicode_is_ascii(u_string):
+    try:
+        u_string.encode("ascii")
+        return True
+    except (UnicodeEncodeError, AttributeError):
+        return False
+"""
+    assert _check(src) == []
+
+
+def test_response_ok_property_is_exempt():
+    # requests.models.Response.ok
+    src = """
+class Response:
+    @property
+    def ok(self):
+        try:
+            self.raise_for_status()
+        except HTTPError:
+            return False
+        return True
+"""
+    assert _check(src) == []
+
+
+def test_boolean_probe_none_handler_still_fires_without_bool_success():
+    # No boolean on the success path -> not a probe; a bare `return None` swallow.
+    src = """
+def load(x):
+    try:
+        return fetch(x)
+    except Exception:
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+# --- 3. feature detection / optional dependency: except ImportError ---
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        # fastapi._compat.shared.is_pydantic_v1_model (name AND import-error)
+        """
+def is_pydantic_v1_model(obj):
+    try:
+        from pydantic.v1 import BaseModel
+    except ImportError:
+        return False
+    return isinstance(obj, BaseModel)
+""",
+        # django.core.validators.get_available_image_extensions
+        """
+def get_available_image_extensions():
+    try:
+        from PIL import Image
+    except ImportError:
+        return []
+    else:
+        return [ext.lower() for ext in Image.registered_extensions()]
+""",
+        """
+def load_optional():
+    try:
+        import ujson
+    except ModuleNotFoundError:
+        return None
+    return ujson
+""",
+    ],
+)
+def test_import_error_feature_detection_is_exempt(src: str):
+    assert _check(src) == []
+
+
+def test_import_error_in_tuple_with_broad_error_still_fires():
+    # Catching ImportError alongside a broad Exception is not pure feature
+    # detection — the broad arm can swallow a real error.
+    src = """
+def load_thing():
+    try:
+        return build()
+    except (ImportError, Exception):
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+# --- 4. lookup-with-default: single `return <lookup>` + narrow except ---
+
+
+def test_get_reason_phrase_lookup_with_default_is_exempt():
+    # httpx._status_codes.codes.get_reason_phrase
+    src = """
+def get_reason_phrase(value):
+    try:
+        return codes(value).phrase
+    except ValueError:
+        return ""
+"""
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize("default", ["''", "None", "[]", "{}"])
+def test_lookup_with_default_narrow_exception_exempt(default: str):
+    src = f"""
+def lookup(key):
+    try:
+        return table[key].value
+    except KeyError:
+        return {default}
+"""
+    assert _check(src) == []
+
+
+def test_lookup_with_broad_exception_still_fires():
+    # A broad `except Exception:` over a lookup is the swallow the rule targets.
+    src = """
+def lookup(key):
+    try:
+        return table[key].value
+    except Exception:
+        return ""
+"""
+    assert len(_check(src)) == 1
+
+
+def test_lookup_with_bare_except_still_fires():
+    src = """
+def lookup(key):
+    try:
+        return table[key].value
+    except:
+        return ""
+"""
+    assert len(_check(src)) == 1
+
+
+def test_multi_statement_try_is_not_lookup_with_default_still_fires():
+    # More than a single `return` in the try body -> not the lookup idiom; the
+    # narrow except still swallows whatever the side-effecting work raised.
+    src = """
+def build(key):
+    prepare()
+    try:
+        step()
+        return table[key].value
+    except ValueError:
+        return ""
+"""
+    assert len(_check(src)) == 1
+
+
+# --- must STILL fire: genuine data-returning swallows (recall guard) ---
+
+
+def test_data_function_broad_swallow_to_none_still_fires():
+    src = """
+def fetch_user(user_id):
+    try:
+        return db.query(user_id)
+    except Exception:
+        return None
+"""
+    assert len(_check(src)) == 1
+
+
+def test_data_function_broad_swallow_to_empty_list_still_fires():
+    src = """
+def load_records():
+    try:
+        rows = fetch()
+        return parse(rows)
+    except Exception:
+        return []
+"""
+    assert len(_check(src)) == 1
+
+
+def test_data_function_empty_string_swallow_still_fires():
+    src = """
+def read_body(resp):
+    try:
+        return resp.content.decode()
+    except Exception:
+        return ""
+"""
+    assert len(_check(src)) == 1
+
+
+def test_non_bool_success_return_does_not_make_a_probe():
+    # The success path returns real data (a dict), so a handler `return {}` is a
+    # swallow, not a boolean probe.
+    src = """
+def get_config():
+    try:
+        return load()
+    except Exception:
+        return {}
+"""
+    assert len(_check(src)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Bonus: bare `except: pass` silently discards the error (no return at all).
+# ---------------------------------------------------------------------------
+
+
+def test_bare_except_pass_is_flagged():
+    src = """
+def f():
+    try:
+        risky()
+    except:
+        pass
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].code == "SARJ009"
+
+
+def test_typed_except_pass_is_not_flagged():
+    # A typed handler (`except KeyError: pass`) is often a deliberate optional-path
+    # no-op; only the bare form is flagged, so existing behavior is preserved.
+    src = """
+def f():
+    try:
+        risky()
+    except Exception:
+        pass
+"""
+    assert _check(src) == []
+
+
+def test_bare_except_pass_points_at_handler():
+    src = """
+def f():
+    try:
+        risky()
+    except:
+        pass
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert diags[0].line == 5
+
+
+def test_bare_except_with_logging_before_pass_is_not_flagged():
+    src = """
+def f():
+    try:
+        risky()
+    except:
+        logger.exception("boom")
+        pass
+"""
+    assert _check(src) == []
+
+
+def test_bare_except_with_recovery_before_pass_is_not_flagged():
+    src = """
+def f():
+    try:
+        risky()
+    except:
+        recover()
+        pass
+"""
+    assert _check(src) == []

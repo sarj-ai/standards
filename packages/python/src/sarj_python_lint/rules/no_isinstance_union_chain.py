@@ -1,16 +1,22 @@
-"""SARJ003: flag `if/elif isinstance(...)` chains that dispatch over a closed union.
+"""SARJ003: flag `if/elif isinstance(...)` chains that dispatch over a *local* closed union.
 
-A chain of `if isinstance(x, A): ... elif isinstance(x, B): ...` (2+ branches, same
-target, each branch testing one locally-defined class) is almost always dispatch over a
-closed discriminated union. `match`/`case` with `assert_never` in the fallthrough is
-strictly better: pyright reports an error the moment a new variant is added and a branch
-is missed — a plain `isinstance` chain silently falls through.
+A chain of `if isinstance(x, A): ... elif isinstance(x, B): ... else: raise` where every
+`A`, `B`, ... is a class **defined in this same module** and the chain terminates
+exhaustively is dispatch over a locally-owned discriminated union. `match`/`case` with
+`assert_never` in the fallthrough is strictly better: pyright reports an error the moment a
+new variant is added and a branch is missed — a plain `isinstance` chain silently falls
+through.
 
     # flagged
+    class ApiKeySubject: ...
+    class JwtSubject: ...
+
     if isinstance(subject, ApiKeySubject):
         ...
     elif isinstance(subject, JwtSubject):
         ...
+    else:
+        assert_never(subject)
 
     # preferred
     match subject:
@@ -21,16 +27,22 @@ is missed — a plain `isinstance` chain silently falls through.
         case _:
             assert_never(subject)
 
-This is a heuristic, not a proof the union is closed — so it accepts some false positives.
-Suppress a deliberate boundary chain with `# sarj-noqa: SARJ003 — <reason>`.
+The rule fires ONLY when both gates hold, because only then is a mechanical rewrite to an
+exhaustive `match` both correct and beneficial:
 
-Deliberately NOT flagged (boundary/runtime checks, not closed-union dispatch):
-- a single `isinstance` guard (no chain),
-- `isinstance(x, (A, B))` tuple-membership (one check, not a dispatch chain),
-- any chain whose branches test builtins/stdlib types (`dict`, `str`, `list`, `Exception`,
-  `datetime`, ...), the generated-SDK `Unset` sentinel, or `collections.abc`/`typing` ABCs,
-- any chain mixing `isinstance` with a non-`isinstance` condition (e.g. `hasattr`, a
-  comparison, a boolean combination) — a defensive guard, not a clean dispatch.
+1. **Local-union gate.** Every `isinstance` arm tests a bare `ast.Name` that resolves to an
+   `ast.ClassDef` in this module — not an imported name, not a dotted `pkg.Cls`, not a
+   builtin/stdlib type. Probing open-set types the module does not own
+   (`property`, `cached_property`, `Path`, `Decimal`, `dataclasses.Field`, ...) is a
+   legitimate runtime check, not closed-union dispatch, and is never flagged.
+2. **Exhaustiveness gate.** The chain ends in a terminal `else`/final branch that raises,
+   returns, asserts, or calls an `assert_never`-style helper. An *open* chain — no `else`,
+   or a permissive `else` that silently falls through — is not equivalent to an exhaustive
+   `match` and must not be flagged, since converting it would change behavior.
+
+This is still a heuristic (a locally-defined class could be re-exported, an imported class
+could be the real union member). Suppress a deliberate boundary chain with
+`# sarj-noqa: SARJ003 — <reason>`.
 
 References:
 - https://docs.python.org/3/library/typing.html#typing.assert_never
@@ -55,6 +67,10 @@ _MIN_CHAIN_LENGTH = 2
 # `isinstance(x, T)` takes exactly two positional arguments.
 _ISINSTANCE_ARG_COUNT = 2
 
+# Belt-and-suspenders: names that must never count as a local union member even if a
+# same-named class happens to be defined in the module (a domain class named `Sequence`
+# shadowing the ABC, a local `class Exception`, etc.). The primary gate is still
+# "resolves to a local ClassDef"; this denylist only ever *removes* names from that set.
 _EXCLUDED_TYPE_NAMES = frozenset(
     {
         "dict",
@@ -100,8 +116,8 @@ class NoIsinstanceUnionChain(Rule):
     id: str = "no-isinstance-union-chain"
     code: str = "SARJ003"
     description: str = (
-        "if/elif isinstance chain over local classes — prefer match/case with "
-        "assert_never for compile-time exhaustiveness."
+        "if/elif isinstance chain over locally-defined classes with an exhaustive "
+        "terminal — prefer match/case with assert_never for compile-time exhaustiveness."
     )
 
     @override
@@ -109,6 +125,9 @@ class NoIsinstanceUnionChain(Rule):
         tree = parse_or_none(path, source)
         if tree is None:
             return []
+        local_classes = frozenset(
+            node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)
+        )
         elif_nodes: set[int] = set()
         diags: list[Diagnostic] = []
         for node in ast.walk(tree):
@@ -118,7 +137,7 @@ class NoIsinstanceUnionChain(Rule):
                 elif_nodes.add(id(node.orelse[0]))
             if id(node) in elif_nodes:
                 continue
-            count = _qualifying_chain_length(node)
+            count = _qualifying_chain_length(node, local_classes)
             if count >= _MIN_CHAIN_LENGTH:
                 diags.append(
                     Diagnostic(
@@ -127,7 +146,7 @@ class NoIsinstanceUnionChain(Rule):
                         col=node.col_offset + 1,
                         code=self.code,
                         message=(
-                            f"if/elif isinstance chain over {count} types — prefer "
+                            f"if/elif isinstance chain over {count} local classes — prefer "
                             "match/case with assert_never for exhaustiveness."
                         ),
                     )
@@ -135,28 +154,69 @@ class NoIsinstanceUnionChain(Rule):
         return diags
 
 
-def _qualifying_chain_length(head: ast.If) -> int:
-    """Number of branches if `head` is an all-`isinstance`-on-one-target chain, else 0.
+def _qualifying_chain_length(head: ast.If, local_classes: frozenset[str]) -> int:
+    """Number of arms if `head` is a local-closed-union dispatch chain, else 0.
 
-    Returns 0 if any branch is not `isinstance(<same target>, <single local class>)`.
+    Requires every arm to be `isinstance(<same target>, <local ClassDef name>)` and the
+    chain to end in an exhaustive terminal `else` (raise / return / assert / assert_never).
     """
     first_target: ast.expr | None = None
     count = 0
     current: ast.If | None = head
     while current is not None:
-        type_arg = _isinstance_single_type(current.test)
-        if type_arg is None:
+        parsed = _isinstance_single_type(current.test)
+        if parsed is None:
             return 0
-        target, type_name = type_arg
-        if type_name in _EXCLUDED_TYPE_NAMES:
+        target, type_node = parsed
+        if not isinstance(type_node, ast.Name):
+            return 0
+        type_name = type_node.id
+        if type_name in _EXCLUDED_TYPE_NAMES or type_name not in local_classes:
             return 0
         if first_target is None:
             first_target = target
         elif not _ast_equal(target, first_target):
             return 0
         count += 1
-        current = current.orelse[0] if len(current.orelse) == 1 and isinstance(current.orelse[0], ast.If) else None
+        orelse = current.orelse
+        if len(orelse) == 1 and isinstance(orelse[0], ast.If):
+            current = orelse[0]
+        else:
+            if not _is_exhaustive_terminal(orelse):
+                return 0
+            current = None
     return count
+
+
+def _is_exhaustive_terminal(orelse: list[ast.stmt]) -> bool:
+    """True if the trailing `else` block terminates instead of silently falling through.
+
+    An open chain (no `else`) or a permissive `else` that just does work and continues is
+    NOT equivalent to an exhaustive `match`, so it does not qualify.
+    """
+    if not orelse:
+        return False
+    return any(_stmt_terminates(stmt) for stmt in orelse)
+
+
+def _stmt_terminates(stmt: ast.stmt) -> bool:
+    match stmt:
+        case ast.Raise() | ast.Return() | ast.Assert():
+            return True
+        case ast.Expr(value=ast.Call(func=func)):
+            return _is_assert_never(func)
+        case _:
+            return False
+
+
+def _is_assert_never(func: ast.expr) -> bool:
+    match func:
+        case ast.Name(id="assert_never"):
+            return True
+        case ast.Attribute(attr="assert_never"):
+            return True
+        case _:
+            return False
 
 
 def _ast_equal(a: object, b: object) -> bool:
@@ -175,9 +235,10 @@ def _ast_equal(a: object, b: object) -> bool:
     return type(a) is type(b) and repr(a) == repr(b)
 
 
-def _isinstance_single_type(test: ast.expr) -> tuple[ast.expr, str] | None:
-    """If `test` is `isinstance(x, SomeClass)` with a single Name/Attribute class, return
-    (target, class_name); else None. Tuple-form `isinstance(x, (A, B))` returns None."""
+def _isinstance_single_type(test: ast.expr) -> tuple[ast.expr, ast.expr] | None:
+    """If `test` is `isinstance(x, T)` with a single (non-tuple) type argument, return
+    (target, type_node); else None. Tuple-form `isinstance(x, (A, B))` returns a Tuple
+    type_node, which the caller rejects (not an `ast.Name`)."""
     if not isinstance(test, ast.Call):
         return None
     if not (isinstance(test.func, ast.Name) and test.func.id == "isinstance"):
@@ -185,17 +246,4 @@ def _isinstance_single_type(test: ast.expr) -> tuple[ast.expr, str] | None:
     if len(test.args) != _ISINSTANCE_ARG_COUNT or test.keywords:
         return None
     target, type_node = test.args
-    name = _class_name(type_node)
-    if name is None:
-        return None
-    return target, name
-
-
-def _class_name(node: ast.expr) -> str | None:
-    """The trailing name of a class reference: `Foo` / `mod.Foo` -> 'Foo'. None for tuples
-    or anything that isn't a plain Name/Attribute (e.g. a subscript or tuple-membership)."""
-    if isinstance(node, ast.Name):
-        return node.id
-    if isinstance(node, ast.Attribute):
-        return node.attr
-    return None
+    return target, type_node

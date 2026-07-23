@@ -31,7 +31,7 @@ import re
 from typing import TYPE_CHECKING, override
 
 from sarj_python_lint.rule_base import Diagnostic, Rule, parse_or_none
-from sarj_python_lint.rules._sql import sql_string_value, strip_sql_noise
+from sarj_python_lint.rules._sql import is_store_module, sql_string_value, strip_sql_noise
 
 
 if TYPE_CHECKING:
@@ -93,6 +93,8 @@ class NoSelectStar(Rule):
 
     @override
     def check(self, path: Path, source: str) -> list[Diagnostic]:
+        if not is_store_module(path):
+            return []
         tree = parse_or_none(path, source)
         if tree is None:
             return []

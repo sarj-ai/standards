@@ -413,29 +413,20 @@ def test_plain_postgres_aggregation_still_fires(source: str) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Scope note: the rule is content-based, not filename-based. It gates only on
-# ClickHouse markers in the source, NOT on the file being `*_store.py`. So an
-# aggregating query in any .py file is flagged when checked directly; the CLI
-# restricts *which* files it runs on via include globs.
+# Path gate: the rule fires only on store-layer modules (`*_store.py` basename
+# or a file under a `stores/` directory). A non-store file (a Flask view, a
+# Django ORM SQL generator) with aggregating SQL is out of scope.
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.parametrize(
-    "filename",
-    ["service.py", "routes.py", "call_store.py", "random_module.py"],
-)
-def test_flags_independent_of_filename(filename: str) -> None:
+@pytest.mark.parametrize("filename", ["call_store.py", "stores/call.py"])
+def test_store_file_flagged(filename: str) -> None:
     assert len(_check('q = "SELECT COUNT(*) FROM call"\n', filename=filename)) == 1
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Module docstring promises `*_store.py` scoping, but check() has no "
-    "filename gate — a non-store file is still flagged. Scoping is enforced by "
-    "the CLI's include globs, not the rule. Documented, not a runtime defect.",
-)
-def test_nonstore_file_should_be_exempt_per_docstring() -> None:
-    assert _check('q = "SELECT COUNT(*) FROM call"\n', filename="service.py") == []
+@pytest.mark.parametrize("filename", ["service.py", "routes.py", "app/views.py", "random_module.py"])
+def test_nonstore_file_not_flagged(filename: str) -> None:
+    assert _check('q = "SELECT COUNT(*) FROM call"\n', filename=filename) == []
 
 
 # --------------------------------------------------------------------------- #

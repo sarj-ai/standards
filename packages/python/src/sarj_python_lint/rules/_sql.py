@@ -11,6 +11,23 @@ before any keyword or comment scan.
 from __future__ import annotations
 
 import ast
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+def is_store_module(path: Path) -> bool:
+    """True for a store-layer module: basename ends `_store.py`, or the file lives under a `stores/` directory.
+
+    The SQL store-lint rules (SARJ018/020/021) encode store-write semantics —
+    column-naming, ON-CONFLICT upserts, no Postgres-side aggregation — that only
+    apply to the store layer. Non-store SQL (Flask view handlers, a Django ORM
+    SQL generator) legitimately writes `SELECT *`, bare `INSERT`, and `COUNT()`,
+    so those files are out of scope.
+    """
+    return path.name.endswith("_store.py") or "stores" in path.parts
 
 
 def sql_string_value(node: ast.expr) -> str | None:

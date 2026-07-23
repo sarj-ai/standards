@@ -136,8 +136,14 @@ def test_earlier_exists_does_not_exempt_later_in_subquery_star():
     assert len(_check(src)) == 1
 
 
-def test_fires_regardless_of_filename():
-    assert len(_check('q = "SELECT * FROM call"\n', path="service.py")) == 1
+@pytest.mark.parametrize("path", ["call_store.py", "stores/call.py"])
+def test_store_file_flagged(path: str):
+    assert len(_check('q = "SELECT * FROM call"\n', path=path)) == 1
+
+
+@pytest.mark.parametrize("path", ["app/views.py", "blog.py", "django/db/models/sql/compiler.py"])
+def test_nonstore_file_not_flagged(path: str):
+    assert _check('q = "SELECT * FROM call"\n', path=path) == []
 
 
 @pytest.mark.parametrize(
