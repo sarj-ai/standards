@@ -720,3 +720,75 @@ class H:
     diags = _check(src)
     assert len(diags) == 1
     assert "_load" in diags[0].message
+
+
+def test_inherited_method_called_from_subclass_not_falsely_single_caller():
+    src = """
+class Base:
+    def _code_str(self) -> str:
+        return "x"
+
+    def __str__(self) -> str:
+        return self._code_str()
+
+class Child(Base):
+    def render(self) -> str:
+        return self._code_str()
+"""
+    assert _check(src) == []
+
+
+def test_super_call_from_subclass_suppresses_base_only_caller():
+    src = """
+class Base:
+    def _hook(self) -> int:
+        return 1
+
+    def run(self) -> int:
+        return self._hook()
+
+class Child(Base):
+    def _hook(self) -> int:
+        return super()._hook() + 1
+"""
+    assert _check(src) == []
+
+
+def test_sibling_classes_same_named_method_still_flagged():
+    src = """
+class Base:
+    pass
+
+class Left(Base):
+    def _fit(self) -> int:
+        return 1
+
+    def run(self) -> int:
+        return self._fit()
+
+class Right(Base):
+    def _fit(self) -> int:
+        return 2
+
+    def go(self) -> int:
+        return self._fit()
+"""
+    diags = _check(src)
+    assert len(diags) == 2
+    assert all("_fit" in d.message for d in diags)
+
+
+def test_module_helper_message_reports_reference_line_not_class_def_line():
+    src = """
+def _worker(x: int) -> int:
+    return x
+
+class Runner:
+    def run(self, xs: list[int]) -> list[int]:
+        return [_worker(x) for x in xs]
+"""
+    diags = _check(src)
+    assert len(diags) == 1
+    assert "_worker" in diags[0].message
+    assert "Runner" in diags[0].message
+    assert "referenced at line 7" in diags[0].message

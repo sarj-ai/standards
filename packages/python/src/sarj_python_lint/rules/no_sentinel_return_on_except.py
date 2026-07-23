@@ -31,7 +31,13 @@ swallowed error. Four such shapes are exempt:
 - **Lookup-with-default:** the `try` body is a single `return <lookup>` guarded by a
   *narrow* exception (not bare `except:`, not `Exception`/`BaseException`) and the
   handler returns an empty sentinel — e.g. httpx `get_reason_phrase`
-  (`try: return codes(value).phrase except ValueError: return ""`).
+  (`try: return codes(value).phrase except ValueError: return ""`). Starred
+  exception groups (`except (*JSON_DECODE_EXCEPTIONS, ValueError):`) are narrow.
+- **Optional contract:** the enclosing function is annotated `X | None` /
+  `Optional[X]` / `Union[..., None]`, the handler is *narrow*, and it returns the
+  `None` arm (or an empty container) — the multi-statement compute-then-return
+  Optional idiom, e.g. `parse_time(...) -> time | None` returning `None` on
+  `except ValueError:`.
 
 The genuine bug — a data-returning function whose success path yields real data and
 whose broad handler swallows to a sentinel — still fires. A bare `except: pass`
@@ -154,7 +160,87 @@ def _is_intended_result(handler: ast.ExceptHandler, ret: ast.Return, parents: Pa
         return True
     if _value_kind(ret.value) == "bool" and func is not None and _has_non_except_bool_return(func):
         return True
+    if (
+        func is not None
+        and _returns_optional(func)
+        and _is_narrow_handler(exc_names)
+        and _sentinel_matches_optional(ret)
+    ):
+        return True
     return _is_lookup_with_default(handler, parents, exc_names)
+
+
+def _is_narrow_handler(exc_names: tuple[str, ...] | None) -> bool:
+    """Report whether the handler catches only narrow (non-broad, non-bare) types.
+
+    A bare `except:` (exc_names is None) or one catching `Exception`/`BaseException`
+    is broad — the swallow the rule targets. Anything else is narrow and targeted.
+
+    Returns:
+        True when every caught type is narrow.
+
+    """
+    return exc_names is not None and not any(name in _BROAD_ERRORS for name in exc_names)
+
+
+def _returns_optional(func: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """Report whether `func`'s return annotation is an `Optional` shape.
+
+    Recognizes `X | None`, `None | X`, `Optional[X]`, and `Union[..., None]`.
+
+    Returns:
+        True when the return annotation admits `None`.
+
+    """
+    return func.returns is not None and _annotation_is_optional(func.returns)
+
+
+def _annotation_is_optional(ann: ast.expr) -> bool:
+    """Report whether a type-annotation expression admits `None`.
+
+    Returns:
+        True for `X | None`, `Optional[X]`, or `Union[..., None]`.
+
+    """
+    if isinstance(ann, ast.BinOp) and isinstance(ann.op, ast.BitOr):
+        return any(_is_none_annotation(side) or _annotation_is_optional(side) for side in (ann.left, ann.right))
+    if isinstance(ann, ast.Subscript):
+        base = ann.value
+        name = base.id if isinstance(base, ast.Name) else base.attr if isinstance(base, ast.Attribute) else None
+        if name == "Optional":
+            return True
+        if name == "Union":
+            elts = ann.slice.elts if isinstance(ann.slice, ast.Tuple) else [ann.slice]
+            return any(_is_none_annotation(elt) for elt in elts)
+    return False
+
+
+def _is_none_annotation(ann: ast.expr) -> bool:
+    """Report whether an annotation node is `None`.
+
+    Returns:
+        True for the `None` literal or the bare name `None`.
+
+    """
+    if isinstance(ann, ast.Constant):
+        return ann.value is None
+    return isinstance(ann, ast.Name) and ann.id == "None"
+
+
+def _sentinel_matches_optional(ret: ast.Return) -> bool:
+    """Report whether the return value is the `None` arm or an empty container.
+
+    An Optional function's declared falsy result is `None` (bare `return` or the
+    literal) or an empty collection/string. `False` is excluded — a bool is handled
+    by the boolean-probe path, not the Optional contract.
+
+    Returns:
+        True when the sentinel matches an Optional's falsy result.
+
+    """
+    if ret.value is None:
+        return True
+    return _is_sentinel(ret.value) and _value_kind(ret.value) != "bool"
 
 
 def _handler_exc_names(handler: ast.ExceptHandler) -> tuple[str, ...] | None:
@@ -171,10 +257,11 @@ def _handler_exc_names(handler: ast.ExceptHandler) -> tuple[str, ...] | None:
     exprs = caught.elts if isinstance(caught, ast.Tuple) else [caught]
     names: list[str] = []
     for expr in exprs:
-        if isinstance(expr, ast.Name):
-            names.append(expr.id)
-        elif isinstance(expr, ast.Attribute):
-            names.append(expr.attr)
+        inner = expr.value if isinstance(expr, ast.Starred) else expr
+        if isinstance(inner, ast.Name):
+            names.append(inner.id)
+        elif isinstance(inner, ast.Attribute):
+            names.append(inner.attr)
         else:
             return None
     return tuple(names)
@@ -499,7 +586,7 @@ def _contains_logging_call(node: ast.AST) -> bool:
     return any(_contains_logging_call(child) for child in ast.iter_child_nodes(node))
 
 
-_LOGGER_NAME_RE = re.compile(r"(?:^|_)(?:log|logger|logging)$")
+_LOGGER_NAME_RE = re.compile(r"(?:^|_)(?:log|logger|logging)$", re.IGNORECASE)
 _GETLOGGER_FUNCS: frozenset[str] = frozenset({"getLogger", "get_logger"})
 
 
@@ -545,7 +632,8 @@ def _is_logger_receiver(receiver: ast.expr) -> bool:
 def _is_logger_name(name: str) -> bool:
     """Report whether `log`/`logger`/`logging` is the whole name or its final word.
 
-    Matches the final underscore-delimited word — not a mere substring (`dialog`,
+    Matches the final underscore-delimited word, case-insensitively so the stdlib
+    module-level `_LOGGER` convention counts — not a mere substring (`dialog`,
     `catalog`).
 
     Returns:

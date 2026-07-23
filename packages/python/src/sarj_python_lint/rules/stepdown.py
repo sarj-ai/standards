@@ -38,6 +38,13 @@ Never fires on:
   OTHER (non-calling) function does not suppress the helper.
 - Methods decorated `@property` / `@cached_property` (read as attributes) and
   `@abstractmethod` (interface contracts conventionally sit together).
+- Methods reached through inheritance: a private method is not flagged when an
+  in-module ancestor or descendant class references it via
+  `self` / `cls` / `super()`. Same-class caller counting alone would report a
+  false "only caller"; the actual caller may live in a sub/superclass (SQLAlchemy
+  `_code_str`). Siblings are excluded — an identically-named sibling method is a
+  different method. Callers in classes outside the module remain invisible to
+  syntactic analysis.
 """
 
 from __future__ import annotations
@@ -91,9 +98,10 @@ class Stepdown(Rule):
         if tree is None:
             return []
         diags = _check_module_scope(path, tree, self.code)
-        for node in _walk(tree):
-            if isinstance(node, ast.ClassDef):
-                diags.extend(_check_class_scope(path, node, self.code))
+        classes = [node for node in _walk(tree) if isinstance(node, ast.ClassDef)]
+        family_external = _family_external_refs(classes)
+        for cls in classes:
+            diags.extend(_check_class_scope(path, cls, self.code, family_external.get(id(cls), frozenset())))
         diags.sort(key=lambda d: (d.line, d.col))
         return diags
 
@@ -107,11 +115,21 @@ def _check_module_scope(path: Path, tree: ast.Module, code: str) -> list[Diagnos
     shadowed = _module_assigned_names(tree)
 
     graph: dict[str, set[str]] = {}
+    ref_lines: dict[tuple[str, str], int] = {}
     for name, d in unique_defs.items():
-        refs = {
-            n.id for n in _runtime_nodes(_deferred_body(d)) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
-        }
-        graph[name] = (refs & unique_defs.keys()) - {name} - _locally_bound_names(d)
+        local = _locally_bound_names(d)
+        callees: set[str] = set()
+        for n in _runtime_nodes(_deferred_body(d)):
+            if (
+                isinstance(n, ast.Name)
+                and isinstance(n.ctx, ast.Load)
+                and n.id in unique_defs
+                and n.id != name
+                and n.id not in local
+            ):
+                callees.add(n.id)
+                _record_ref_line(ref_lines, name, n.id, n.lineno)
+        graph[name] = callees
 
     diags: list[Diagnostic] = []
     for name, d in unique_defs.items():
@@ -119,11 +137,13 @@ def _check_module_scope(path: Path, tree: ast.Module, code: str) -> list[Diagnos
             continue
         if name in pinned or name in shadowed:
             continue
-        diags.extend(_flag_if_above_single_caller(path, code, name, node=d, graph=graph, defs=unique_defs))
+        diags.extend(
+            _flag_if_above_single_caller(path, code, name, node=d, graph=graph, defs=unique_defs, ref_lines=ref_lines)
+        )
     return diags
 
 
-def _check_class_scope(path: Path, cls: ast.ClassDef, code: str) -> list[Diagnostic]:
+def _check_class_scope(path: Path, cls: ast.ClassDef, code: str, external_callers: frozenset[str]) -> list[Diagnostic]:
     methods = [n for n in cls.body if isinstance(n, _DEF_NODES)]
     counts = Counter(m.name for m in methods)
     unique = {m.name: m for m in methods if counts[m.name] == 1}
@@ -134,24 +154,30 @@ def _check_class_scope(path: Path, cls: ast.ClassDef, code: str) -> list[Diagnos
         shadowed |= _self_attribute_stores(m)
 
     graph: dict[str, set[str]] = {}
+    ref_lines: dict[tuple[str, str], int] = {}
     for name, m in unique.items():
-        refs = {
-            n.attr
-            for n in _runtime_nodes(m.body)
-            if isinstance(n, ast.Attribute)
-            and isinstance(n.ctx, ast.Load)
-            and isinstance(n.value, ast.Name)
-            and (n.value.id in _SELF_NAMES or n.value.id == cls.name)
-        }
-        graph[name] = (refs & unique.keys()) - {name}
+        callees: set[str] = set()
+        for n in _runtime_nodes(m.body):
+            if (
+                isinstance(n, ast.Attribute)
+                and isinstance(n.ctx, ast.Load)
+                and _is_same_class_ref(n.value, cls.name)
+                and n.attr in unique
+                and n.attr != name
+            ):
+                callees.add(n.attr)
+                _record_ref_line(ref_lines, name, n.attr, n.lineno)
+        graph[name] = callees
 
     diags: list[Diagnostic] = []
     for name, m in unique.items():
         if not _is_private_helper_name(name):
             continue
-        if name in pinned or name in shadowed or _has_exempt_decorator(m):
+        if name in pinned or name in shadowed or name in external_callers or _has_exempt_decorator(m):
             continue
-        diags.extend(_flag_if_above_single_caller(path, code, name, node=m, graph=graph, defs=unique))
+        diags.extend(
+            _flag_if_above_single_caller(path, code, name, node=m, graph=graph, defs=unique, ref_lines=ref_lines)
+        )
     return diags
 
 
@@ -163,6 +189,7 @@ def _flag_if_above_single_caller(
     node: ast.stmt,
     graph: dict[str, set[str]],
     defs: Mapping[str, ast.stmt],
+    ref_lines: dict[tuple[str, str], int],
 ) -> list[Diagnostic]:
     callers = [c for c, callees in graph.items() if name in callees]
     if len(callers) != 1:
@@ -172,6 +199,7 @@ def _flag_if_above_single_caller(
         return []
     if node.lineno >= defs[caller].lineno:
         return []
+    ref_line = ref_lines.get((caller, name), defs[caller].lineno)
     return [
         Diagnostic(
             path=path,
@@ -180,11 +208,122 @@ def _flag_if_above_single_caller(
             code=code,
             message=(
                 f"private helper `{name}` is defined above its only caller "
-                f"`{caller}` (line {defs[caller].lineno}) — "
+                f"`{caller}` (referenced at line {ref_line}) — "
                 "move it directly below the code that calls it (stepdown rule)."
             ),
         )
     ]
+
+
+def _record_ref_line(ref_lines: dict[tuple[str, str], int], caller: str, callee: str, lineno: int) -> None:
+    key = (caller, callee)
+    existing = ref_lines.get(key)
+    if existing is None or lineno < existing:
+        ref_lines[key] = lineno
+
+
+def _family_external_refs(classes: list[ast.ClassDef]) -> dict[int, frozenset[str]]:
+    """Map each class to method names its inheritance relatives reference via self/cls/super.
+
+    A private method can be called through inheritance — a subclass's
+    `self._m()` / `super()._m()`, or a base method's `self._m()` that dispatches
+    to a descendant's override. Counting only same-class call sites therefore
+    undercounts callers and produces false "only caller" claims (SQLAlchemy
+    `_code_str`). For each class this walks its in-module ancestors and
+    descendants (by base-name matching) and returns the self/cls/super method
+    references those relatives make. A method named here has a caller reachable
+    through dispatch from outside its own class body and must not be flagged as
+    single-caller. Siblings share an ancestor but not dispatch, so they are
+    excluded — a sibling's identically-named private method is a different
+    method, and lumping them would wrongly suppress genuine single-caller
+    helpers.
+
+    Returns:
+        Mapping of `id(ClassDef)` to the inheritance-reachable method references.
+
+    """
+    name_to_ids: dict[str, list[int]] = {}
+    for c in classes:
+        name_to_ids.setdefault(c.name, []).append(id(c))
+
+    parents: dict[int, set[int]] = {id(c): set() for c in classes}
+    children: dict[int, set[int]] = {id(c): set() for c in classes}
+    for c in classes:
+        for base in c.bases:
+            bname = _base_name(base)
+            if bname is None:
+                continue
+            for pid in name_to_ids.get(bname, ()):
+                if pid != id(c):
+                    parents[id(c)].add(pid)
+                    children[pid].add(id(c))
+
+    self_refs: dict[int, set[str]] = {id(c): _class_self_method_refs(c) for c in classes}
+
+    external: dict[int, frozenset[str]] = {}
+    for c in classes:
+        cid = id(c)
+        family = _reachable(cid, parents) | _reachable(cid, children)
+        ext: set[str] = set()
+        for other in family:
+            ext |= self_refs[other]
+        external[cid] = frozenset(ext)
+    return external
+
+
+def _reachable(start: int, adjacency: dict[int, set[int]]) -> set[int]:
+    seen: set[int] = set()
+    stack = list(adjacency[start])
+    while stack:
+        node = stack.pop()
+        if node in seen:
+            continue
+        seen.add(node)
+        stack.extend(adjacency[node])
+    return seen
+
+
+def _base_name(base: ast.expr) -> str | None:
+    match base:
+        case ast.Name(id=name):
+            return name
+        case ast.Attribute(attr=attr):
+            return attr
+        case ast.Subscript(value=value):
+            return _base_name(value)
+        case _:
+            return None
+
+
+def _class_self_method_refs(cls: ast.ClassDef) -> set[str]:
+    """Collect method names this class references via `self` / `cls` / `super()` / its own name.
+
+    Returns:
+        The set of self-like method references made in the class's method bodies.
+
+    """
+    out: set[str] = set()
+    for m in cls.body:
+        if not isinstance(m, _DEF_NODES):
+            continue
+        for n in _runtime_nodes(m.body):
+            if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Load) and _is_self_like(n.value, cls.name):
+                out.add(n.attr)
+    return out
+
+
+def _is_same_class_ref(value: ast.expr, class_name: str) -> bool:
+    return isinstance(value, ast.Name) and (value.id in _SELF_NAMES or value.id == class_name)
+
+
+def _is_self_like(value: ast.expr, class_name: str) -> bool:
+    match value:
+        case ast.Name(id=vid):
+            return vid in _SELF_NAMES or vid == class_name
+        case ast.Call(func=ast.Name(id="super")):
+            return True
+        case _:
+            return False
 
 
 def _is_private_helper_name(name: str) -> bool:

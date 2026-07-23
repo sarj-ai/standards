@@ -24,6 +24,14 @@ Deliberately NOT flagged (real-world false positives the sweep surfaced):
 - Lone membership guards over external vocabularies.
 - Single-character tokenizer scans (`last_char == "g"`) and language-keyword
   tokenizers (`token in ("is", "not", "in")`).
+- Variables that are already a closed `Literal` — either annotated inline
+  (`x: Literal["a", "b"]`) or via a module-level alias (`Mode = Literal[...]`;
+  `x: Mode`), or whose compared literals are all members of such an in-module
+  alias (Rich's `align = self.align` where `AlignMethod = Literal[...]`). The
+  closed set already exists; recommending a StrEnum is redundant.
+- Open-domain code variables (`language`, `country`, `currency`, `timezone`,
+  `locale`, `region`, `code`, ...): special-casing a few ISO codes is not a
+  closed enum.
 
 Replace a genuine hit with:
     class Status(StrEnum):
@@ -102,6 +110,25 @@ EXTERNAL_VOCAB = frozenset(
 #: not flagged.
 _SCANNER_KEY_SEGMENTS = frozenset({"c", "ch", "chr", "char", "token", "tok", "letter", "digit", "glyph"})
 
+#: Variable names that denote an OPEN external vocabulary (ISO language / country
+#: / currency codes, timezones, locales, regions). Special-casing a few of these
+#: with `if language == "en": elif language == "zh":` is not a closed app enum —
+#: the domain has thousands of members, so a StrEnum would be wrong.
+OPEN_DOMAIN_CODE_NAMES = frozenset(
+    {
+        "language",
+        "lang",
+        "country",
+        "currency",
+        "timezone",
+        "tz",
+        "locale",
+        "region",
+        "code",
+        "country_code",
+    }
+)
+
 #: A "short lowercase token" — the shape enum member values take.
 _LOWER_TOKEN_RE = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
 
@@ -122,8 +149,9 @@ class PreferStrEnum(Rule):
         if tree is None:
             return []
         check_clusters = not _is_test_path(path)
+        alias_names, alias_valuesets = _module_literal_aliases(tree)
         class_nodes: list[ast.ClassDef] = []
-        all_clusters: list[dict[str, _ClusterEntry]] = []
+        all_clusters: list[tuple[dict[str, _ClusterEntry], frozenset[str]]] = []
         stack: list[tuple[ast.AST, dict[str, _ClusterEntry] | None]] = [(tree, None)]
         while stack:
             node, active = stack.pop()
@@ -133,7 +161,7 @@ class PreferStrEnum(Rule):
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 if check_clusters:
                     child_active = {}
-                    all_clusters.append(child_active)
+                    all_clusters.append((child_active, _literal_typed_names(node, alias_names)))
                 else:
                     child_active = None
             elif isinstance(node, ast.Lambda):
@@ -149,17 +177,18 @@ class PreferStrEnum(Rule):
 
         diags: list[Diagnostic] = []
         firing_field_names: set[str] = set()
-        for clusters in all_clusters:
+        for clusters, literal_typed in all_clusters:
             for key, entry in clusters.items():
+                if _cluster_is_already_closed(key, entry, literal_typed, alias_valuesets):
+                    continue
                 if not _cluster_fires(key, entry):
                     continue
                 firing_field_names.add(key)
-                line, col, _saw_eq, _literals = entry
                 diags.append(
                     Diagnostic(
                         path=path,
-                        line=line,
-                        col=col,
+                        line=entry[0],
+                        col=entry[1],
                         code=self.code,
                         message=(f"`{key}` is compared against a closed set of string literals — define a StrEnum"),
                     )
@@ -224,6 +253,129 @@ def _cluster_fires(key: str, entry: _ClusterEntry) -> bool:
         return False  # file modes, URL schemes, language keywords, HTTP methods
     # A single-character cluster on a char/token variable is a tokenizer scan.
     return not (_is_scanner_key(key) and all(len(lit) == 1 for lit in literals))
+
+
+def _cluster_is_already_closed(
+    key: str,
+    entry: _ClusterEntry,
+    literal_typed: frozenset[str],
+    alias_valuesets: list[frozenset[str]],
+) -> bool:
+    """Report whether a cluster is on a variable whose domain is already closed.
+
+    Suppressed when the variable is an open-domain code name, is annotated as a
+    `Literal` (inline or via a module alias), or its compared literals are all
+    members of an in-module `Literal` alias's value set.
+
+    Returns:
+        True when the cluster should be suppressed as already-closed.
+
+    """
+    if key.lower() in OPEN_DOMAIN_CODE_NAMES:
+        return True
+    if key in literal_typed:
+        return True
+    _line, _col, _saw_eq, literals = entry
+    return any(literals <= vs for vs in alias_valuesets)
+
+
+def _module_literal_aliases(tree: ast.Module) -> tuple[frozenset[str], list[frozenset[str]]]:
+    """Collect module-level `X = Literal[...]` aliases.
+
+    Returns:
+        The alias names, plus each alias's set of string-literal values.
+
+    """
+    names: set[str] = set()
+    valuesets: list[frozenset[str]] = []
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Assign):
+            target = stmt.targets[0] if len(stmt.targets) == 1 else None
+            name = target.id if isinstance(target, ast.Name) else None
+            value = stmt.value
+        elif isinstance(stmt, ast.AnnAssign):
+            name = stmt.target.id if isinstance(stmt.target, ast.Name) else None
+            value = stmt.value
+        elif isinstance(stmt, ast.TypeAlias):
+            name = stmt.name.id
+            value = stmt.value
+        else:
+            continue
+        if name is None or value is None:
+            continue
+        members = _literal_string_values(value)
+        if members is None:
+            continue
+        names.add(name)
+        if members:
+            valuesets.append(frozenset(members))
+    return frozenset(names), valuesets
+
+
+def _literal_typed_names(func: ast.FunctionDef | ast.AsyncFunctionDef, alias_names: frozenset[str]) -> frozenset[str]:
+    """Collect names in `func` annotated as a `Literal` (inline or via a module alias).
+
+    Covers the function's own parameters and `x: <literal>` annotated locals in
+    its body (not descending into nested functions/classes, which own their
+    scope).
+
+    Returns:
+        The set of such names.
+
+    """
+    names: set[str] = set()
+    args = func.args
+    for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs):
+        if _is_literal_annotation(arg.annotation, alias_names):
+            names.add(arg.arg)
+    stack: list[ast.AST] = list(func.body)
+    while stack:
+        node = stack.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            continue
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and _is_literal_annotation(node.annotation, alias_names)
+        ):
+            names.add(node.target.id)
+        stack.extend(ast.iter_child_nodes(node))
+    return frozenset(names)
+
+
+def _is_literal_annotation(annotation: ast.expr | None, alias_names: frozenset[str]) -> bool:
+    if annotation is None:
+        return False
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        text = annotation.value.strip()
+        return text in alias_names or text.startswith("Literal[")
+    if _literal_string_values(annotation) is not None:
+        return True
+    if isinstance(annotation, ast.Name):
+        return annotation.id in alias_names
+    return False
+
+
+def _literal_string_values(node: ast.expr) -> list[str] | None:
+    """Return the string members of a `Literal[...]` subscript, or None if not one.
+
+    A `Literal[...]` with only non-string members yields an empty list (still a
+    Literal); a non-`Literal` node yields None.
+
+    Returns:
+        The string members, or None when `node` is not a `Literal[...]`.
+
+    """
+    if not isinstance(node, ast.Subscript):
+        return None
+    head = node.value
+    is_literal = (isinstance(head, ast.Name) and head.id == "Literal") or (
+        isinstance(head, ast.Attribute) and head.attr == "Literal"
+    )
+    if not is_literal:
+        return None
+    elts = node.slice.elts if isinstance(node.slice, ast.Tuple) else [node.slice]
+    return [value for elt in elts if (value := _str_const(elt)) is not None]
 
 
 def _is_scanner_key(key: str) -> bool:

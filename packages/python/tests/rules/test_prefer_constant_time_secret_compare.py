@@ -20,7 +20,9 @@ def _count(source: str) -> int:
     return len(_check(source))
 
 
-# Every stem of the secret-name regex, exercised as a standalone identifier.
+# Every authenticator stem, exercised as a standalone identifier. Bare integrity
+# hashes (`hash`, `digest`, `sha_digest`) are deliberately absent — they are not a
+# timing-attack surface and live in the negative suite below.
 _SECRET_NAMES = [
     "token",
     "access_token",
@@ -34,11 +36,8 @@ _SECRET_NAMES = [
     "api_key",
     "hmac",
     "computed_hmac",
-    "digest",
-    "sha_digest",
     "password",
     "passwd",
-    "hash",
     "password_hash",
 ]
 
@@ -255,7 +254,11 @@ def test_allows_secret_vs_string_literal_left_operand():
 
 
 def test_flags_two_runtime_hash_names():
-    """`cached_hash != token_hash` compares two runtime secrets — still fires."""
+    """`cached_hash != token_hash` still fires — `token_hash` carries the `token` authenticator.
+
+    `cached_hash` alone is an integrity hash (not a timing surface); the diagnostic
+    comes from the `token_hash` operand.
+    """
     src = "def f(cached_hash, token_hash):\n    return cached_hash != token_hash\n"
     assert _count(src) == 1
 
@@ -414,6 +417,123 @@ def test_allows_non_secret_lookalike_vs_variable(name: str):
 def test_still_flags_password_compound_label():
     """A real secret word as a whole token, vs a runtime value, is still flagged."""
     src = "def f(password_field, submitted):\n    return password_field == submitted\n"
+    assert _count(src) == 1
+
+
+# ---------------------------------------------------------------------------
+# SARJ011-only narrowing: integrity hashes, category/handle descriptors,
+# boolean flags, and ALL-CAPS sentinel constants are not a timing surface.
+# (SARJ012 `no-secret-in-log` keeps the broader shared secret set — these are
+# suppressed inside this rule, not in `_secret_names`.)
+# ---------------------------------------------------------------------------
+
+_INTEGRITY_HASH_NAMES = [
+    "hash",
+    "digest",
+    "sha_digest",
+    "content_hash",
+    "metadata_hash",
+    "hash_key",
+    "existing_row_hash",
+    "state_hash",
+    "checksum",
+    "file_checksum",
+]
+
+
+@pytest.mark.parametrize("name", _INTEGRITY_HASH_NAMES)
+def test_allows_integrity_hash_operand(name: str):
+    """A bare content/integrity hash is not an authenticator — no timing surface."""
+    src = f"def f({name}, other):\n    return {name} == other\n"
+    assert _check(src) == []
+
+
+_AUTH_HASH_NAMES = ["password_hash", "token_hash", "jwt_hash", "computed_hmac", "signature_digest"]
+
+
+@pytest.mark.parametrize("name", _AUTH_HASH_NAMES)
+def test_flags_hash_carrying_authenticator(name: str):
+    """A hash-bearing name that also carries an auth word gates access — still fires."""
+    src = f"def f({name}, provided):\n    return {name} == provided\n"
+    assert _count(src) == 1
+
+
+_DESCRIPTOR_LOOKALIKES = [
+    "token_name",
+    "credential_name",
+    "secret_kind",
+    "token_kind",
+    "credential_type",
+    "grant_type",
+    "auth_token_type",
+]
+
+
+@pytest.mark.parametrize("name", _DESCRIPTOR_LOOKALIKES)
+def test_allows_descriptor_and_category_lookalike(name: str):
+    """`_type`/`_name`/`_kind` descriptors and `type`/`kind` discriminators are metadata."""
+    src = f"def f({name}, other):\n    return {name} == other\n"
+    assert _check(src) == []
+
+
+@pytest.mark.parametrize("name", ["is_token", "has_secret", "is_token_strategy", "was_password"])
+def test_allows_boolean_flag_prefix(name: str):
+    """A leading `is`/`has`/`was` marks a boolean flag, not the credential itself."""
+    src = f"def f({name}, other):\n    return {name} == other\n"
+    assert _check(src) == []
+
+
+_ALLCAPS_SENTINELS = [
+    "models.TOKEN_TYPE_SYSTEM",
+    "HTTP_DIGEST_AUTHENTICATION",
+    "PASSWORD_NOT_CHANGED",
+    "_WILDCARD_TOKEN",
+    "CONF_API_KEY",
+]
+
+
+@pytest.mark.parametrize("sentinel", _ALLCAPS_SENTINELS)
+def test_allows_compare_against_allcaps_constant(sentinel: str):
+    """An ALL-CAPS constant is a compile-time sentinel/enum member, not a runtime secret."""
+    src = f"def f(token_type):\n    return token_type == {sentinel}\n"
+    assert _check(src) == []
+
+
+def test_allows_secret_operand_vs_allcaps_constant():
+    """Even a genuine secret vs an ALL-CAPS sentinel is a state check, not a timing surface."""
+    src = "def f(password):\n    return password != PASSWORD_NOT_CHANGED\n"
+    assert _check(src) == []
+
+
+# Real-world FP shapes lifted from the corpus (HA auth, poetry lockfile, SQLAlchemy).
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        "def f(token_type):\n    return token_type == models.TOKEN_TYPE_SYSTEM\n",
+        "def f(self, metadata):\n    return self._content_hash == metadata\n",
+        "def f(metadata_hash, expected):\n    return metadata_hash != expected\n",
+        "def f(state, hash_key):\n    return state.session_id == hash_key\n",
+    ],
+)
+def test_allows_corpus_false_positive_shapes(src: str):
+    assert _check(src) == []
+
+
+# Genuine authenticator compares from the corpus that MUST keep firing.
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        "def f(secret_token, secret_token_header):\n    return secret_token != secret_token_header\n",
+        "def f(data, session):\n    return data.access_token == session.access_token\n",
+        "def f(push_secret, secret):\n    return push_secret != secret\n",
+        "def f(api_key, provided):\n    return api_key == provided\n",
+    ],
+)
+def test_flags_genuine_authenticator_compares(src: str):
     assert _count(src) == 1
 
 
