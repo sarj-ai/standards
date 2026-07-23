@@ -146,6 +146,35 @@ def test_ignores_legit_prose(body: str):
     assert _standalone(body) == []
 
 
+_NARRATION = [
+    "First, fetch the user",
+    "Then, map over the results",
+    "Step 2: validate the payload",
+    "this is a temporary hack that only works when x",
+    "hardcoded for now",
+    "not sure if this is the right approach",
+]
+
+
+@pytest.mark.parametrize("body", _NARRATION)
+def test_flags_redundant_narration(body: str):
+    diags = _standalone(body)
+    assert len(diags) == 1
+    assert "narrates" in diags[0].message
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "finally the invariant holds again",
+        "firstName is required by the upstream API",
+        "now-deprecated path kept for back-compat",
+    ],
+)
+def test_narration_words_in_prose_not_flagged(body: str):
+    assert _standalone(body) == []
+
+
 DIRECTIVES = [
     "type: ignore",
     "type: ignore[assignment]",

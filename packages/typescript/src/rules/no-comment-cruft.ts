@@ -1,19 +1,36 @@
 /**
- * @fileoverview Flag comment cruft — commented-out code, section banners, and
- * leading file-header comment preambles. Code carries the *what*; comments are
- * reserved for the *why*. The fuzzier "this comment merely restates the code"
- * judgment stays in review, not this rule — only these deterministic shapes are
- * flagged. JSDoc (`/** ... *\/`) is never flagged, and directive comments
- * (`eslint-`, `@ts-`, `prettier-`, `biome-`, `c8`, `<reference`, `TODO`,
- * `FIXME`) are ignored.
+ * @fileoverview Flag comment cruft — commented-out code, section banners,
+ * leading file-header comment preambles, and redundant narration (step markers
+ * like "First, …" and self-admitted meta-commentary like "for now" / "temporary
+ * hack"). Code carries the *what*; comments are reserved for the *why*. The
+ * fuzzier "this comment restates the next line" judgment stays in review (a
+ * substring-corroboration heuristic was too false-positive-prone on real code).
+ * JSDoc (`/** ... *\/`) is never flagged, and directive comments (`eslint-`,
+ * `@ts-`, `prettier-`, `biome-`, `c8`, `<reference`, `TODO`, `FIXME`) are ignored.
  */
 
 import { ESLintUtils, type TSESTree } from "@typescript-eslint/utils";
 
-type MessageIds = "commentedOutCode" | "sectionBanner" | "fileHeaderPreamble";
+type MessageIds =
+  | "commentedOutCode"
+  | "sectionBanner"
+  | "fileHeaderPreamble"
+  | "redundantNarration";
 type Options = readonly [];
 
 const LEADING_PREAMBLE_MIN = 4;
+
+// Step-narration lead-ins ("First, …", "Then, …", "Finally, …", "Step 2:"). A
+// trailing comma/colon is required so English adverbs ("finally the invariant
+// holds") aren't mistaken for an enumeration marker.
+const STEP_NARRATION_RE =
+  /^(?:first(?:ly)?|second(?:ly)?|third(?:ly)?|then|next|after(?:wards| that)?|finally|lastly|now)\s*[,:]\s*\S|^step\s+\d+\b/i;
+
+// Self-admitted meta-commentary — the "why later", not the why. `TODO`/`FIXME`/
+// `HACK`/`XXX` are handled as directives (kept, with an owner, per convention).
+const META_COMMENTARY_RE =
+  /\b(?:for now|keeping (?:it|this) simple|could be (?:refactored|improved|cleaned up|simplified)|refactor(?:ed|ing)? (?:later|this)|not sure (?:if|whether|why|how)|quick[- ](?:and[- ]dirty|fix)|(?:a |bit of a )?hacky|is a hack|temporary (?:solution|workaround|fix|hack)|revisit (?:this|later|below)|clean (?:this|it) up|not ideal|placeholder for now)\b/i;
+
 
 const DIRECTIVE_RE =
   /^(eslint\b|eslint-|@ts-|prettier-ignore|prettier\b|biome-|c8\b|v8\b|istanbul\b|@type\b|@vite|webpack|<reference|<amd|global\b|noinspection|todo\b|fixme\b|hack\b|xxx\b)/i;
@@ -87,6 +104,21 @@ function isProse(text: string): boolean {
   return false;
 }
 
+/**
+ * Whether a single-line comment merely narrates the code rather than explaining
+ * the *why*. Three deterministic shapes: step narration ("First, …"), self-
+ * admitted meta-commentary ("keeping it simple"), and a restatement of the very
+ * next statement — a narration-verb opener corroborated by a shared token with
+ * the following code line (`// create the user` above `const user = createUser()`).
+ */
+function isRedundantNarration(body: string): boolean {
+  const t = body.trim();
+  if (!t || looksLikeCode(t) || hasPseudocode(t)) return false;
+  if (STEP_NARRATION_RE.test(t)) return true;
+  if (META_COMMENTARY_RE.test(t)) return true;
+  return false;
+}
+
 function hasCommentedOutCode(
   texts: readonly string[],
   precedingProse: boolean,
@@ -122,6 +154,8 @@ export default ESLintUtils.RuleCreator(
         "Section-banner / region comment — structure code with functions, not ASCII rules.",
       fileHeaderPreamble:
         "File-header comment preamble — use a brief doc comment for the why, not a block of `//` lines.",
+      redundantNarration:
+        "Comment narrates the code — delete it or say *why*, not *what*. Code is self-documenting.",
     },
   },
   defaultOptions: [],
@@ -192,6 +226,16 @@ export default ESLintUtils.RuleCreator(
             isProse(stripCommentMarker(prev.value));
           if (hasCommentedOutCode(texts, precedingProse)) {
             context.report({ node: comment, messageId: "commentedOutCode" });
+            continue;
+          }
+          // Narration only for single-line comments (a multi-line block is
+          // usually a real doc). The next non-blank source line is the code the
+          // comment sits above.
+          if (comment.type === "Line" && texts.length === 1) {
+            const body = texts[0];
+            if (body !== undefined && isRedundantNarration(body)) {
+              context.report({ node: comment, messageId: "redundantNarration" });
+            }
           }
         }
 

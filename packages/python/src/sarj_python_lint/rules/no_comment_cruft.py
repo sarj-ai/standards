@@ -99,6 +99,26 @@ _ASSIGN_OR_CALL_RE = re.compile(r"^[A-Za-z_][\w.\[\]]*\s*(?:=|:=|\+=|-=|\*=|/=)\
 # illustration inside a doc comment, not a line that was once executed.
 _PSEUDOCODE_RE = re.compile(r"%[^%\s]+%|\[opt\]|<[^<>]+>|\.\.\.")
 
+# Step-narration lead-ins ("First, ...", "Then, ...", "Finally, ...", "Step 2:").
+# A trailing comma/colon is required so English adverbs ("finally the invariant
+# holds") aren't mistaken for an enumeration marker.
+_STEP_NARRATION_RE = re.compile(
+    r"^(?:first(?:ly)?|second(?:ly)?|third(?:ly)?|then|next|after(?:wards| that)?"
+    r"|finally|lastly|now)\s*[,:]\s*\S|^step\s+\d+\b",
+    re.IGNORECASE,
+)
+
+# Self-admitted meta-commentary — the "why later", not the why. Owner-tagged
+# directive markers are handled elsewhere (as directives) and kept.
+_META_COMMENTARY_RE = re.compile(
+    r"\b(?:for now|keeping (?:it|this) simple|could be (?:refactored|improved|cleaned up|simplified)"
+    r"|refactor(?:ed|ing)? (?:later|this)|not sure (?:if|whether|why|how)"
+    r"|quick[- ](?:and[- ]dirty|fix)|(?:a |bit of a )?hacky|is a hack"
+    r"|temporary (?:solution|workaround|fix|hack)|revisit (?:this|later|below)"
+    r"|clean (?:this|it) up|not ideal|placeholder for now)\b",
+    re.IGNORECASE,
+)
+
 
 def _comment_body(raw: str) -> str:
     return raw.lstrip("#").strip()
@@ -118,6 +138,19 @@ def _is_directive(body: str) -> bool:
             continue
         return True
     return False
+
+
+def _is_redundant_narration(body: str) -> bool:
+    """Whether a comment merely narrates the code (step markers, meta-commentary).
+
+    Returns:
+        True for step-narration lead-ins and self-admitted meta-commentary.
+
+    """
+    c = body.strip()
+    if not c or _looks_like_code(c):
+        return False
+    return bool(_STEP_NARRATION_RE.search(c) or _META_COMMENTARY_RE.search(c))
 
 
 def _is_banner(body: str) -> bool:
@@ -227,6 +260,8 @@ class NoCommentCruft(Rule):
             if prev_body is not None and _is_prose_line(prev_body):
                 return None
             return "Commented-out code — delete it; git history remembers."
+        if _is_redundant_narration(body):
+            return "Comment narrates the code — delete it or say why, not what. Code is self-documenting."
         return None
 
     def _flag_leading_preamble(
