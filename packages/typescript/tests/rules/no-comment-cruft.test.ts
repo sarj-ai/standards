@@ -52,8 +52,37 @@ ruleTester.run("no-comment-cruft", rule, {
     {
       code: '/// <reference types="node" />\nimport x from "y";',
     },
+    // A genuine why-comment that happens to mention a narration word is fine.
+    { code: "// firstName is required by the upstream API\nconst x = 1;" },
+    { code: "// now-deprecated path kept for back-compat\nconst x = 1;" },
   ],
   invalid: [
+    // Step narration — the comment walks through the code line-by-line.
+    {
+      code: "// First, fetch the user\nconst u = api.getUser();",
+      errors: [{ messageId: "redundantNarration" }],
+    },
+    {
+      code: "// Then, we map over the results\nconst r = xs.map(f);",
+      errors: [{ messageId: "redundantNarration" }],
+    },
+    {
+      code: "// Step 2: validate the payload\nvalidate(payload);",
+      errors: [{ messageId: "redundantNarration" }],
+    },
+    // Self-admitted meta-commentary — the "why later", not the why.
+    {
+      code: "// this is a temporary hack that only works when x\nconst y = 1;",
+      errors: [{ messageId: "redundantNarration" }],
+    },
+    {
+      code: "// hardcoded for now\nconst limit = 10;",
+      errors: [{ messageId: "redundantNarration" }],
+    },
+    {
+      code: "// not sure if this is the right approach\nfoo();",
+      errors: [{ messageId: "redundantNarration" }],
+    },
     {
       code: "const x = 1;\n// return x + 1;\nconst y = 2;",
       errors: [{ messageId: "commentedOutCode" }],
