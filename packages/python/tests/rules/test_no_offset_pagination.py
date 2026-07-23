@@ -2,15 +2,15 @@ from pathlib import Path
 
 import pytest
 
-from sarj_python_lint.rule_base import is_suppressed
+from sarj_python_lint.rule_base import Diagnostic, is_suppressed
 from sarj_python_lint.rules.no_offset_pagination import NoOffsetPagination
 
 
-def _check(source: str, path: str = "call_store.py") -> list:
+def _check(source: str, path: str = "call_store.py") -> list[Diagnostic]:
     return NoOffsetPagination().check(Path(path), source)
 
 
-def _kept(source: str, path: str = "call_store.py") -> list:
+def _kept(source: str, path: str = "call_store.py") -> list[Diagnostic]:
     diags = _check(source, path)
     lines = source.splitlines()
     return [d for d in diags if not is_suppressed(lines, d.line, d.code)]

@@ -15,7 +15,12 @@ def _check(source: str) -> list[Diagnostic]:
 
 
 def _standalone(body: str) -> list[Diagnostic]:
-    """Wrap `body` as a lone own-line comment between two real code lines."""
+    """Wrap `body` as a lone own-line comment between two real code lines.
+
+    Returns:
+        The diagnostics from checking the wrapped source.
+
+    """
     return _check(f"x = 1\n# {body}\ny = 2\n")
 
 

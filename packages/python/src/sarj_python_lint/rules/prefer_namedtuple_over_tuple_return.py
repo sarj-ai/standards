@@ -34,6 +34,7 @@ Suppress a deliberate positional return with `# sarj-noqa: SARJ026 — <reason>`
 
 References:
 - https://docs.python.org/3/library/typing.html#typing.NamedTuple
+
 """
 
 from __future__ import annotations
@@ -98,10 +99,14 @@ class PreferNamedtupleOverTupleReturn(Rule):
 
 
 def _is_bare_positional_tuple(annotation: ast.expr) -> bool:
-    """True if `annotation` is `tuple[A, B, ...]` with >=2 heterogeneous elements.
+    """Report whether `annotation` is `tuple[A, B, ...]` with >=2 heterogeneous elements.
 
     Exempts the three permitted forms: `tuple[X, ...]` (Ellipsis), structurally
     homogeneous `tuple[X, X]`, and the `tuple[Literal[...], ...]` discriminated tag.
+
+    Returns:
+        True when the annotation is a bare positional heterogeneous tuple.
+
     """
     if not isinstance(annotation, ast.Subscript):
         return False
@@ -120,7 +125,12 @@ def _is_bare_positional_tuple(annotation: ast.expr) -> bool:
 
 
 def _all_equal(elements: list[ast.expr]) -> bool:
-    """True if every element is structurally identical (a homogeneous pair/tuple)."""
+    """Report whether every element is structurally identical (a homogeneous pair/tuple).
+
+    Returns:
+        True when all elements are structurally equal.
+
+    """
     first = elements[0]
     return all(_ast_equal(el, first) for el in elements[1:])
 
@@ -130,12 +140,22 @@ def _is_ellipsis(node: ast.expr) -> bool:
 
 
 def _is_literal(node: ast.expr) -> bool:
-    """True if `node` is a `Literal[...]` subscript (discriminated-union tag)."""
+    """Report whether `node` is a `Literal[...]` subscript (discriminated-union tag).
+
+    Returns:
+        True when the node is a `Literal[...]` subscript.
+
+    """
     return isinstance(node, ast.Subscript) and _name_of(node.value) in _LITERAL_NAMES
 
 
 def _name_of(node: ast.expr) -> str | None:
-    """Trailing name of a reference: `tuple` / `typing.Tuple` -> the trailing id."""
+    """Return the trailing name of a reference: `tuple` / `typing.Tuple` -> the trailing id.
+
+    Returns:
+        The trailing identifier, or None when `node` is neither a Name nor Attribute.
+
+    """
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Attribute):
@@ -143,14 +163,11 @@ def _name_of(node: ast.expr) -> str | None:
     return None
 
 
-def _ast_equal(a: object, b: object) -> bool:
-    """Structural equality equivalent to `ast.dump(a) == ast.dump(b)` without the dump."""
-    if isinstance(a, ast.AST):
-        if type(a) is not type(b):
-            return False
-        return all(_ast_equal(getattr(a, field, None), getattr(b, field, None)) for field in a._fields)
-    if isinstance(a, list):
-        if not isinstance(b, list) or len(a) != len(b):
-            return False
-        return all(map(_ast_equal, a, b, strict=True))
-    return type(a) is type(b) and repr(a) == repr(b)
+def _ast_equal(a: ast.expr, b: ast.expr) -> bool:
+    """Compare `a` and `b` structurally, ignoring source positions.
+
+    Returns:
+        True when the two trees are structurally equal.
+
+    """
+    return ast.dump(a) == ast.dump(b)

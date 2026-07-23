@@ -65,14 +65,7 @@ _SELF_NAMES = frozenset({"self", "cls"})
 
 
 def _child_nodes(node: ast.AST) -> Iterator[ast.AST]:
-    for field in node._fields:
-        val = getattr(node, field, None)
-        if isinstance(val, list):
-            for item in val:
-                if isinstance(item, ast.AST):
-                    yield item
-        elif isinstance(val, ast.AST):
-            yield val
+    yield from ast.iter_child_nodes(node)
 
 
 def _walk(node: ast.AST) -> Iterator[ast.AST]:
@@ -214,11 +207,15 @@ def _has_exempt_decorator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 def _deferred_body(node: ast.stmt) -> list[ast.stmt]:
-    """Statements that execute only when the def is invoked, not at import.
+    """Collect statements that execute only when the def is invoked, not at import.
 
     For a function that is its body; for a class it is the bodies of its
     (recursively nested) methods — class-body statements run at class-creation
     time and are handled as pinning references instead.
+
+    Returns:
+        The deferred-execution statements for `node`.
+
     """
     if isinstance(node, _DEF_NODES):
         return node.body
@@ -240,6 +237,10 @@ def _runtime_nodes(stmts: list[ast.stmt]) -> Iterator[ast.expr]:
     scope; inside an already-deferred body, nested decorators and defaults DO
     run at call time and are included. Annotations and `if TYPE_CHECKING:`
     bodies are never included.
+
+    Yields:
+        Each call-time-reachable expression node.
+
     """
     stack: list[ast.AST] = list(stmts)
     while stack:
@@ -280,7 +281,12 @@ def _module_pinned_names(tree: ast.Module) -> set[str]:
 
 
 def _class_pinned_names(cls: ast.ClassDef) -> set[str]:
-    """Bare names referenced at class-creation time inside the class body."""
+    """Collect bare names referenced at class-creation time inside the class body.
+
+    Returns:
+        The set of class-creation-time pinned names.
+
+    """
     pinned: set[str] = set()
     for stmt in cls.body:
         if isinstance(stmt, _DEF_NODES):
@@ -293,7 +299,12 @@ def _class_pinned_names(cls: ast.ClassDef) -> set[str]:
 
 
 def _immediate_def_refs(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
-    """Names evaluated at `def` time: decorators, defaults, annotations."""
+    """Collect names evaluated at `def` time: decorators, defaults, annotations.
+
+    Returns:
+        The set of def-time evaluated names.
+
+    """
     parts: list[ast.expr] = list(node.decorator_list)
     parts.extend(node.args.defaults)
     parts.extend(d for d in node.args.kw_defaults if d is not None)
@@ -319,12 +330,16 @@ def _immediate_class_header_refs(cls: ast.ClassDef) -> set[str]:
 
 
 def _name_loads(node: ast.AST) -> set[str]:
-    """Load-context bare names evaluated where `node` sits at import/def time.
+    """Collect load-context bare names evaluated where `node` sits at import/def time.
 
     A lambda body is deferred — it runs only when the lambda is later invoked,
     not at the point the lambda literal is created — so names inside it are not
     import-time pins. Lambda argument defaults DO evaluate at creation time and
     are kept.
+
+    Returns:
+        The set of import/def-time load names.
+
     """
     out: set[str] = set()
     stack: list[ast.AST] = [node]

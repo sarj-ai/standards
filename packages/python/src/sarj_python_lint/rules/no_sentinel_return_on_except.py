@@ -122,21 +122,29 @@ def _build_parent_map(tree: ast.AST) -> ParentMap:
 
 
 def _is_bare_except_pass(handler: ast.ExceptHandler) -> bool:
-    """True for a bare `except:` whose body is nothing but `pass`.
+    """Report whether a bare `except:` has a body of nothing but `pass`.
 
     This discards the error with no observable trace and no returned result — the
     archetypal silent swallow. Typed handlers (`except ImportError: pass`) are left
     alone: `pass` there is often a deliberate optional-path no-op.
+
+    Returns:
+        True for a bare `except:` whose body is only `pass` statements.
+
     """
     return handler.type is None and all(isinstance(stmt, ast.Pass) for stmt in handler.body)
 
 
 def _is_intended_result(handler: ast.ExceptHandler, ret: ast.Return, parents: ParentMap) -> bool:
-    """True when the handler's sentinel is the function's intended typed result.
+    """Report whether the handler's sentinel is the function's intended typed result.
 
     Covers predicate-named functions, boolean probes, optional-dependency feature
     detection, and lookup-with-default — the shapes real sweeps flagged as
     false positives. A broad handler in a data-returning function is not exempt.
+
+    Returns:
+        True when the sentinel return is an intended result rather than a swallow.
+
     """
     exc_names = _handler_exc_names(handler)
     if _is_feature_detection(exc_names):
@@ -150,8 +158,13 @@ def _is_intended_result(handler: ast.ExceptHandler, ret: ast.Return, parents: Pa
 
 
 def _handler_exc_names(handler: ast.ExceptHandler) -> tuple[str, ...] | None:
-    """Simple names of the caught exception types, or None for a bare `except:` or
-    an unrecognized (non-Name/Attribute) type expression."""
+    """Collect the simple names of the caught exception types.
+
+    Returns:
+        The caught type names, or None for a bare `except:` or an unrecognized
+        (non-Name/Attribute) type expression.
+
+    """
     caught = handler.type
     if caught is None:
         return None
@@ -172,8 +185,15 @@ _BROAD_ERRORS: frozenset[str] = frozenset({"Exception", "BaseException"})
 
 
 def _is_feature_detection(exc_names: tuple[str, ...] | None) -> bool:
-    """True when the handler catches only import errors — an optional-dependency
-    fallback whose falsy return is the intended 'feature unavailable' result."""
+    """Report whether the handler catches only import errors.
+
+    An import-only handler is an optional-dependency fallback whose falsy return is
+    the intended 'feature unavailable' result.
+
+    Returns:
+        True when every caught name is an import error.
+
+    """
     return exc_names is not None and len(exc_names) > 0 and all(name in _IMPORT_ERRORS for name in exc_names)
 
 
@@ -181,13 +201,25 @@ _PREDICATE_NAME_RE = re.compile(r"^_*(?:is|has|can|should)_")
 
 
 def _is_predicate_name(name: str) -> bool:
-    """True for boolean-probe names: `is_*`, `has_*`, `can_*`, `should_*`, and their
-    underscore-prefixed forms (`_is_known_encoding`)."""
+    """Report whether `name` is a boolean-probe name.
+
+    Matches `is_*`, `has_*`, `can_*`, `should_*`, and their underscore-prefixed
+    forms (`_is_known_encoding`).
+
+    Returns:
+        True when the name matches a boolean-probe prefix.
+
+    """
     return _PREDICATE_NAME_RE.match(name) is not None
 
 
 def _enclosing_function(node: ast.AST, parents: ParentMap) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
-    """The nearest enclosing function of `node`, or None at module level."""
+    """Find the nearest enclosing function of `node`.
+
+    Returns:
+        The nearest enclosing function, or None at module level.
+
+    """
     current = parents.get(node)
     while current is not None:
         if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -197,18 +229,28 @@ def _enclosing_function(node: ast.AST, parents: ParentMap) -> ast.FunctionDef | 
 
 
 def _has_non_except_bool_return(func: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    """True if a non-exception path of `func` returns a boolean literal.
+    """Report whether a non-exception path of `func` returns a boolean literal.
 
     Returns inside `except` handlers (the exception path) and inside nested
     functions/lambdas do not count — only the success path of THIS function.
+
+    Returns:
+        True when the success path returns a boolean literal.
+
     """
     return any(_value_kind(ret.value) == "bool" for stmt in func.body for ret in _non_except_returns(stmt))
 
 
 def _non_except_returns(node: ast.AST) -> list[ast.Return]:
-    """Return nodes reachable from `node` on a non-exception path: descend through
-    ordinary statements but never into `except` handler bodies or nested
-    function/lambda scopes."""
+    """Collect return nodes reachable from `node` on a non-exception path.
+
+    Descend through ordinary statements but never into `except` handler bodies or
+    nested function/lambda scopes.
+
+    Returns:
+        The return nodes reachable on non-exception paths.
+
+    """
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
         return []
     found: list[ast.Return] = []
@@ -222,13 +264,17 @@ def _non_except_returns(node: ast.AST) -> list[ast.Return]:
 
 
 def _is_lookup_with_default(handler: ast.ExceptHandler, parents: ParentMap, exc_names: tuple[str, ...] | None) -> bool:
-    """True for the lookup-with-default idiom: a `try` body of exactly
-    `return <lookup>` guarded by a narrow exception, with the handler supplying an
-    empty default (`get_reason_phrase`: `try: return codes(v).phrase / except
-    ValueError: return ""`).
+    """Report whether the handler is the lookup-with-default idiom.
 
-    A bare `except:` or a broad `except Exception:` is NOT narrow — that is the
-    swallow the rule exists to catch, so it still fires.
+    The idiom is a `try` body of exactly `return <lookup>` guarded by a narrow
+    exception, with the handler supplying an empty default (`get_reason_phrase`:
+    `try: return codes(v).phrase / except ValueError: return ""`). A bare `except:`
+    or a broad `except Exception:` is NOT narrow — that is the swallow the rule
+    exists to catch, so it still fires.
+
+    Returns:
+        True when the handler matches the narrow lookup-with-default idiom.
+
     """
     try_node = parents.get(handler)
     if not isinstance(try_node, ast.Try):
@@ -242,8 +288,14 @@ def _is_lookup_with_default(handler: ast.ExceptHandler, parents: ParentMap, exc_
 
 
 def _value_kind(value: ast.expr | None) -> str | None:
-    """Coarse kind of a return value, used for boolean-probe matching. `None`
-    (bare return or `None` literal) is "none"; `True`/`False` are "bool"."""
+    """Classify the coarse kind of a return value, used for boolean-probe matching.
+
+    `None` (bare return or `None` literal) is "none"; `True`/`False` are "bool".
+
+    Returns:
+        "none", "bool", or None when the value is neither.
+
+    """
     if value is None:
         return "none"
     if isinstance(value, ast.Constant):
@@ -256,7 +308,12 @@ def _value_kind(value: ast.expr | None) -> str | None:
 
 
 def _is_sentinel(value: ast.expr) -> bool:
-    """True if `value` is a sentinel: None, False, empty collection/str, set()."""
+    """Report whether `value` is a sentinel: None, False, empty collection/str, set().
+
+    Returns:
+        True when the value is a recognized sentinel expression.
+
+    """
     if isinstance(value, ast.Constant):
         # None, False, or empty string. Note: True / non-empty str / numbers
         # are meaningful and must not be flagged.
@@ -296,7 +353,7 @@ _LOG_METHODS: frozenset[str] = frozenset(
 
 
 def _handler_logs_before_return(handler: ast.ExceptHandler) -> bool:
-    """True if some logging call can reach the handler's final sentinel return.
+    """Report whether some logging call can reach the handler's final sentinel return.
 
     The final `return` is the caller's handled result; a logging call exempts the
     swallow only when a control-flow path leads from that call to the sentinel
@@ -304,18 +361,25 @@ def _handler_logs_before_return(handler: ast.ExceptHandler) -> bool:
     that sits on a branch which diverts elsewhere — e.g. `if v: log(); return x` —
     never reaches the sentinel and does not exempt it. Nested def/lambda bodies
     are not entered, since their logging can't run inline.
+
+    Returns:
+        True when a logging call can reach the sentinel return.
+
     """
     _, logged_fallthrough = _list_props(handler.body[:-1])
     return logged_fallthrough
 
 
 def _list_props(stmts: list[ast.stmt]) -> tuple[bool, bool]:
-    """Fall-through reachability for a statement list, ignoring the exit target.
+    """Compute fall-through reachability for a statement list, ignoring the exit target.
 
-    Returns `(unlogged, logged)`: whether a path can fall off the end of the list
-    (reach the statement that follows it) without having logged, and whether one
-    can having logged. `False, False` means every path diverts (return/raise)
-    before the end.
+    A path can fall off the end of the list (reach the statement that follows it)
+    without having logged, or having logged. `False, False` means every path
+    diverts (return/raise) before the end.
+
+    Returns:
+        `(unlogged, logged)` fall-through reachability for the statement list.
+
     """
     reach_unlogged = True
     reach_logged = False
@@ -331,11 +395,15 @@ def _list_props(stmts: list[ast.stmt]) -> tuple[bool, bool]:
 
 
 def _stmt_props(stmt: ast.stmt) -> tuple[bool, bool]:
-    """`(unlogged, logged)` fall-through reachability for one statement.
+    """Compute `(unlogged, logged)` fall-through reachability for one statement.
 
     A path 'falls through' if control can continue to the next statement; 'logged'
     means a logging call ran on that path. Nested def/lambda/class bodies are not
     entered — their logging cannot execute inline before the sentinel return.
+
+    Returns:
+        `(unlogged, logged)` fall-through reachability for the statement.
+
     """
     match stmt:
         case ast.Return() | ast.Raise() | ast.Break() | ast.Continue():
@@ -405,13 +473,25 @@ def _match_props(node: ast.Match) -> tuple[bool, bool]:
 
 
 def _is_irrefutable_case(case: ast.match_case) -> bool:
-    """True for an unguarded `case _:` / `case name:` — always matches, so it makes
-    the match exhaustive (no implicit unlogged fall-through past the match)."""
+    """Report whether a case is an unguarded `case _:` / `case name:`.
+
+    Such a case always matches, so it makes the match exhaustive (no implicit
+    unlogged fall-through past the match).
+
+    Returns:
+        True for an irrefutable, unguarded case pattern.
+
+    """
     return case.guard is None and isinstance(case.pattern, ast.MatchAs) and case.pattern.pattern is None
 
 
 def _contains_logging_call(node: ast.AST) -> bool:
-    """Walk `node` for a logging call, not crossing nested def/lambda boundaries."""
+    """Walk `node` for a logging call, not crossing nested def/lambda boundaries.
+
+    Returns:
+        True when a logging call is found within the node.
+
+    """
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
         return False
     if _is_logging_call(node):
@@ -424,10 +504,15 @@ _GETLOGGER_FUNCS: frozenset[str] = frozenset({"getLogger", "get_logger"})
 
 
 def _is_logging_call(node: ast.AST) -> bool:
-    """True for `<recv>.<level>(...)` where `<level>` is a standard logging method
-    (`logger.warning`, `log.info`, `logging.error`) and `<recv>` is a logger.
+    """Report whether `node` is a `<recv>.<level>(...)` logging call.
 
-    `print(...)` and bare reads of the exception are not logging.
+    `<level>` is a standard logging method (`logger.warning`, `log.info`,
+    `logging.error`) and `<recv>` is a logger. `print(...)` and bare reads of the
+    exception are not logging.
+
+    Returns:
+        True when the node is a standard logging call on a logger receiver.
+
     """
     if not isinstance(node, ast.Call):
         return False
@@ -438,9 +523,16 @@ def _is_logging_call(node: ast.AST) -> bool:
 
 
 def _is_logger_receiver(receiver: ast.expr) -> bool:
-    """True if `receiver` denotes a logger: a name whose final word is
-    `log`/`logger`/`logging` (`logger`, `_log`, `self.logger`, `app.log`), or an
-    inline `getLogger(...)` / `get_logger(...)` call chain."""
+    """Report whether `receiver` denotes a logger.
+
+    Matches a name whose final word is `log`/`logger`/`logging` (`logger`, `_log`,
+    `self.logger`, `app.log`), or an inline `getLogger(...)` / `get_logger(...)`
+    call chain.
+
+    Returns:
+        True when the receiver denotes a logger.
+
+    """
     if isinstance(receiver, ast.Name):
         return _is_logger_name(receiver.id)
     if isinstance(receiver, ast.Attribute):
@@ -451,8 +543,15 @@ def _is_logger_receiver(receiver: ast.expr) -> bool:
 
 
 def _is_logger_name(name: str) -> bool:
-    """True when `log`/`logger`/`logging` is the whole name or its final
-    underscore-delimited word — not a mere substring (`dialog`, `catalog`)."""
+    """Report whether `log`/`logger`/`logging` is the whole name or its final word.
+
+    Matches the final underscore-delimited word — not a mere substring (`dialog`,
+    `catalog`).
+
+    Returns:
+        True when the name is or ends with a logger word.
+
+    """
     return _LOGGER_NAME_RE.search(name) is not None
 
 
@@ -466,16 +565,25 @@ def _is_getlogger_call(call: ast.Call) -> bool:
 
 
 def _handler_reraises(handler: ast.ExceptHandler) -> bool:
-    """True if the handler body contains a `raise`, ignoring nested functions.
+    """Report whether the handler body contains a `raise`, ignoring nested functions.
 
     A `raise` inside a nested def/lambda doesn't re-raise for *this* handler, so
     we stop walking at function/lambda boundaries.
+
+    Returns:
+        True when the handler body re-raises.
+
     """
     return any(_contains_raise(stmt) for stmt in handler.body)
 
 
 def _contains_raise(node: ast.AST) -> bool:
-    """Walk `node`, returning True on a `raise`, but not crossing nested defs."""
+    """Walk `node`, returning True on a `raise`, but not crossing nested defs.
+
+    Returns:
+        True when a `raise` is found within the node.
+
+    """
     # A `raise` inside a nested def/lambda doesn't re-raise for *this* handler,
     # so a node that IS a function/lambda contributes no re-raise.
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):

@@ -16,11 +16,15 @@ _LOGGER_FACTORIES = frozenset({"getlogger", "get_logger"})
 
 
 def is_logger_expr(expr: ast.expr) -> bool:
-    """True if `expr` evaluates to a logger.
+    """Report whether `expr` evaluates to a logger.
 
     Resolves the whole receiver chain so adapter/builder/factory calls are
     caught: `logger.bind(...).info(...)`, `logger.opt(lazy=True).debug(...)`,
     `logging.getLogger(__name__).info(...)`, `self.logger.error(...)`.
+
+    Returns:
+        True when `expr` resolves to a logger receiver.
+
     """
     if isinstance(expr, ast.Name):
         return expr.id.lower() in _LOGGER_NAMES

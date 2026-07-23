@@ -366,7 +366,12 @@ def test_syntax_error_returns_empty():
 
 
 def _return_src(ret: str, *, handler: str = "except Exception:") -> str:
-    """A function whose sole handler ends in `return <ret>` (return at line 6)."""
+    """Build a function whose sole handler ends in `return <ret>` (return at line 6).
+
+    Returns:
+        The function source.
+
+    """
     return f"""
 def f():
     try:

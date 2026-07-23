@@ -63,10 +63,15 @@ class NoUnreachableAfterTerminal(Rule):
                 raw = getattr(node, field, None)
                 if not isinstance(raw, list):
                     continue
-                # The block fields (`body`/`orelse`/`finalbody`) only ever hold
-                # statements; annotating keeps the `.lineno`/`.col_offset`
-                # access below well-typed under strict checking.
-                stmts: list[ast.stmt] = raw
+                # `getattr` over a dynamic field name yields `Any`; the block
+                # fields (`body`/`orelse`/`finalbody`) only ever hold statements,
+                # so narrowing to `ast.stmt` recovers a well-typed `list[ast.stmt]`
+                # for the `.lineno`/`.col_offset` access below.
+                stmts = [
+                    s
+                    for s in raw  # pyright: ignore[reportUnknownVariableType] -- s iterates a list[Any] from getattr; narrowed to ast.stmt by the filter
+                    if isinstance(s, ast.stmt)
+                ]
                 # Find the first terminal that is not the last element. The
                 # statement after it is unreachable, but a generator-marker
                 # `yield` is load-bearing and exempt per-statement: skip any

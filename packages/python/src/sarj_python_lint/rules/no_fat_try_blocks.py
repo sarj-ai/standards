@@ -48,6 +48,7 @@ Prefer:
 References:
 - https://docs.python.org/3/tutorial/errors.html#handling-exceptions
 - https://docs.python.org/3/library/ast.html#ast.Try
+
 """
 
 from __future__ import annotations
@@ -66,31 +67,45 @@ if TYPE_CHECKING:
 
 _MAX_TRY_BODY_STATEMENTS = 3
 
-_NESTED_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
-
 
 def _walk_same_scope(node: ast.AST) -> Iterator[ast.AST]:
-    """Like `ast.walk`, but does not descend into the *bodies* of nested
-    `def` / `async def` / `lambda`. Those bodies do not run when the enclosing
-    `try` executes, so calls inside them must not count as throwing. Decorators
-    and default-argument expressions still run at definition time, so their
-    fields are walked normally."""
+    """Walk `node` without descending into nested `def` / `async def` / `lambda` bodies.
+
+    Those bodies do not run when the enclosing `try` executes, so calls inside
+    them must not count as throwing. Decorators and default-argument expressions
+    still run at definition time, so their fields are walked normally.
+
+    Yields:
+        Each AST node in the same execution scope as `node`.
+
+    """
     stack: list[ast.AST] = [node]
     while stack:
         current = stack.pop()
         yield current
-        for field, value in ast.iter_fields(current):
-            if isinstance(current, _NESTED_SCOPES) and field == "body":
-                continue
-            items = value if isinstance(value, list) else [value]
-            stack.extend(item for item in items if isinstance(item, ast.AST))
+        skipped_body = _nested_scope_body_ids(current)
+        stack.extend(child for child in ast.iter_child_nodes(current) if id(child) not in skipped_body)
+
+
+def _nested_scope_body_ids(node: ast.AST) -> frozenset[int]:
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return frozenset(id(stmt) for stmt in node.body)
+    if isinstance(node, ast.Lambda):
+        return frozenset({id(node.body)})
+    return frozenset()
 
 
 def _can_raise(stmt: ast.stmt) -> bool:
-    """True if the statement can plausibly raise when the `try` runs — i.e. its
-    same-scope subtree contains a call or `await`. Pure assignments / rebinds and
-    inert `def` / `lambda` definitions (whose bodies never execute here) are
-    free."""
+    """Report whether the statement can plausibly raise when the `try` runs.
+
+    A statement can raise when its same-scope subtree contains a call or `await`.
+    Pure assignments / rebinds and inert `def` / `lambda` definitions (whose
+    bodies never execute here) are free.
+
+    Returns:
+        True when the statement may throw.
+
+    """
     return any(isinstance(n, (ast.Call, ast.Await)) for n in _walk_same_scope(stmt))
 
 
@@ -101,9 +116,16 @@ class _Exit(enum.Enum):
 
 
 def _stmt_exits(stmt: ast.stmt) -> set[_Exit]:
-    """The set of ways control can leave `stmt`: propagate an exception
-    (`RAISE`), diverge without raising via return/break/continue (`SWALLOW`), or
-    complete normally and fall through to the next statement (`FALL`)."""
+    """Compute the set of ways control can leave `stmt`.
+
+    Control can propagate an exception (`RAISE`), diverge without raising via
+    return/break/continue (`SWALLOW`), or complete normally and fall through to
+    the next statement (`FALL`).
+
+    Returns:
+        The set of exit modes for `stmt`.
+
+    """
     match stmt:
         case ast.Raise():
             return {_Exit.RAISE}
@@ -130,11 +152,18 @@ def _body_exits(stmts: list[ast.stmt]) -> set[_Exit]:
 
 
 def _all_handlers_reraise(handlers: list[ast.ExceptHandler]) -> bool:
-    """True if every `except` handler is guaranteed to re-raise on all paths —
-    the block is uniform error-context/metric wrapping, not swallowing, so its
-    width is intentional. A handler with any path that returns / continues /
-    passes / falls through (including a conditional early return before a tail
-    `raise`) is swallowing and makes this False, so the block still fires."""
+    """Report whether every `except` handler is guaranteed to re-raise on all paths.
+
+    When it does, the block is uniform error-context/metric wrapping, not
+    swallowing, so its width is intentional. A handler with any path that returns
+    / continues / passes / falls through (including a conditional early return
+    before a tail `raise`) is swallowing and makes this False, so the block still
+    fires.
+
+    Returns:
+        True when all handlers unconditionally re-raise.
+
+    """
     return bool(handlers) and all(_body_exits(h.body) == {_Exit.RAISE} for h in handlers)
 
 

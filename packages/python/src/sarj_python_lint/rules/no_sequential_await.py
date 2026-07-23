@@ -22,6 +22,7 @@ or a `for` body containing control flow. Those were the false-positive sources.
 
 References:
 - https://docs.python.org/3/library/asyncio-task.html#running-tasks-concurrently
+
 """
 
 from __future__ import annotations
@@ -109,6 +110,10 @@ def _walk_same_scope(node: ast.AST) -> list[ast.AST]:
     executable scope. An `await` inside a nested `async def`/`lambda` runs when
     *that* callable is invoked, not per loop iteration, so it must not make the
     loop look like a gatherable map.
+
+    Returns:
+        `node` and its same-scope descendants.
+
     """
     out: list[ast.AST] = []
     stack: list[ast.AST] = [node]
@@ -129,6 +134,10 @@ def _yield_exempt_awaits(tree: ast.AST) -> set[int]:
     `for x in xs: yield await fetch(x)` streams results one at a time; the yield
     imposes an inherent order, so it is not a gatherable map. Awaits reachable
     from a `yield` value (without crossing a nested scope) are exempt.
+
+    Returns:
+        The `id()`s of the yield-exempt awaits.
+
     """
     exempt: set[int] = set()
     for yield_node in ast.walk(tree):
@@ -141,7 +150,12 @@ def _yield_exempt_awaits(tree: ast.AST) -> set[int]:
 
 
 def _is_gather_antipattern(node: ast.For, yield_exempt: set[int]) -> bool:
-    """True for `for x in xs: <straight-line body awaiting a call that uses x>`."""
+    """Report whether `node` is `for x in xs: <straight-line body awaiting a call that uses x>`.
+
+    Returns:
+        True when the loop is a gatherable-map antipattern.
+
+    """
     if any(isinstance(stmt, _CONTROL_FLOW) for stmt in node.body):
         return False
     targets = _names(node.target)
@@ -192,8 +206,12 @@ class _SequentialAwaitVisitor(ast.NodeVisitor):
         if antipattern:
             self._loops.pop()
 
-    def _visit_comprehension(self, node: ast.AST, elements: tuple[ast.expr, ...]) -> None:
-        gens: list[ast.comprehension] = node.generators  # pyright: ignore[reportAttributeAccessIssue]
+    def _visit_comprehension(
+        self,
+        node: ast.ListComp | ast.SetComp | ast.GeneratorExp | ast.DictComp,
+        elements: tuple[ast.expr, ...],
+    ) -> None:
+        gens = node.generators
         # Outermost iterable is evaluated once in the enclosing scope.
         self.visit(gens[0].iter)
         self._loops.append(node)

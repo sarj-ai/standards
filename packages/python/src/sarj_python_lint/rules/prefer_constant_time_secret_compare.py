@@ -7,6 +7,7 @@ leaks information about how many leading bytes matched. Use
 
 References:
 - https://docs.python.org/3/library/hmac.html#hmac.compare_digest
+
 """
 
 from __future__ import annotations
@@ -78,7 +79,12 @@ def _is_test_path(path: Path) -> bool:
 
 
 def _is_secret_operand(node: ast.AST) -> bool:
-    """True if the operand's identifier names a secret."""
+    """Report whether the operand's identifier names a secret.
+
+    Returns:
+        True when `node`'s identifier denotes a secret.
+
+    """
     if isinstance(node, ast.NamedExpr):
         node = node.target
     if isinstance(node, ast.Name):
@@ -89,10 +95,14 @@ def _is_secret_operand(node: ast.AST) -> bool:
 
 
 def _is_excluded_operand(node: ast.AST) -> bool:
-    """True for operands that make the comparison a non-timing-attack surface.
+    """Report whether the operand makes the comparison a non-timing-attack surface.
 
     Covers `None`/`True`/`False`, numeric literals, and any str/bytes literal
     (a compile-time sentinel/placeholder, not a runtime secret to extract).
+
+    Returns:
+        True when `node` excludes the comparison from timing-attack concern.
+
     """
     if isinstance(node, ast.Constant):
         value = node.value

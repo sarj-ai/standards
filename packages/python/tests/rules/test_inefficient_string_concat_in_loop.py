@@ -647,8 +647,11 @@ def f(gen):
 
 
 def test_flags_async_for_concat_when_nested_in_sync_for():
-    """A pure async-for is a known gap, but the outer sync for keeps loop_depth
-    positive, so the concat is still flagged."""
+    """Flag the concat when an async-for nests inside a sync for.
+
+    A pure async-for is a known gap, but the outer sync for keeps loop_depth
+    positive, so the concat is still flagged.
+    """
     src = """
 async def f(rows):
     s = ""

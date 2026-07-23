@@ -24,6 +24,7 @@ Suppress with `# sarj-noqa: SARJ015 — <reason>`.
 
 References:
 - https://docs.python.org/3/library/typing.html#typing.NamedTuple
+
 """
 
 from __future__ import annotations

@@ -62,8 +62,15 @@ def _chain(
     *type_names: str,
     terminal: str = "raise ValueError()",
 ) -> str:
-    """Render a local-closed-union dispatch: class defs, then an if/elif isinstance chain
-    over `target` with an exhaustive terminal `else`."""
+    """Render a local-closed-union dispatch over `target`.
+
+    Emits the class defs, then an if/elif isinstance chain over `target` with an
+    exhaustive terminal `else`.
+
+    Returns:
+        The rendered dispatch source.
+
+    """
     lines: list[str] = [_classdefs(*type_names), "", "def handle(subject, other):"]
     for i, name in enumerate(type_names):
         kw = "if" if i == 0 else "elif"
@@ -84,8 +91,15 @@ def _two_arm(
     terminal: str = "raise ValueError()",
     classes: tuple[str, ...] = ("Foo", "Bar", "Baz"),
 ) -> str:
-    """Two-arm dispatch with local classes + exhaustive terminal, for target-equality
-    adversarial cases where `test0`/`test1` carry the interesting target expressions."""
+    """Render a two-arm dispatch with local classes and an exhaustive terminal.
+
+    For target-equality adversarial cases where `test0`/`test1` carry the
+    interesting target expressions.
+
+    Returns:
+        The rendered dispatch source.
+
+    """
     return (
         f"{_classdefs(*classes)}\n"
         "def handle(o, a, b):\n"

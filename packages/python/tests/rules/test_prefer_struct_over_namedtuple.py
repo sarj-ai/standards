@@ -331,8 +331,11 @@ def test_line_and_col_of_two_distinct_findings():
 
 
 def test_finding_order_follows_ast_walk_not_source_position():
-    """`ast.walk` is breadth-first: import findings (direct Module children) precede
-    call findings (nested in Assign), so output is not strictly source-sorted."""
+    """Order findings by `ast.walk`, not source position.
+
+    `ast.walk` is breadth-first: import findings (direct Module children) precede
+    call findings (nested in Assign), so output is not strictly source-sorted.
+    """
     src = (
         "import collections\n"
         'A = collections.namedtuple("A", ["x"])\n'
@@ -470,8 +473,12 @@ def test_flags_conditional_from_import_alone():
 
 
 def test_exact_bfs_order_interleaved_imports_and_calls():
-    """import(L3, depth 1) precedes both module-level calls (depth 2); the call nested in
-    `def f` (L5, depth 3) sorts last — verifying the single walk still emits pure BFS order."""
+    """Emit findings in pure BFS order across interleaved sites.
+
+    import(L3, depth 1) precedes both module-level calls (depth 2); the call
+    nested in `def f` (L5, depth 3) sorts last — verifying the single walk still
+    emits pure BFS order.
+    """
     src = (
         "import collections\n"
         'A = collections.namedtuple("A", ["x"])\n'

@@ -5,13 +5,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import ast
 from dataclasses import dataclass
+from pathlib import Path
 import re
 from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from pathlib import Path
 
 
 # Suppression syntax. Two forms supported:
@@ -28,9 +28,13 @@ _SARJ_NOQA_RE = re.compile(
 
 
 def is_suppressed(source_lines: Sequence[str], line: int, code: str) -> bool:
-    """Return True if the diagnostic's line carries a `# sarj-noqa[: CODE]` comment.
+    """Report whether the diagnostic's line carries a `# sarj-noqa[: CODE]` comment.
 
     `line` is 1-based to match Diagnostic.line.
+
+    Returns:
+        True when the line is suppressed for `code`.
+
     """
     if line < 1 or line > len(source_lines):
         return False
@@ -57,7 +61,12 @@ class Diagnostic:
     message: str
 
     def format(self) -> str:
-        """Ruff-compatible: `path:line:col: CODE message`."""
+        """Render the finding ruff-compatibly as `path:line:col: CODE message`.
+
+        Returns:
+            The formatted single-line diagnostic string.
+
+        """
         return f"{self.path}:{self.line}:{self.col}: {self.code} {self.message}"
 
 
@@ -82,7 +91,12 @@ _last_parse: tuple[tuple[str, int, int], ast.Module | None] | None = None
 
 
 def parse_or_none(path: Path, source: str) -> ast.Module | None:
-    """Parse `source`, memoizing the most recent file so N rules share one parse."""
+    """Parse `source`, memoizing the most recent file so N rules share one parse.
+
+    Returns:
+        The parsed module, or None when `source` has a syntax error.
+
+    """
     global _last_parse  # ruff:ignore[global-statement] — single-slot memo; the CLI runs rules per file sequentially
     key = (str(path), len(source), hash(source))
     if _last_parse is not None and _last_parse[0] == key:

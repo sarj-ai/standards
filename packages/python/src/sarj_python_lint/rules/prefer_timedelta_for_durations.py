@@ -45,6 +45,7 @@ Suppress an intentional raw-numeric duration with `# sarj-noqa: SARJ014 — <rea
 
 References:
 - https://docs.python.org/3/library/datetime.html#timedelta-objects
+
 """
 
 from __future__ import annotations
@@ -160,6 +161,10 @@ def _settings_field_ids(tree: ast.Module) -> frozenset[int]:
     defined in the same module (e.g. `class _Base(BaseSettings)` →
     `class Foo(_Base)`). Such fields come from environment variables, whose
     bare-numeric wire form `timedelta` cannot parse, so they are exempt.
+
+    Returns:
+        The `id()`s of the exempt settings-field `AnnAssign` nodes.
+
     """
     classes = [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]
     settings_classes = _resolve_settings_classes(classes)
@@ -215,6 +220,10 @@ def _numeric_annotation(node: ast.expr) -> str | None:
 
     Handles bare `int`/`float`, pydantic constrained brands (`PositiveInt`,
     `NonNegativeFloat`, ...), `x | None`, `Optional[x]`, and `Annotated[x, ...]`.
+
+    Returns:
+        'int'/'float' for a numeric annotation, or None otherwise.
+
     """
     direct = _bare_numeric(node)
     if direct is not None:

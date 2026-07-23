@@ -503,8 +503,11 @@ def handle(status: str) -> int:
 
 
 def test_mixed_eq_and_in_operators_form_one_cluster():
-    """A membership test contributes literals to a cluster that also has an
-    equality comparison; the equality is what makes the cluster real."""
+    """Merge a membership test and an equality comparison into one cluster.
+
+    The membership test contributes literals to a cluster that also has an
+    equality comparison; the equality is what makes the cluster real.
+    """
     src = """
 def handle(status: str) -> int:
     if status == "active":
@@ -588,7 +591,7 @@ def handle(s: str) -> int:
 
 
 def test_external_attribute_membership_not_flagged():
-    """httpx `_config.py`: `url.scheme not in ("http", "https", "socks5", ...)`."""
+    """Httpx `_config.py`: `url.scheme not in ("http", "https", "socks5", ...)`."""
     src = """
 def build(url) -> None:
     if url.scheme not in ("http", "https", "socks5", "socks5h"):
@@ -598,7 +601,7 @@ def build(url) -> None:
 
 
 def test_external_attribute_equality_cluster_not_flagged():
-    """fastapi `_compat/v2.py`: `field.mode == "validation"` — pydantic-core attr."""
+    """Fastapi `_compat/v2.py`: `field.mode == "validation"` — pydantic-core attr."""
     src = """
 def read(field) -> int:
     if field.mode == "validation":
@@ -639,7 +642,7 @@ def handle(ctx) -> int:
 
 
 def test_reflection_key_membership_not_flagged():
-    """httpx `_main.py`: `name in ("subject", "issuer")` over an ssl cert dict."""
+    """Httpx `_main.py`: `name in ("subject", "issuer")` over an ssl cert dict."""
     src = """
 def show(cert) -> None:
     for name in cert:
@@ -650,7 +653,7 @@ def show(cert) -> None:
 
 
 def test_reflection_dunder_dict_membership_not_flagged():
-    """httpx `_models.py`: `name not in ["extensions", "stream"]` over __dict__."""
+    """Httpx `_models.py`: `name not in ["extensions", "stream"]` over __dict__."""
     src = """
 def copy(self) -> None:
     for name in self.__dict__:
@@ -661,7 +664,7 @@ def copy(self) -> None:
 
 
 def test_file_mode_membership_not_flagged():
-    """flask `blueprints.py` / `app.py`: `mode not in {"r", "rt", "rb"}`."""
+    """Flask `blueprints.py` / `app.py`: `mode not in {"r", "rt", "rb"}`."""
     src = """
 def opener(mode: str) -> None:
     if mode not in {"r", "rt", "rb"}:
@@ -759,7 +762,7 @@ def handle(status: str) -> bool:
 
 
 def test_single_char_scanner_cluster_not_flagged():
-    """django `defaultfilters`: `last_char == "g"` is a char scan, not an enum."""
+    """Django `defaultfilters`: `last_char == "g"` is a char scan, not an enum."""
     src = """
 def stem(last_char: str) -> int:
     if last_char == "g":
@@ -772,7 +775,7 @@ def stem(last_char: str) -> int:
 
 
 def test_language_keyword_tokenizer_not_flagged():
-    """django `smartif`: `token == "is" / "not" / "in"` is a keyword vocabulary."""
+    """Django `smartif`: `token == "is" / "not" / "in"` is a keyword vocabulary."""
     src = """
 def parse(token: str) -> int:
     if token == "is":

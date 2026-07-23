@@ -573,8 +573,11 @@ class AppSettings(BaseSettings):
 
 
 def test_settings_named_class_without_base_still_flagged():
-    """A class *named* `...Settings` but with no base is not exempt — only a
-    `...Settings` BASE grants the env-wire exemption, not the class's own name."""
+    """Flag a class *named* `...Settings` that has no base.
+
+    Only a `...Settings` BASE grants the env-wire exemption, not the class's own
+    name.
+    """
     src = """
 class RedisSettings:
     connect_timeout_seconds: int
@@ -583,8 +586,11 @@ class RedisSettings:
 
 
 def test_non_pydantic_settings_named_base_exempts_by_name_heuristic():
-    """Deriving from *any* base whose name ends in `Settings` exempts, even a
-    plain non-pydantic class — the rule is a deliberate name heuristic."""
+    """Exempt a class deriving from any base whose name ends in `Settings`.
+
+    This holds even for a plain non-pydantic class — the rule is a deliberate
+    name heuristic.
+    """
     src = """
 class LegacySettings:
     pass
@@ -621,9 +627,12 @@ def build() -> None:
 
 
 def test_external_intermediate_base_not_resolved_still_flagged():
-    """An intermediate base from another module can't be resolved (its def is
+    """Flag a field whose intermediate base is from another module.
+
+    An intermediate base from another module can't be resolved (its def is
     invisible) and its name doesn't end in `Settings`, so the field still fires —
-    the documented boundary of intra-module-only transitive resolution."""
+    the documented boundary of intra-module-only transitive resolution.
+    """
     src = """
 class Config(ExternalBase):
     request_timeout_seconds: float
@@ -663,8 +672,11 @@ class AppSettings(BaseSettings):
 
 
 def test_settings_class_local_var_in_method_still_flagged():
-    """An annotated local inside a method body is not a class field — its
-    `AnnAssign` isn't in the class body, so the exemption never covers it."""
+    """Flag an annotated local inside a settings-class method body.
+
+    An annotated local inside a method body is not a class field — its
+    `AnnAssign` isn't in the class body, so the exemption never covers it.
+    """
     src = """
 class AppSettings(BaseSettings):
     def m(self) -> None:
@@ -674,8 +686,11 @@ class AppSettings(BaseSettings):
 
 
 def test_settings_base_cycle_terminates_and_flags():
-    """Mutually-referential bases with no real `Settings` root must not recurse
-    forever, and neither class is exempt."""
+    """Terminate on a base cycle with no `Settings` root and flag both classes.
+
+    Mutually-referential bases with no real `Settings` root must not recurse
+    forever, and neither class is exempt.
+    """
     src = """
 class A(B):
     timeout_seconds: int
@@ -697,15 +712,21 @@ def test_timestamp_ms_exclusion_wins_over_unit_token():
 
 
 def test_countdown_seconds_flagged_count_substring_not_a_boundary():
-    """`count` inside `countdown` lacks a `_`/boundary, so exclusion doesn't
-    fire and the `_seconds` unit still flags."""
+    """Flag `countdown_seconds` because `count` is not on a token boundary.
+
+    `count` inside `countdown` lacks a `_`/boundary, so exclusion doesn't fire
+    and the `_seconds` unit still flags.
+    """
     src = "def f(countdown_seconds: int) -> None: ...\n"
     assert len(_check(src)) == 1
 
 
 def test_conint_call_annotation_not_resolved():
-    """A `conint(...)` factory call is a `Call` node, not a brand `Name`, so the
-    AST rule can't see it's numeric — a known limitation, like string forward-refs."""
+    """Skip a `conint(...)` factory-call annotation the AST rule can't resolve.
+
+    A `conint(...)` factory call is a `Call` node, not a brand `Name`, so the
+    AST rule can't see it's numeric — a known limitation, like string forward-refs.
+    """
     src = "def f(timeout_seconds: conint(ge=0)) -> None: ...\n"
     assert _check(src) == []
 

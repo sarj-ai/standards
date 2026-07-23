@@ -15,6 +15,7 @@ O(n²) defect. Per-slot writes (`parts[i] = ...`) and idempotent rebinding
 References:
 - https://docs.python.org/3/library/stdtypes.html#str.join
 - https://wiki.python.org/moin/PythonSpeed/PerformanceTips
+
 """
 
 from __future__ import annotations
@@ -90,7 +91,12 @@ class _ConcatVisitor(ast.NodeVisitor):
         return False
 
     def _is_self_add_growth(self, target: ast.expr, value: ast.expr) -> bool:
-        """`s = s + <str>` — a BinOp(Add) rebinding the target to itself-plus-more."""
+        """Report whether `s = s + <str>` rebinds the target to itself-plus-more.
+
+        Returns:
+            True when the assignment is a BinOp(Add) accumulation onto the target.
+
+        """
         if not isinstance(value, ast.BinOp) or not isinstance(value.op, ast.Add):
             return False
         other = _other_add_operand(target, value)
@@ -99,7 +105,12 @@ class _ConcatVisitor(ast.NodeVisitor):
         return self._is_string_growth(target, other)
 
     def _is_string_growth(self, target: ast.expr, rhs: ast.expr) -> bool:
-        """True when appending `rhs` to `target` is single-string accumulation."""
+        """Report whether appending `rhs` to `target` is single-string accumulation.
+
+        Returns:
+            True when the append grows a string-typed target.
+
+        """
         if isinstance(target, ast.Subscript):
             return False
         if _looks_like_string(rhs):
@@ -110,7 +121,12 @@ class _ConcatVisitor(ast.NodeVisitor):
 
 
 def _other_add_operand(target: ast.expr, binop: ast.BinOp) -> ast.expr | None:
-    """The non-target operand of `target + x` / `x + target`, or None if absent."""
+    """Return the non-target operand of `target + x` / `x + target`.
+
+    Returns:
+        The other operand, or None if neither side matches the target.
+
+    """
     target_src = ast.unparse(target)
     if ast.unparse(binop.left) == target_src:
         return binop.right
@@ -119,17 +135,20 @@ def _other_add_operand(target: ast.expr, binop: ast.BinOp) -> ast.expr | None:
     return None
 
 
-def _string_typed_locals(func: ast.AST) -> frozenset[str]:
-    """Names assigned a string-literal-ish value in this function's own body.
+def _string_typed_locals(func: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) -> frozenset[str]:
+    """Collect names assigned a string-literal-ish value in this function's own body.
 
     Used as the string-typed signal for bare-`Name` accumulation (`buf += line`):
     a numeric accumulator (`total = 0`) is absent, so `total += x` stays clean.
+
+    Returns:
+        The frozenset of locally string-typed names.
+
     """
-    body = getattr(func, "body", None)
-    if not isinstance(body, list):
+    if isinstance(func, ast.Lambda):
         return frozenset()
     names: set[str] = set()
-    for stmt in body:
+    for stmt in func.body:
         _collect_string_targets(stmt, names)
     return frozenset(names)
 
@@ -153,11 +172,15 @@ def _collect_string_targets(node: ast.AST, names: set[str]) -> None:
 
 
 def _looks_like_string(node: ast.AST) -> bool:
-    """Heuristic for 'this expression is obviously a string at runtime'.
+    """Report whether this expression is obviously a string at runtime.
 
     Deliberately conservative: a bare call (`str(x)`, `",".join(...)`,
     `os.path.join(...)`) is NOT treated as a string — those shapes also appear in
     benign one-shot reassignment and are not the accumulation defect.
+
+    Returns:
+        True when the expression is heuristically string-typed.
+
     """
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return True

@@ -41,6 +41,7 @@ test files.
 References:
 - https://docs.pydantic.dev/latest/concepts/models/
 - https://fastapi.tiangolo.com/tutorial/response-model/
+
 """
 
 from __future__ import annotations
@@ -158,7 +159,14 @@ _VALIDATOR_DECORATORS = {"model_validator", "field_validator", "validator", "roo
 
 
 def _is_validator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    """A pydantic validator hook — dict/value in-and-out is its required contract."""
+    """Report whether `node` is a pydantic validator hook.
+
+    Its dict/value in-and-out is a required contract, so the rule exempts it.
+
+    Returns:
+        True when the function carries a pydantic validator decorator.
+
+    """
     for dec in node.decorator_list:
         target = dec.func if isinstance(dec, ast.Call) else dec
         name = _flat_name(target) if isinstance(target, (ast.Name, ast.Attribute)) else ""
@@ -168,7 +176,12 @@ def _is_validator(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 def _is_fixture(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    """A pytest fixture — `@pytest.fixture` / `@fixture`, decorated or called."""
+    """Report whether `node` is a pytest fixture (`@pytest.fixture` / `@fixture`).
+
+    Returns:
+        True when the function carries a fixture decorator.
+
+    """
     for dec in node.decorator_list:
         target = dec.func if isinstance(dec, ast.Call) else dec
         name = _flat_name(target) if isinstance(target, (ast.Name, ast.Attribute)) else ""
@@ -178,7 +191,12 @@ def _is_fixture(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 def _route_info(node: ast.FunctionDef | ast.AsyncFunctionDef) -> _RouteInfo | None:
-    """Detect a FastAPI route decorator: `@<router|app|*_router>.<method>(...)`."""
+    """Detect a FastAPI route decorator: `@<router|app|*_router>.<method>(...)`.
+
+    Returns:
+        The route info, or None when no route decorator is present.
+
+    """
     for dec in node.decorator_list:
         if not isinstance(dec, ast.Call):
             continue
@@ -196,7 +214,12 @@ def _route_info(node: ast.FunctionDef | ast.AsyncFunctionDef) -> _RouteInfo | No
 
 
 def _resolve_annotation(node: ast.expr | None) -> ast.expr | None:
-    """Unwrap a string forward-reference annotation into its parsed expression."""
+    """Unwrap a string forward-reference annotation into its parsed expression.
+
+    Returns:
+        The parsed expression, or None on a syntax error; `node` unchanged otherwise.
+
+    """
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         try:
             return ast.parse(node.value.strip(), mode="eval").body
@@ -206,7 +229,12 @@ def _resolve_annotation(node: ast.expr | None) -> ast.expr | None:
 
 
 def _classify_return(node: ast.expr) -> str | None:
-    """Return "dict" / "tuple" if the annotation is a flagged shape, else None."""
+    """Classify the annotation as a flagged shape.
+
+    Returns:
+        "dict" / "tuple" if the annotation is a flagged shape, else None.
+
+    """
     # Look through `X | None` / Optional[X] / Union[...] members.
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
         return _classify_return(node.left) or _classify_return(node.right)
@@ -247,7 +275,12 @@ def _classify_return(node: ast.expr) -> str | None:
 
 
 def _is_untyped_dict_args(slice_node: ast.expr) -> bool:
-    """`dict[K, V]` is flagged only when V is `Any` or `object`."""
+    """Report whether `dict[K, V]` is flagged (only when V is `Any` or `object`).
+
+    Returns:
+        True when the dict value type is untyped.
+
+    """
     if not isinstance(slice_node, ast.Tuple) or len(slice_node.elts) != _DICT_ARG_COUNT:
         return False
     value = _resolve_annotation(slice_node.elts[1])

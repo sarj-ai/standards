@@ -137,6 +137,10 @@ def _block_end(lines: list[str], start: int) -> int:
 
     `lines` must already be string/heredoc-masked so braces inside a string
     literal or heredoc body do not throw off the count.
+
+    Returns:
+        The index of the closing line, or the last line index if unbalanced.
+
     """
     depth = 0
     for j in range(start, len(lines)):
@@ -155,6 +159,10 @@ def _protection_state(block: list[str]) -> str:
     literal `false` (var/expression-gated protection is an intentional per-env
     pattern, not a violation). `lifecycle { prevent_destroy = true }` also
     protects.
+
+    Returns:
+        One of `"protected"`, `"disabled"`, or `"missing"` for the block.
+
     """
     for line in block:
         m = _DELPROT_RE.match(line)

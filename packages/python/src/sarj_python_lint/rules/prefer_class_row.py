@@ -25,6 +25,7 @@ with:
 References:
 - https://www.psycopg.org/psycopg3/docs/api/rows.html#psycopg.rows.class_row
 - https://docs.pydantic.dev/latest/concepts/models/#validating-data
+
 """
 
 from __future__ import annotations
@@ -81,7 +82,12 @@ class PreferClassRow(Rule):
 
 
 def _factory_name(node: ast.expr) -> str | None:
-    """Resolve a `row_factory=` value to its callable name (`dict_row`, …)."""
+    """Resolve a `row_factory=` value to its callable name (`dict_row`, …).
+
+    Returns:
+        The callable name, or None when it cannot be resolved.
+
+    """
     if isinstance(node, ast.NamedExpr):
         node = node.value
     if isinstance(node, ast.Name):

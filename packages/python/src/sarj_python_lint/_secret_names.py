@@ -96,11 +96,15 @@ _SEGMENT_RE = re.compile(r"[^A-Za-z0-9]+")
 
 
 def identifier_tokens(identifier: str) -> list[str]:
-    """Ordered lowercase tokens from snake_case + camelCase decomposition.
+    """Return ordered lowercase tokens from snake_case + camelCase decomposition.
 
     Also yields each whole snake/kebab segment lowercased, so a pathological
     mixed-case single word like `ToKeN` (which camel-splitting shreds into
     `to`/`ke`/`n`) still surfaces its intended `token` form.
+
+    Returns:
+        The ordered lowercase tokens decomposed from `identifier`.
+
     """
     tokens: list[str] = []
     for segment in _SEGMENT_RE.split(identifier):
@@ -112,7 +116,12 @@ def identifier_tokens(identifier: str) -> list[str]:
 
 
 def is_secret_name(identifier: str) -> bool:
-    """True if `identifier` names raw secret material (a credential, not metadata)."""
+    """Report whether `identifier` names raw secret material (a credential, not metadata).
+
+    Returns:
+        True when `identifier` denotes a credential rather than metadata.
+
+    """
     tokens = identifier_tokens(identifier)
     if tokens and tokens[-1] in _INNOCUOUS_WORDS:
         return False
@@ -122,5 +131,10 @@ def is_secret_name(identifier: str) -> bool:
 
 
 def _has_api_key(tokens: list[str]) -> bool:
-    """True if `api` is immediately followed by `key` (the split form of `api_key`)."""
+    """Report whether `api` is immediately followed by `key` (the split form of `api_key`).
+
+    Returns:
+        True when an `api` token is directly followed by a `key` token.
+
+    """
     return any(a == "api" and b == "key" for a, b in pairwise(tokens))

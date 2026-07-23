@@ -18,7 +18,12 @@ def _check(source: str, path: str = PROD_PATH) -> list[Diagnostic]:
 
 
 def _wrap(body: str) -> str:
-    """Embed a `for`-loop body (indented relative to the loop) under a prod async function."""
+    """Embed a `for`-loop body (indented relative to the loop) under a prod async function.
+
+    Returns:
+        The wrapped async-function source.
+
+    """
     indented = "\n".join(f"        {line}" if line else "" for line in body.splitlines())
     return f"async def f(items):\n    for x in items:\n{indented}\n"
 
@@ -144,8 +149,11 @@ async def f(items):
 
 
 def test_data_dependent_awaits_in_flat_body_still_fire():
-    """Structural heuristic: a flat body awaiting the loop var fires even when the
-    second await depends on the first (the rule does not inspect data-dependency)."""
+    """Fire on a flat body awaiting the loop var by structural heuristic.
+
+    The rule fires even when the second await depends on the first (it does not
+    inspect data-dependency).
+    """
     src = """
 async def f(items):
     for x in items:
@@ -200,8 +208,11 @@ def test_flags_comprehension_code():
 
 
 def test_nested_comprehension_flags_only_inner_owner_of_await():
-    """The inner comprehension owns the per-element `await`; the outer has none of
-    its own, so a single diagnostic (for the inner loop) is emitted."""
+    """Flag only the inner comprehension that owns the per-element `await`.
+
+    The outer comprehension has no `await` of its own, so a single diagnostic
+    (for the inner loop) is emitted.
+    """
     src = "async def f(rows):\n    return [[await f(c) for c in r] for r in rows]\n"
     assert len(_check(src)) == 1
 
@@ -586,9 +597,12 @@ async def f(rows, cols):
 
 
 def test_nested_comprehension_in_for_body_flags_only_comprehension():
-    """The inner comprehension's `await` uses its own var (`c`), not the loop var
+    """Flag only the comprehension, not the enclosing `for`.
+
+    The inner comprehension's `await` uses its own var (`c`), not the loop var
     (`x`), so the `for` is not the antipattern; only the gatherable comprehension
-    fires."""
+    fires.
+    """
     src = """
 async def f(items):
     for x in items:

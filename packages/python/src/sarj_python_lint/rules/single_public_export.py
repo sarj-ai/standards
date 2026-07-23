@@ -1,5 +1,6 @@
-"""SARJ022: a junk-drawer module stem with a single public export should be
-renamed to describe its responsibility.
+"""SARJ022: rename a junk-drawer module stem with a single public export.
+
+Such a module stem should describe its responsibility instead.
 
 This rule is deliberately narrow. It fires ONLY when BOTH hold:
 

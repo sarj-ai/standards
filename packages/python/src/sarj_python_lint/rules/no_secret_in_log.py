@@ -11,6 +11,7 @@ reliably, so they're out of scope.
 
 References:
 - https://owasp.org/www-community/vulnerabilities/Information_exposure_through_log_files
+
 """
 
 from __future__ import annotations
@@ -47,7 +48,12 @@ _WHOLE_TOKEN_REDACTION_MARKERS = frozenset({"tag"})
 
 
 def _is_secret_keyword(name: str) -> bool:
-    """True if the keyword name names a raw secret (not a redacted derivative)."""
+    """Report whether the keyword name names a raw secret (not a redacted derivative).
+
+    Returns:
+        True when `name` denotes an unredacted secret.
+
+    """
     if _REDACTION_RE.search(name):
         return False
     if any(tok in _WHOLE_TOKEN_REDACTION_MARKERS for tok in identifier_tokens(name)):
@@ -95,12 +101,16 @@ class NoSecretInLog(Rule):
 
 
 def _is_logging_call(node: ast.Call) -> bool:
-    """Return True if `node` looks like `logger.<level>(...)`.
+    """Report whether `node` looks like `logger.<level>(...)`.
 
     Precise on the method name (must be a known log level) and conservative on
     the object: the shared resolver walks the receiver chain so factory/builder
     forms (`logging.getLogger(__name__).info`, `logger.bind(...).info`) are
     recognised, not just `logger` / `self.logger`.
+
+    Returns:
+        True when `node` is a logging call.
+
     """
     func = node.func
     if not isinstance(func, ast.Attribute):

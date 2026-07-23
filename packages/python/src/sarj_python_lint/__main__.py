@@ -1,4 +1,4 @@
-"""CLI: sarj-python-lint check --rule <id> [--rule <id2>] [--baseline <json>] <files>"""
+"""CLI: sarj-python-lint check --rule <id> [--rule <id2>] [--baseline <json>] <files>."""
 
 from __future__ import annotations
 
@@ -106,7 +106,12 @@ def _baseline_counts(diags: list[Diagnostic]) -> dict[str, dict[str, int]]:
 
 
 def _apply_baseline(diags: list[Diagnostic], baseline: dict[str, dict[str, int]]) -> list[Diagnostic]:
-    """Suppress up to the baselined count per (path, code); excess diags survive."""
+    """Suppress up to the baselined count per (path, code); excess diags survive.
+
+    Returns:
+        The diagnostics that exceed the baselined count for their (path, code).
+
+    """
     seen: Counter[tuple[str, str]] = Counter()
     out: list[Diagnostic] = []
     for d in diags:

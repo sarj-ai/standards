@@ -19,19 +19,28 @@ if TYPE_CHECKING:
 
 
 def is_store_module(path: Path) -> bool:
-    """True for a store-layer module: basename ends `_store.py`, or the file lives under a `stores/` directory.
+    """Report whether `path` is a store-layer module: basename ends `_store.py`, or lives under a `stores/` directory.
 
     The SQL store-lint rules (SARJ018/020/021) encode store-write semantics —
     column-naming, ON-CONFLICT upserts, no Postgres-side aggregation — that only
     apply to the store layer. Non-store SQL (Flask view handlers, a Django ORM
     SQL generator) legitimately writes `SELECT *`, bare `INSERT`, and `COUNT()`,
     so those files are out of scope.
+
+    Returns:
+        True when `path` belongs to the store layer.
+
     """
     return path.name.endswith("_store.py") or "stores" in path.parts
 
 
 def sql_string_value(node: ast.expr) -> str | None:
-    """Reconstruct a (possibly `+`-concatenated) string literal, else None."""
+    """Reconstruct a (possibly `+`-concatenated) string literal, else None.
+
+    Returns:
+        The reconstructed string, or None when `node` is not a string literal.
+
+    """
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
@@ -52,6 +61,10 @@ def strip_sql_noise(text: str) -> str:
     preserved so line offsets — and therefore diagnostic positions — do not
     shift. Doubled quotes (`''` / `""`) are SQL's in-string escape and keep the
     scanner inside the literal.
+
+    Returns:
+        `text` with string-literal contents and comment bodies blanked out.
+
     """
     out = list(text)
     n = len(text)

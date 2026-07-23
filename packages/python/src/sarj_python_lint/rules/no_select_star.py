@@ -48,11 +48,15 @@ _QUALIFIED_PREFIX = re.compile(r"\w\.$")
 
 
 def _is_projection_star(sql: str, pos: int) -> bool:
-    """Is the `*` at `pos` a column-projection star?
+    """Report whether the `*` at `pos` is a column-projection star.
 
     A projection star expands columns: bare (`SELECT *`, `id, *`), qualified
     (`c.*`, `public.call.*`), or after `DISTINCT ON (...)`. It is NOT a
     `COUNT(*)` argument (`(*)`) nor an `a * b` multiply (an operand follows).
+
+    Returns:
+        True when the `*` at `pos` projects columns.
+
     """
     if _QUALIFIED_PREFIX.search(sql[:pos]) is not None:
         return True

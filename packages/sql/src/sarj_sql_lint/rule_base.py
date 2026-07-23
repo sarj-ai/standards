@@ -4,12 +4,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 import re
-from typing import TYPE_CHECKING
-
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 type Statement = list[tuple[int, str]]
@@ -25,7 +21,12 @@ _DOLLAR_OPEN_RE = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
 
 
 def is_suppressed(source_lines: list[str], line: int, code: str) -> bool:
-    """Return True if the diagnostic's line carries a `-- sarj-noqa[: CODE]` comment."""
+    """Report whether the diagnostic's line carries a `-- sarj-noqa[: CODE]` comment.
+
+    Returns:
+        True when the line is suppressed for `code`.
+
+    """
     if line < 1 or line > len(source_lines):
         return False
     m = _SARJ_NOQA_RE.search(source_lines[line - 1])
@@ -39,12 +40,22 @@ def is_suppressed(source_lines: list[str], line: int, code: str) -> bool:
 
 
 def _blank(segment: str) -> str:
-    """Replace every char with a space, keeping newlines so offsets are preserved."""
+    """Replace every char with a space, keeping newlines so offsets are preserved.
+
+    Returns:
+        `segment` with every non-newline character turned into a space.
+
+    """
     return _NON_NEWLINE.sub(" ", segment)
 
 
 def _scan_quoted(source: str, start: int, quote: str) -> int:
-    """Index just past a `quote`-delimited run starting at `start`, honoring `''`/`""`."""
+    """Index just past a `quote`-delimited run starting at `start`, honoring `''`/`""`.
+
+    Returns:
+        The index one past the closing quote, or `len(source)` if unterminated.
+
+    """
     n = len(source)
     j = start + 1
     while j < n:
@@ -64,6 +75,10 @@ def mask_sql(source: str) -> str:
     contents of `--`/`/* */` comments, `'...'` literals, `$tag$...$tag$` strings and
     `"..."` identifiers replaced by spaces. Routing rule scanning through this masked
     text keeps keywords inside comments/strings/identifiers from ever matching.
+
+    Returns:
+        A same-length copy of `source` with those spans blanked.
+
     """
     out: list[str] = []
     i = 0
@@ -102,6 +117,10 @@ def split_statements(masked: str) -> list[Statement]:
 
     Operates on `mask_sql` output so a `;` inside a string/comment (now blank) never
     splits a statement. Each statement is a list of `(lineno, text)` fragments.
+
+    Returns:
+        One `Statement` per `;`-delimited run, in source order.
+
     """
     statements: list[Statement] = []
     current: Statement = []
@@ -120,7 +139,12 @@ def split_statements(masked: str) -> list[Statement]:
 
 
 def locate(statement: Statement, offset: int) -> tuple[int, int]:
-    r"""Map a char `offset` into `"\n".join(text)` back to a 1-based `(line, col)`."""
+    r"""Map a char `offset` into `"\n".join(text)` back to a 1-based `(line, col)`.
+
+    Returns:
+        The 1-based `(line, col)` for `offset`, clamped to the statement's end.
+
+    """
     pos = 0
     for lineno, text in statement:
         if offset <= pos + len(text):

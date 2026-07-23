@@ -2,13 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from sarj_python_lint.rule_base import is_suppressed
+from sarj_python_lint.rule_base import Diagnostic, is_suppressed
 from sarj_python_lint.rules.store_insert_requires_on_conflict import (
     StoreInsertRequiresOnConflict,
 )
 
 
-def _check(source: str, path: str = "foo_store.py") -> list:
+def _check(source: str, path: str = "foo_store.py") -> list[Diagnostic]:
     return StoreInsertRequiresOnConflict().check(Path(path), source)
 
 

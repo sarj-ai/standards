@@ -20,6 +20,10 @@ def strip_inline_comment(line: str) -> str:
 
     String contents are preserved (so callers can still match literals such as a
     CIDR inside `"https://10.0.1.0/24"`); only a genuine comment is dropped.
+
+    Returns:
+        `line` truncated at the first real comment, else `line` unchanged.
+
     """
     in_str = False
     i, n = 0, len(line)
@@ -46,6 +50,10 @@ def mask_line(line: str) -> str:
 
     `description = "closes with }"` becomes `description = ""`, so brace counting
     and keyword matching see only real syntax — never characters inside a string.
+
+    Returns:
+        `line` with string bodies blanked and any trailing comment removed.
+
     """
     out: list[str] = []
     in_str = False
@@ -78,6 +86,10 @@ def heredoc_body_mask(lines: list[str]) -> list[bool]:
     The opener line (`body = <<EOT`) and the closing terminator line are False;
     only the literal text between them is masked, since that text is data, not
     HCL — its braces, `#`, and `key = value` shapes must be ignored.
+
+    Returns:
+        One flag per line in `lines`, True where the line is heredoc body text.
+
     """
     mask = [False] * len(lines)
     term: str | None = None

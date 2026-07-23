@@ -15,6 +15,7 @@ would be a valid further tightening).
 
 References:
 - https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#credentialed_requests_and_wildcards
+
 """
 
 from __future__ import annotations
@@ -75,15 +76,24 @@ class NoCorsWildcardWithCredentials(Rule):
 
 
 def _is_true_literal(node: ast.expr) -> bool:
-    """True only for the literal `True` (not `1`, not a truthy expression)."""
+    """Report whether `node` is the literal `True` (not `1`, not a truthy expression).
+
+    Returns:
+        True only when `node` is the `True` constant.
+
+    """
     return isinstance(node, ast.Constant) and node.value is True
 
 
 def _contains_star_literal(node: ast.expr) -> bool:
-    """True if a `"*"` string `Constant` appears anywhere in `node`'s subtree.
+    """Report whether a `"*"` string `Constant` appears anywhere in `node`'s subtree.
 
     Walking the whole subtree catches both `["*"]` and the `allowed if flag else
     ["*"]` conditional branch. A dynamic `allow_origins=some_var` has no `"*"`
     literal, so it does not fire.
+
+    Returns:
+        True when a `"*"` literal appears in the subtree.
+
     """
     return any(isinstance(child, ast.Constant) and child.value == "*" for child in ast.walk(node))

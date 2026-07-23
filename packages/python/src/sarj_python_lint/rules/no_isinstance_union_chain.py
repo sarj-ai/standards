@@ -47,6 +47,7 @@ could be the real union member). Suppress a deliberate boundary chain with
 References:
 - https://docs.python.org/3/library/typing.html#typing.assert_never
 - https://typing.python.org/en/latest/spec/narrowing.html#assert-never-and-exhaustiveness-checking
+
 """
 
 from __future__ import annotations
@@ -155,10 +156,14 @@ class NoIsinstanceUnionChain(Rule):
 
 
 def _qualifying_chain_length(head: ast.If, local_classes: frozenset[str]) -> int:
-    """Number of arms if `head` is a local-closed-union dispatch chain, else 0.
+    """Count the arms if `head` is a local-closed-union dispatch chain, else 0.
 
     Requires every arm to be `isinstance(<same target>, <local ClassDef name>)` and the
     chain to end in an exhaustive terminal `else` (raise / return / assert / assert_never).
+
+    Returns:
+        The number of qualifying arms, or 0 when the chain does not qualify.
+
     """
     first_target: ast.expr | None = None
     count = 0
@@ -189,10 +194,14 @@ def _qualifying_chain_length(head: ast.If, local_classes: frozenset[str]) -> int
 
 
 def _is_exhaustive_terminal(orelse: list[ast.stmt]) -> bool:
-    """True if the trailing `else` block terminates instead of silently falling through.
+    """Report whether the trailing `else` block terminates instead of falling through.
 
     An open chain (no `else`) or a permissive `else` that just does work and continues is
     NOT equivalent to an exhaustive `match`, so it does not qualify.
+
+    Returns:
+        True when the `else` block terminates.
+
     """
     if not orelse:
         return False
@@ -219,26 +228,26 @@ def _is_assert_never(func: ast.expr) -> bool:
             return False
 
 
-def _ast_equal(a: object, b: object) -> bool:
-    """Structural equality equivalent to `ast.dump(a) == ast.dump(b)`, without building
-    the dump strings. Recursively compares node types and their `_fields`; leaves compare
-    by type + repr to mirror ast.dump's value rendering (e.g. `1` vs `1.0`, `True` vs `1`)
-    exactly while avoiding the per-subtree string allocation ast.dump pays."""
-    if isinstance(a, ast.AST):
-        if type(a) is not type(b):
-            return False
-        return all(_ast_equal(getattr(a, field, None), getattr(b, field, None)) for field in a._fields)
-    if isinstance(a, list):
-        if not isinstance(b, list) or len(a) != len(b):
-            return False
-        return all(map(_ast_equal, a, b, strict=True))
-    return type(a) is type(b) and repr(a) == repr(b)
+def _ast_equal(a: ast.expr, b: ast.expr) -> bool:
+    """Compare `a` and `b` structurally, ignoring source positions.
+
+    Returns:
+        True when the two trees are structurally equal.
+
+    """
+    return ast.dump(a) == ast.dump(b)
 
 
 def _isinstance_single_type(test: ast.expr) -> tuple[ast.expr, ast.expr] | None:
-    """If `test` is `isinstance(x, T)` with a single (non-tuple) type argument, return
-    (target, type_node); else None. Tuple-form `isinstance(x, (A, B))` returns a Tuple
-    type_node, which the caller rejects (not an `ast.Name`)."""
+    """Parse `test` as `isinstance(x, T)` with a single (non-tuple) type argument.
+
+    Tuple-form `isinstance(x, (A, B))` returns a Tuple type_node, which the caller
+    rejects (not an `ast.Name`).
+
+    Returns:
+        The (target, type_node) pair, or None if `test` is not a single-type isinstance.
+
+    """
     if not isinstance(test, ast.Call):
         return None
     if not (isinstance(test.func, ast.Name) and test.func.id == "isinstance"):

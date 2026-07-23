@@ -32,7 +32,12 @@ def _check(source: str) -> list[Diagnostic]:
 
 
 def _sql_with_joins(n: int, join_kw: str = "JOIN") -> str:
-    """A one-line assignment whose query has exactly `n` `join_kw` clauses."""
+    """Build a one-line assignment whose query has exactly `n` `join_kw` clauses.
+
+    Returns:
+        The assignment source.
+
+    """
     clauses = " ".join(f"{join_kw} t{i} ON t{i}.id = base.id" for i in range(n))
     return 'q = "SELECT * FROM base ' + clauses + '"'  # ruff:ignore[hardcoded-sql-expression] — synthetic lint-rule fixture, not a real query
 

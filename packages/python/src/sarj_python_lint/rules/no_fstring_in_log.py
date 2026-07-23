@@ -115,12 +115,16 @@ def _is_logging_call(node: ast.Call) -> bool:
 
 
 def _is_stdlib_logging_call(node: ast.Call) -> bool:
-    """True when the call carries a stdlib-`logging` tell the loguru advice breaks.
+    """Report whether the call carries a stdlib-`logging` tell the loguru advice breaks.
 
     Either a stdlib-reserved keyword (`exc_info`/`stack_info`/`extra`) or a
     `logging.getLogger(...)` factory anywhere in the receiver chain marks the
     logger as stdlib, whose message API is %-style positional, not structured
     keywords — so the rule must stay silent to avoid recommending a broken fix.
+
+    Returns:
+        True when the call looks like a stdlib logging call.
+
     """
     if any(kw.arg in _STDLIB_ONLY_KWARGS for kw in node.keywords):
         return True
@@ -150,6 +154,10 @@ def _interpolating_fstring(node: ast.expr) -> ast.JoinedStr | None:
     A concatenated message like `f"{x}" + "!"` wraps the f-string in a `BinOp`,
     so the interpolation is not the top-level node — walk the `Add` tree to find
     it while leaving interpolation-free f-strings unflagged.
+
+    Returns:
+        The interpolating f-string node, or None if none is present.
+
     """
     if isinstance(node, ast.JoinedStr):
         return node if _has_interpolation(node) else None
@@ -159,5 +167,10 @@ def _interpolating_fstring(node: ast.expr) -> ast.JoinedStr | None:
 
 
 def _has_interpolation(node: ast.JoinedStr) -> bool:
-    """True if the f-string actually interpolates a value (not just `f"literal"`)."""
+    """Report whether the f-string actually interpolates a value (not just `f"literal"`).
+
+    Returns:
+        True when the f-string contains a formatted value.
+
+    """
     return any(isinstance(v, ast.FormattedValue) for v in node.values)

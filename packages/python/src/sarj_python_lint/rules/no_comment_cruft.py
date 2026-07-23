@@ -150,12 +150,16 @@ def _looks_like_code(body: str) -> bool:
 
 
 def _is_prose_line(body: str) -> bool:
-    """Return True if `body` reads as a natural-language sentence, not code.
+    """Report whether `body` reads as a natural-language sentence, not code.
 
     Used to spot a doc/prose comment that immediately precedes a code-shaped
     line: `# For example:` above `# result = {**a, **b}`, or a wrapped sentence
     whose second line happens to parse as an expression. Such a line is an
     illustration / prose continuation, not commented-out code.
+
+    Returns:
+        True when `body` reads as prose.
+
     """
     c = body.strip()
     if not c or _is_banner(c) or _is_directive(c) or _looks_like_code(c):
@@ -272,6 +276,10 @@ def _standalone_comments(source: str) -> tuple[list[tuple[int, int, str]], int]:
 
     A comment is standalone when it is the only content on its line. `first code
     line` is the row of the first real code token (a large sentinel if none).
+
+    Returns:
+        The standalone comments and the first code line's row.
+
     """
     out: list[tuple[int, int, str]] = []
     first_code_line = 1 << 30

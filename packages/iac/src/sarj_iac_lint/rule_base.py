@@ -4,12 +4,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 import re
-from typing import TYPE_CHECKING
 
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 _SARJ_NOQA_RE = re.compile(
     r"#\s*sarj-noqa(?::\s*([A-Za-z0-9_, ]+))?",
@@ -18,7 +15,12 @@ _SARJ_NOQA_RE = re.compile(
 
 
 def is_suppressed(source_lines: list[str], line: int, code: str) -> bool:
-    """Return True if the diagnostic's line carries a `# sarj-noqa[: CODE]` comment."""
+    """Report whether the diagnostic's line carries a `# sarj-noqa[: CODE]` comment.
+
+    Returns:
+        True when the line is suppressed for `code`.
+
+    """
     if line < 1 or line > len(source_lines):
         return False
     m = _SARJ_NOQA_RE.search(source_lines[line - 1])

@@ -33,6 +33,7 @@ Replace a genuine hit with:
 References:
 - https://docs.python.org/3/library/enum.html#enum.StrEnum
 - https://docs.pydantic.dev/latest/concepts/types/#enums
+
 """
 
 from __future__ import annotations
@@ -288,7 +289,12 @@ def _merge_cluster(
 
 
 def _match_pattern_literals(pattern: ast.pattern) -> list[str]:
-    """String-constant literals from a `case` pattern (`MatchValue` / `MatchOr`)."""
+    """Collect string-constant literals from a `case` pattern (`MatchValue` / `MatchOr`).
+
+    Returns:
+        The string literals found in the pattern.
+
+    """
     if isinstance(pattern, ast.MatchValue):
         value = _str_const(pattern.value)
         return [value] if value is not None else []
@@ -301,7 +307,12 @@ def _match_pattern_literals(pattern: ast.pattern) -> list[str]:
 
 
 def _annotation_text(annotation: ast.expr | None) -> str:
-    """Unparsed annotation, unwrapping a stringized forward-ref (`x: "str"`)."""
+    """Unparse the annotation, unwrapping a stringized forward-ref (`x: "str"`).
+
+    Returns:
+        The unparsed annotation text, or "" when the annotation is None.
+
+    """
     if annotation is None:
         return ""
     if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
@@ -319,6 +330,10 @@ def _extract_compare(node: ast.Compare) -> tuple[str, list[str], bool] | None:
     reflection keys) are excluded: the module cannot turn a value it doesn't
     own into a StrEnum. `is_equality` is True only for `==` / `!=`; a bare
     membership test is not on its own strong enough to fire.
+
+    Returns:
+        The (key, literals, is_equality) triple, or None for a non-enum-shaped compare.
+
     """
     if len(node.ops) != 1 or len(node.comparators) != 1:
         return None
@@ -353,7 +368,12 @@ def _extract_compare(node: ast.Compare) -> tuple[str, list[str], bool] | None:
 
 
 def _name_key(node: ast.AST) -> str | None:
-    """A stable key for a plain name; attribute chains and everything else -> None."""
+    """Return a stable key for a plain name; attribute chains and everything else -> None.
+
+    Returns:
+        The name's identifier, or None when `node` is not a plain name.
+
+    """
     if isinstance(node, ast.Name):
         return node.id
     return None

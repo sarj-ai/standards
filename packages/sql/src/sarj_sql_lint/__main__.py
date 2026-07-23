@@ -1,4 +1,4 @@
-"""CLI: sarj-sql-lint check --rule <id> [--rule <id2>] <files>"""
+"""CLI: sarj-sql-lint check --rule <id> [--rule <id2>] <files>."""
 from __future__ import annotations
 
 import argparse

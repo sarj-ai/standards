@@ -475,7 +475,7 @@ def test_flags_camelcase_apikey():
 
 @pytest.mark.parametrize("kw", ["tokenCount", "apiKeyId", "tokenPresent", "promptTokens"])
 def test_allows_camelcase_innocuous(kw: str):
-    """camelCase splitting surfaces the innocuous token (count/id/present/plural)."""
+    """CamelCase splitting surfaces the innocuous token (count/id/present/plural)."""
     assert _check(f'logger.info("m", {kw}=n)\n') == []
 
 
