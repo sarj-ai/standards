@@ -12,6 +12,10 @@
  * Heuristic:
  *   - Track variables initialized to `await someCall.json()` using ESLint's scope manager.
  *   - Untrack if reassigned to anything other than another raw `json()` call.
+ *   - Untrack when passed to a user-defined type-guard predicate — a call whose
+ *     callee name matches `/^is[A-Z]/`, or any call used in an `if`/`?:` test
+ *     position (`if (guard(body)) { … body.foo … }`). Hand-written guards validate
+ *     the payload just as a Zod `.parse()` does.
  *   - Flag MemberExpression reads and destructuring off tracked variables.
  *   - `.parse()` / `.safeParse()` chained directly on the json call are legit
  *     and never produce a tracked binding in the first place.
@@ -96,6 +100,37 @@ const findVariable = (
     current = current.upper;
   }
   return null;
+};
+
+/** User-defined type-guard predicate names, e.g. `isProtectedResourceMetadata`. */
+const GUARD_NAME_RE = /^is[A-Z]/;
+
+/**
+ * True when a call sits in a boolean-test position (`if`/`while`/`for`/`?:`),
+ * seen through `!`, `&&`/`||`, and optional-chaining wrappers — i.e. it narrows.
+ */
+const isGuardTestPosition = (node: TSESTree.Node): boolean => {
+  let current: TSESTree.Node = node;
+  let parent: TSESTree.Node | null | undefined = current.parent;
+  while (parent !== undefined && parent !== null) {
+    switch (parent.type) {
+      case AST_NODE_TYPES.UnaryExpression:
+      case AST_NODE_TYPES.LogicalExpression:
+      case AST_NODE_TYPES.ChainExpression:
+        current = parent;
+        parent = parent.parent;
+        continue;
+      case AST_NODE_TYPES.IfStatement:
+      case AST_NODE_TYPES.ConditionalExpression:
+      case AST_NODE_TYPES.WhileStatement:
+      case AST_NODE_TYPES.DoWhileStatement:
+      case AST_NODE_TYPES.ForStatement:
+        return parent.test === current;
+      default:
+        return false;
+    }
+  }
+  return false;
 };
 
 const isUnvalidatedVariableRef = (
@@ -201,6 +236,22 @@ export default ESLintUtils.RuleCreator(
               messageId: "unparsedJsonAccess",
             });
           }
+        }
+      },
+      CallExpression(node): void {
+        if (node.callee.type !== AST_NODE_TYPES.Identifier) return;
+        if (!GUARD_NAME_RE.test(node.callee.name) && !isGuardTestPosition(node)) {
+          return;
+        }
+        const scope = context.sourceCode.getScope(node);
+        for (const arg of node.arguments) {
+          if (arg.type === AST_NODE_TYPES.SpreadElement) continue;
+          const unwrapped = unwrap(arg);
+          if (unwrapped === null || unwrapped.type !== AST_NODE_TYPES.Identifier) {
+            continue;
+          }
+          const variable = findVariable(scope, unwrapped.name);
+          if (variable !== null) unvalidatedVariables.delete(variable);
         }
       },
       MemberExpression(node): void {

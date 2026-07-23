@@ -117,6 +117,49 @@ ruleTester.run("require-assert-never", rule, {
         }
       `,
     },
+    // Fallthrough default — an empty default that hands control to a following
+    // case which does the work. (VS Code CursorPlurality)
+    {
+      code: `
+        switch (plurality) {
+          default:
+          case CursorPlurality.Single:
+            handleSingle();
+            break;
+        }
+      `,
+    },
+    // Fallthrough default sitting between two cases.
+    {
+      code: `
+        switch (kind) {
+          case 'a':
+          default:
+          case 'b':
+            handle();
+            break;
+        }
+      `,
+    },
+    // Deliberate, comment-documented no-op default on a config-string switch —
+    // assertNever would throw at runtime here. (Next.js)
+    {
+      code: `
+        switch (setting) {
+          case 'on': enable(); break;
+          default: // Do nothing, defaults should be used
+        }
+      `,
+    },
+    // Comment-documented empty block default.
+    {
+      code: `
+        switch (setting) {
+          case 'on': enable(); break;
+          default: { /* intentionally left blank */ }
+        }
+      `,
+    },
   ],
   invalid: [
     // Default with no body — an empty, do-nothing default that should either

@@ -23,9 +23,15 @@ ruleTester.run("no-json-stringify-error", rule, {
     { code: "JSON.stringify({ a: 1 });" },
     // Arbitrary identifier that isn't an error name and isn't a catch binding.
     { code: "const payload = {}; JSON.stringify(payload);" },
-    // Accessing a property of the error is the recommended escape hatch.
+    // Accessing a string property of the error is the recommended escape hatch.
     { code: "try { f(); } catch (err) { JSON.stringify(err.message); }" },
     { code: "try { f(); } catch (err) { JSON.stringify(err.stack); }" },
+    { code: "JSON.stringify(err.name);" },
+    // `JSON.stringify` runs ONLY in the non-Error branch of an instanceof guard.
+    { code: "const s = e instanceof Error ? e : JSON.stringify(e, null, '\\t');" },
+    { code: "let s; if (e instanceof Error) { s = e.message; } else { s = JSON.stringify(e); }" },
+    { code: "const s = !(e instanceof Error) ? JSON.stringify(e) : e.message;" },
+    { code: "let s; if (!(err instanceof Error)) { s = JSON.stringify(err); }" },
     // A function whose param is named `data` (not an error name).
     { code: "function f(data) { return JSON.stringify(data); }" },
     // Names that merely contain an error-like substring don't match the anchored regex.
@@ -79,6 +85,25 @@ ruleTester.run("no-json-stringify-error", rule, {
     // catch binding with unconventional name, used in nested scope.
     {
       code: "try { f(); } catch (boom) { const wrap = () => JSON.stringify(boom); }",
+      errors: [{ messageId: "noJsonStringifyError" }],
+    },
+    // Member expressions denoting an error value: error-suggesting property.
+    {
+      code: "JSON.stringify(err.cause);",
+      errors: [{ messageId: "noJsonStringifyError" }],
+    },
+    {
+      code: "JSON.stringify(this.lastError);",
+      errors: [{ messageId: "noJsonStringifyError" }],
+    },
+    // Error-named base with a non-string-accessor property.
+    {
+      code: "JSON.stringify(err.inner);",
+      errors: [{ messageId: "noJsonStringifyError" }],
+    },
+    // An unrelated ternary (not an instanceof guard) does not suppress the report.
+    {
+      code: "const s = ready ? other : JSON.stringify(err);",
       errors: [{ messageId: "noJsonStringifyError" }],
     },
   ],

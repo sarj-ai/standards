@@ -36,6 +36,22 @@ ruleTester.run("no-comment-cruft", rule, {
     {
       code: "// Copyright 2023 Acme, Inc.\n// Licensed under the Apache License 2.0.\n// You may not use this file except in compliance.\n// See the License for details.\nimport x from 'y';",
     },
+    // Block-comment MIT license banner (dashed rule) is exempt.
+    {
+      code: "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\nimport x from 'y';",
+    },
+    // Code-shaped line under a prose lead-in is an illustration, not dead code.
+    {
+      code: "// For example:\n// var o = {…};\nconst x = 1;",
+    },
+    // Pseudo-code placeholder line is not commented-out code.
+    {
+      code: "const x = 1;\n// obj.value = %sent%;\nconst y = 2;",
+    },
+    // Triple-slash TS reference directive is a directive, not a preamble.
+    {
+      code: '/// <reference types="node" />\nimport x from "y";',
+    },
   ],
   invalid: [
     {
@@ -62,6 +78,19 @@ ruleTester.run("no-comment-cruft", rule, {
     {
       code: "// This module wires the thing.\n// It is old.\n// Be careful.\n// Ask first.\nimport x from 'y';",
       errors: [{ messageId: "fileHeaderPreamble" }],
+    },
+    // A genuine multi-line commented-out block still fires on every line.
+    {
+      code: "const x = 1;\n// const a = 1;\n// const b = 2;\nconst y = 2;",
+      errors: [
+        { messageId: "commentedOutCode" },
+        { messageId: "commentedOutCode" },
+      ],
+    },
+    // A real section banner that is NOT a license header still fires.
+    {
+      code: "const x = 1;\n// ==== SECTION ====\nconst y = 2;",
+      errors: [{ messageId: "sectionBanner" }],
     },
   ],
 });

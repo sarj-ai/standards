@@ -33,10 +33,6 @@ ruleTester.run("no-sequential-await", rule, {
     {
       code: "async function f() { const a = await one(); const b = await two(); }",
     },
-    // Await inside a nested arrow defined within the loop — different scope.
-    {
-      code: "async function f(xs) { for (const x of xs) { ys.map(async (y) => await g(y)); } }",
-    },
     // Await inside a nested function declaration within the loop — different scope.
     {
       code: "async function f(xs) { for (const x of xs) { async function inner() { await g(x); } inner(); } }",
@@ -61,6 +57,33 @@ ruleTester.run("no-sequential-await", rule, {
     // (The inner loop is the only thing flagged; see the invalid counterpart.)
     {
       code: "async function f(xs) { for (const x of xs) { if (x) { /* no await here */ ok(x); } } }",
+    },
+    // Guard (a) — retry loop: the `return`/`catch` short-circuit means serial
+    // awaits are intentional; parallelizing would break the retry semantics.
+    {
+      code: "async function f() { for (let i = 0; i < 3; i++) { try { return await attempt(); } catch (e) {} } }",
+    },
+    // Guard (b) — accumulator threading: each iteration consumes the previous
+    // result (`content = await p(content)`), so the awaits cannot be parallel.
+    {
+      code: "async function f(postProcessors, content) { for (const p of postProcessors) { content = await p(content); } return content; }",
+    },
+    // Guard (d) — lifecycle hooks: ordering is the contract.
+    {
+      code: "async function f(hooks, req) { for (const hook of hooks) { await hook(req); } }",
+    },
+    // Guard (d) — sorted iterable: name signals a deliberately ordered sequence.
+    {
+      code: "async function f(modulesSortedByDistance) { for (const m of modulesSortedByDistance) { await m.init(); } }",
+    },
+    // Guard (a) — short-circuit: an early `return` on a failed guard makes the
+    // serial awaits load-bearing.
+    {
+      code: "async function f(guards) { for (const guard of guards) { const r = await guard(); if (!r) return false; } return true; }",
+    },
+    // Guard (c) — event-loop / timer yield: a deliberate throttle, not I/O.
+    {
+      code: "async function f(n) { for (let i = 0; i < n; i++) { await new Promise((r) => setTimeout(r, 0)); } }",
     },
   ],
   invalid: [
@@ -129,6 +152,23 @@ ruleTester.run("no-sequential-await", rule, {
     // Await is the loop body itself (no block).
     {
       code: "async function f(xs) { for (const x of xs) await g(x); }",
+      errors: [{ messageId: "noSequentialAwait" }],
+    },
+    // Genuinely parallelizable: independent awaits whose results are collected
+    // with no cross-iteration dependency or early exit — the shape to keep firing.
+    {
+      code: "async function f(xs, results) { for (const x of xs) { results.push(await fetchOne(x)); } }",
+      errors: [{ messageId: "noSequentialAwait" }],
+    },
+    // Gap closure: async `.forEach` callback with an await — the classic
+    // await-in-loop footgun (the returned promise is dropped on the floor).
+    {
+      code: "async function f(xs) { xs.forEach(async (x) => { await g(x); }); }",
+      errors: [{ messageId: "noSequentialAwait" }],
+    },
+    // Gap closure: a discarded async `.map` callback floats its promises too.
+    {
+      code: "async function f(xs, ys) { for (const x of xs) { ys.map(async (y) => await g(y)); } }",
       errors: [{ messageId: "noSequentialAwait" }],
     },
   ],

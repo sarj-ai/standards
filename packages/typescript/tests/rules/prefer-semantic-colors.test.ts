@@ -27,6 +27,19 @@ ruleTester.run("prefer-semantic-colors", rule, {
     // CSS variables / currentColor / none.
     { code: `const x = <div style={{ color: "var(--primary)" }} />;` },
     { code: `const x = <path fill="currentColor" stroke="none" />;` },
+    // SVG defs-container children carry structural fills — masking breaks without
+    // literal #fff/#000, so fill/stroke inside them never fires.
+    { code: `const x = <svg><clipPath id="a"><path fill="#fff" d="M0 0h1v1H0z" /></clipPath></svg>;` },
+    { code: `const x = <svg><mask id="m"><rect fill="#fff" /><rect fill="#000" /></mask></svg>;` },
+    { code: `const x = <svg><linearGradient><stop stopColor="#D06B64" /></linearGradient></svg>;` },
+    // Neutral drawing literals are exempt on fill/stroke everywhere.
+    { code: `const x = <path fill="#fff" stroke="#000" />;` },
+    { code: `const x = <path fill="transparent" stroke="inherit" />;` },
+    // Storybook fixtures are skipped like test files.
+    {
+      code: `const x = <div style={{ color: "#ff0000" }} className="bg-red-500" />;`,
+      filename: "Button.stories.tsx",
+    },
     // cn() with semantic tokens.
     { code: `const x = cn("bg-primary", "text-foreground", { "bg-muted": active });` },
     // NON-className strings must NOT be flagged (the scoping fix).
@@ -85,13 +98,19 @@ ruleTester.run("prefer-semantic-colors", rule, {
       code: "const x = <div className={`text-blue-600 ${extra}`} />;",
       errors: [{ messageId: "rawPalette" }],
     },
-    // Inline style + SVG color literals (hex/rgb/hsl/oklch; white/black no longer flagged).
+    // Inline style objects are real component styling — neutral literals still fire
+    // there (unlike SVG fill/stroke attributes).
     {
       code: `const x = <div style={{ color: "#111827", backgroundColor: "#fff" }} />;`,
       errors: [{ messageId: "inlineColor" }, { messageId: "inlineColor" }],
     },
     {
-      code: `const x = <path fill="#000" />;`,
+      code: `const x = <div style={{ color: "#ff0000" }} />;`,
+      errors: [{ messageId: "inlineColor" }],
+    },
+    // A non-neutral brand color on an SVG attribute outside a defs container fires.
+    {
+      code: `const x = <path fill="#7c3aed" />;`,
       errors: [{ messageId: "inlineColor" }],
     },
   ],

@@ -11,10 +11,10 @@
  * (no initializer, a non-literal expression, a parameter, etc.) the `+=` is
  * NOT flagged. This mirrors the Python rule SARJ002.
  *
- * KNOWN GAP (false-negative): only the compound `+=` operator is detected. The
- * equivalent longhand `s = s + x` (a plain `=` assignment whose RHS is a
- * `BinaryExpression` referencing the LHS) has the same O(n^2) behavior but is
- * NOT flagged. Left as a deliberate scope limit to keep the rule conservative.
+ * Both the compound `s += x` and the equivalent longhand `s = s + x` (a plain
+ * `=` assignment whose RHS is a `+` `BinaryExpression` with the target as one
+ * operand) are detected — they have identical O(n^2) behavior. A plain
+ * `s = x + y` (target absent from the RHS) is NOT flagged.
  */
 
 import { ESLintUtils, type TSESTree } from "@typescript-eslint/utils";
@@ -93,6 +93,41 @@ function isStringInitializedVariable(variable: Scope.Variable): boolean {
 }
 
 /**
+ * Returns true if `target` appears as a direct operand of a `+` expression
+ * (following left-associative `+` chains, e.g. `s + a + b`). Used to recognize
+ * the longhand `s = s + <...>` reassignment, which has the same O(n^2) cost as
+ * `s += <...>`. A non-`+` operand (`foo.s`, `s.slice()`, `x + y`) does not match.
+ */
+function isConcatOperand(
+  node: TSESTree.Expression | TSESTree.PrivateIdentifier,
+  target: string,
+): boolean {
+  if (node.type === "Identifier") {
+    return node.name === target;
+  }
+  if (node.type === "BinaryExpression" && node.operator === "+") {
+    return (
+      isConcatOperand(node.left, target) || isConcatOperand(node.right, target)
+    );
+  }
+  return false;
+}
+
+/**
+ * Returns true if `rhs` is a `+` `BinaryExpression` in which `target` appears as
+ * an operand — the reassignment shape `s = s + x` / `s = x + s` / `s = s + a + b`.
+ */
+function isConcatOntoTarget(
+  rhs: TSESTree.Expression,
+  target: string,
+): boolean {
+  if (rhs.type !== "BinaryExpression" || rhs.operator !== "+") {
+    return false;
+  }
+  return isConcatOperand(rhs.left, target) || isConcatOperand(rhs.right, target);
+}
+
+/**
  * Returns true if `node` is contained within the body of a loop statement.
  * Walks ancestors and, for each loop, ensures the node is inside the loop's
  * BODY (not its test/init/update clauses, which run a bounded number of times
@@ -142,12 +177,17 @@ export default ESLintUtils.RuleCreator(
   create(context) {
     return {
       AssignmentExpression(node: TSESTree.AssignmentExpression): void {
-        // Only the compound `+=` operator builds up a value.
-        if (node.operator !== "+=") {
-          return;
-        }
         // The LHS must be a plain variable reference.
         if (node.left.type !== "Identifier") {
+          return;
+        }
+        // Accept both the compound `s += x` and the longhand `s = s + x`; any
+        // other operator/shape (`s = x + y`, `s -= x`, ...) is not accumulation.
+        const isAccumulation =
+          node.operator === "+=" ||
+          (node.operator === "=" &&
+            isConcatOntoTarget(node.right, node.left.name));
+        if (!isAccumulation) {
           return;
         }
         // Must occur inside a loop body, else it's a one-shot append.

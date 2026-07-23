@@ -77,6 +77,12 @@ ruleTester.run("no-secret-in-log", rule, {
     { code: 'logger.info("auth", { tokenLen });' },
     { code: 'logger.info("auth", secret.length);' },
     { code: 'logger.info("auth", token.length);' },
+    // Member-expression args whose last segment is innocuous stay valid.
+    { code: 'logger.info("user", user.name);' },
+    { code: 'logger.info("user", config.apiKeyId);' },
+    { code: 'logger.info("auth", config.tokenPrefix);' },
+    // Computed member access has no static property name to match.
+    { code: 'logger.info("auth", config[secret]);' },
     // String literal that merely mentions the word — not an identifier value.
     { code: 'logger.info("api key rotated");' },
     { code: 'logger.warn("password reset requested for user");' },
@@ -164,6 +170,20 @@ ruleTester.run("no-secret-in-log", rule, {
         { messageId: "noSecretInLog" },
         { messageId: "noSecretInLog" },
       ],
+    },
+    // Member-expression positional args whose property is secret material — the
+    // most common real logging shape.
+    {
+      code: 'logger.info("cfg", config.apiSecret);',
+      errors: [{ messageId: "noSecretInLog" }],
+    },
+    {
+      code: 'logger.error("login", user.password);',
+      errors: [{ messageId: "noSecretInLog" }],
+    },
+    {
+      code: 'logger.warn("auth", this.jwt);',
+      errors: [{ messageId: "noSecretInLog" }],
     },
   ],
 });

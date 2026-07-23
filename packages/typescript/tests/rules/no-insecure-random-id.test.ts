@@ -43,6 +43,28 @@ ruleTester.run("no-insecure-random-id", rule, {
     { code: "const delayMs = Math.random() * 1000;" },
     // Math.random() in a property with a non-sensitive name.
     { code: "const cfg = { jitter: Math.random() };" },
+    // Real-world sweep FPs: NON-security correlation / ephemeral ids.
+    // Temp-file suffix (name signals ephemeral + concatenated into a path). (Next)
+    {
+      code: "const tempPath = filePath + '.tmp.' + Math.random().toString(36).slice(2);",
+    },
+    // HMR session id — a numeric discriminator, not auth. (Next)
+    {
+      code: "const sessionId = Math.floor(Number.MAX_SAFE_INTEGER * Math.random());",
+    },
+    // Dev correlation ids.
+    { code: "const executionId = 'exec-' + Math.random().toString(36);" },
+    { code: "const requestId = Math.random().toString(16);" },
+    // In-process discriminator / RPC handle — bare `session`, not auth. (VS Code, NestJS)
+    { code: "const session = Math.random();" },
+    { code: "class ContextIdFactory { private readonly session = Math.random(); }" },
+    // Bare `id`/`key`/`session` substrings alone no longer fire — we require a
+    // strong security signal and err toward suppressing ambiguous ids.
+    { code: "const id = Math.random();" },
+    { code: "const obj = { sessionId: Math.random() };" },
+    // Random value concatenated into a path — even the toString(36) idiom is
+    // suppressed here.
+    { code: "const output = base + '/tmp/' + Math.random().toString(36);" },
     // KNOWN GAP (documented false-negative): arithmetic between Math.random()
     // and `.toString(36)` breaks the chain walk, so the idiom is NOT caught
     // unless the binding name is identifier/secret-like. The innocuous binding
@@ -68,13 +90,18 @@ ruleTester.run("no-insecure-random-id", rule, {
       code: "const value = Math.random().toString(36).slice(2);",
       errors: [{ messageId: "insecureRandomId" }],
     },
-    // Trigger 2: name-based — variable declarators.
+    // Genuine security-token shapes with the toString(36) idiom stay flagged.
     {
-      code: "const sessionToken = Math.random();",
+      code: "const token = Math.random().toString(36);",
       errors: [{ messageId: "insecureRandomId" }],
     },
     {
-      code: "const id = Math.random();",
+      code: "const csrfToken = Math.random().toString(36).slice(2);",
+      errors: [{ messageId: "insecureRandomId" }],
+    },
+    // Trigger 1 (name-based): strong security name — variable declarators.
+    {
+      code: "const sessionToken = Math.random();",
       errors: [{ messageId: "insecureRandomId" }],
     },
     {
@@ -106,16 +133,12 @@ ruleTester.run("no-insecure-random-id", rule, {
       code: "const token = `t-${Math.random()}`;",
       errors: [{ messageId: "insecureRandomId" }],
     },
-    // Trigger 2: object property key.
-    {
-      code: "const obj = { sessionId: Math.random() };",
-      errors: [{ messageId: "insecureRandomId" }],
-    },
+    // Strong security name in an object property key.
     {
       code: "const obj = { 'access-token': Math.random() };",
       errors: [{ messageId: "insecureRandomId" }],
     },
-    // Trigger 2: class property definition.
+    // Strong security name in a class property definition.
     {
       code: "class S { token = Math.random(); }",
       errors: [{ messageId: "insecureRandomId" }],

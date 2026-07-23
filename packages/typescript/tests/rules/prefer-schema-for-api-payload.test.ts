@@ -39,6 +39,18 @@ ruleTester.run("prefer-schema-for-api-payload", rule, {
     {
       code: "async function f(r) { let data = await r.json(); data = ZUser.parse(data); return data.name; }",
     },
+    // Hand-written type-guard predicate (isX) validates before field access.
+    {
+      code: "async function f(r) { const body = await r.json(); if (isProtectedResourceMetadata(body)) { return body.resource; } }",
+    },
+    // Negated guard narrowing in the test position also counts.
+    {
+      code: "async function f(r) { const body = await r.json(); if (!isValidPayload(body)) throw new Error('x'); return body.id; }",
+    },
+    // A guard used purely as an `if` test narrows even without the `is` prefix.
+    {
+      code: "async function f(r) { const body = await r.json(); if (validate(body)) { return body.value; } }",
+    },
   ],
   invalid: [
     {

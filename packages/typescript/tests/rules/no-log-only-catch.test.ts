@@ -41,7 +41,7 @@ ruleTester.run("no-log-only-catch", rule, {
     {
       code: "try { f(); } catch (e) { console.error(e); recover(); }",
     },
-    // Calls a real handler (not console).
+    // Calls a real handler (not a logger).
     {
       code: "try { f(); } catch (e) { reportError(e); }",
     },
@@ -49,13 +49,18 @@ ruleTester.run("no-log-only-catch", rule, {
     {
       code: "let ok = true; try { f(); } catch (e) { console.error(e); ok = false; }",
     },
-    // A non-`console` object that happens to have a `.error` method.
-    {
-      code: "try { f(); } catch (e) { logger.error(e); }",
-    },
     // Computed console access is treated conservatively as real work.
     {
       code: "try { f(); } catch (e) { console['error'](e); }",
+    },
+    // Comment-only catch documents an intentional ignore — the dominant
+    // real-world shape that must NOT be flagged (VS Code sweep: 684/742 hits).
+    {
+      code: "try { f(); } catch { /* ignore, safe because the resource is already gone */ }",
+    },
+    // Comment-only catch with a binding.
+    {
+      code: "try { f(); } catch (e) { // best-effort cleanup; failure is non-fatal\n }",
     },
     // Test file opts out: filename contains `.test.`.
     {
@@ -74,15 +79,15 @@ ruleTester.run("no-log-only-catch", rule, {
     },
   ],
   invalid: [
-    // Empty catch — silently swallows.
+    // Empty catch with a binding — distinct, accurate `emptyCatch` message.
     {
       code: "try { f(); } catch (e) {}",
-      errors: [{ messageId: "noLogOnlyCatch" }],
+      errors: [{ messageId: "emptyCatch" }],
     },
     // Empty catch with no binding.
     {
       code: "try { f(); } catch {}",
-      errors: [{ messageId: "noLogOnlyCatch" }],
+      errors: [{ messageId: "emptyCatch" }],
     },
     // Single console.error then nothing.
     {
@@ -102,6 +107,21 @@ ruleTester.run("no-log-only-catch", rule, {
     // console.info only.
     {
       code: "try { f(); } catch (e) { console.info(e); }",
+      errors: [{ messageId: "noLogOnlyCatch" }],
+    },
+    // Next.js gap: a logger-receiver call (`logger.warn`) is log-only too.
+    {
+      code: "try { f(); } catch (e) { logger.warn(e); }",
+      errors: [{ messageId: "noLogOnlyCatch" }],
+    },
+    // Next.js gap: `Log.error(...)`-only catch (capitalized logger receiver).
+    {
+      code: "try { f(); } catch (e) { Log.error('load failed', e); }",
+      errors: [{ messageId: "noLogOnlyCatch" }],
+    },
+    // Member-chain logger receiver: `this.logger.error(...)`.
+    {
+      code: "class C { m() { try { f(); } catch (e) { this.logger.error(e); } } }",
       errors: [{ messageId: "noLogOnlyCatch" }],
     },
     // Non-test source file with the same shape still flags.

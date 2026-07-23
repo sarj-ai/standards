@@ -17,6 +17,14 @@
  * Allowed: semantic tokens (`bg-primary`, `text-muted-foreground`, `bg-chart-1`),
  * `white`/`black` (the `bg-black/50` overlay idiom rarely has a token), `var(--…)`,
  * `currentColor`, and non-color arbitraries (`w-[437px]`, `grid-cols-[auto_1fr]`).
+ *
+ * SVG drawing data is exempt on `fill`/`stroke`/`color` attributes: any value inside
+ * a `<mask>`/`<clipPath>`/`<defs>`/`<pattern>`/`<linearGradient>`/`<radialGradient>`
+ * (masking breaks without literal `#fff`/`#000`), the neutral literals
+ * (`#fff`/`#000`/`transparent`/`none`/`currentColor`/`inherit`), and `*.stories.*`
+ * files (Storybook fixtures) never fire. Real component styling — `className` and
+ * inline `style={{ … }}` objects — still fires on hardcoded colors.
+ *
  * No autofix — use a semantic token, or for charts / standalone pages / 3rd-party
  * config add `// eslint-disable-next-line @sarj/prefer-semantic-colors -- <reason>`.
  */
@@ -66,6 +74,45 @@ const STYLE_COLOR_PROPS = new Set<string>([
 ]);
 const RAW_COLOR_VALUE_RE = new RegExp(`#[0-9a-fA-F]{3,8}\\b|\\b(?:${COLOR_FN})\\s*\\(`, "i");
 
+const STORIES_FILE_RE = /\.stories\.[cm]?[jt]sx?$/i;
+
+/** SVG container elements whose children carry structural (not UI-token) colors. */
+const SVG_DEFS_CONTAINERS = new Set<string>([
+  "mask",
+  "clipPath",
+  "defs",
+  "pattern",
+  "linearGradient",
+  "radialGradient",
+]);
+
+/** Neutral fill/stroke literals that are SVG drawing data, never a UI token. */
+const SVG_EXEMPT_COLOR_VALUES = new Set<string>([
+  "#fff",
+  "#ffffff",
+  "#000",
+  "#000000",
+  "transparent",
+  "none",
+  "currentcolor",
+  "inherit",
+]);
+
+const isInsideSvgDefsContainer = (node: TSESTree.Node): boolean => {
+  let current: TSESTree.Node | null | undefined = node.parent;
+  while (current !== undefined && current !== null) {
+    if (
+      current.type === AST_NODE_TYPES.JSXElement &&
+      current.openingElement.name.type === AST_NODE_TYPES.JSXIdentifier &&
+      SVG_DEFS_CONTAINERS.has(current.openingElement.name.name)
+    ) {
+      return true;
+    }
+    current = current.parent;
+  }
+  return false;
+};
+
 const propName = (key: TSESTree.Property["key"]): string | null => {
   if (key.type === AST_NODE_TYPES.Identifier) return key.name;
   if (key.type === AST_NODE_TYPES.Literal && typeof key.value === "string") return key.value;
@@ -95,6 +142,8 @@ export default ESLintUtils.RuleCreator(
   },
   defaultOptions: [],
   create(context) {
+    if (STORIES_FILE_RE.test(context.filename)) return {};
+
     const reportClasses = (value: string, node: TSESTree.Node): void => {
       for (const token of classTokens(value)) {
         const base = tailwindBase(token);
@@ -176,9 +225,19 @@ export default ESLintUtils.RuleCreator(
         const name = propName(node.key);
         if (name !== null && CLASS_NAME_RE.test(name)) checkClassNode(node.value);
       },
-      // SVG presentation attributes: <path fill="#000" stroke="#fff" />
+      // SVG presentation attributes: <path fill="#7c3aed" stroke="#7c3aed" />.
+      // Neutral drawing literals and anything inside an SVG defs container are
+      // structural, not UI tokens, so they never fire.
       "JSXAttribute[name.name=/^(fill|stroke|color)$/]"(node: TSESTree.JSXAttribute): void {
-        if (node.value?.type === AST_NODE_TYPES.Literal) checkColorValueNode(node.value);
+        if (node.value?.type !== AST_NODE_TYPES.Literal) return;
+        if (
+          typeof node.value.value === "string" &&
+          SVG_EXEMPT_COLOR_VALUES.has(node.value.value.toLowerCase())
+        ) {
+          return;
+        }
+        if (isInsideSvgDefsContainer(node)) return;
+        checkColorValueNode(node.value);
       },
       // Inline style objects: style={{ color: "#111827", backgroundColor: "#fff" }}
       "JSXAttribute[name.name='style'] ObjectExpression > Property"(node: TSESTree.Property): void {

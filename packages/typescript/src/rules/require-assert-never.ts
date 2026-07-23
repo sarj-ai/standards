@@ -1,4 +1,9 @@
-import { ESLintUtils, type TSESTree, AST_NODE_TYPES } from "@typescript-eslint/utils";
+import {
+  ESLintUtils,
+  type TSESLint,
+  type TSESTree,
+  AST_NODE_TYPES,
+} from "@typescript-eslint/utils";
 
 type MessageIds = "missingAssertNever";
 type Options = readonly [];
@@ -58,6 +63,56 @@ const isRuntimeHandlingStatement = (statement: TSESTree.Statement): boolean => {
   return true;
 };
 
+/**
+ * A `default` clause with an empty body that is followed by another `case`
+ * falls through into that case, which does the real work (e.g.
+ * `default: case Single: handle();`). There is nothing to assert here.
+ */
+const isFallthroughDefault = (
+  node: TSESTree.SwitchStatement,
+  defaultIndex: number,
+): boolean => {
+  const defaultCase = node.cases[defaultIndex];
+  return (
+    defaultCase !== undefined &&
+    defaultCase.consequent.length === 0 &&
+    defaultIndex < node.cases.length - 1
+  );
+};
+
+/**
+ * A `default` clause is a deliberate, documented no-op when its body is empty
+ * (or an empty block) but carries a comment — e.g. `default: // do nothing`.
+ * We can't distinguish a config-string switch from an exhaustive union switch
+ * without type info, so a written-out intent to do nothing is honoured;
+ * injecting `assertNever` there would throw at runtime. A bare empty default
+ * with no comment is still flagged.
+ */
+const isCommentOnlyNoopDefault = (
+  defaultCase: TSESTree.SwitchCase,
+  sourceCode: Readonly<TSESLint.SourceCode>,
+): boolean => {
+  if (defaultCase.consequent.length === 0) {
+    const defaultToken = sourceCode.getFirstToken(defaultCase);
+    const colonToken = defaultToken
+      ? sourceCode.getTokenAfter(defaultToken)
+      : null;
+    return (
+      colonToken !== null && sourceCode.getCommentsAfter(colonToken).length > 0
+    );
+  }
+  const only = defaultCase.consequent[0];
+  if (
+    only !== undefined &&
+    defaultCase.consequent.length === 1 &&
+    only.type === AST_NODE_TYPES.BlockStatement &&
+    only.body.length === 0
+  ) {
+    return sourceCode.getCommentsInside(only).length > 0;
+  }
+  return false;
+};
+
 export default ESLintUtils.RuleCreator(
   (name) =>
     `https://github.com/sarj-ai/linting/blob/main/packages/typescript/src/rules/${name}.ts`,
@@ -79,12 +134,14 @@ export default ESLintUtils.RuleCreator(
   create(context) {
     return {
       SwitchStatement(node: TSESTree.SwitchStatement): void {
-        const defaultCase = node.cases.find(
-          (caseNode): caseNode is TSESTree.SwitchCase => caseNode.test === null,
+        const defaultIndex = node.cases.findIndex(
+          (caseNode) => caseNode.test === null,
         );
         // No `default` at all is fine — we don't demand exhaustiveness of every
         // switch, only of those that opted into a (no-op) default.
-        if (!defaultCase) return;
+        if (defaultIndex === -1) return;
+        const defaultCase = node.cases[defaultIndex];
+        if (defaultCase === undefined) return;
 
         // An explicit `assertNever(...)` is the canonical exhaustiveness check.
         if (defaultCase.consequent.some(statementContainsAssertNever)) return;
@@ -93,7 +150,16 @@ export default ESLintUtils.RuleCreator(
         // throw, log, ...) is legitimate — don't demand assertNever there.
         if (defaultCase.consequent.some(isRuntimeHandlingStatement)) return;
 
-        // Otherwise the default is empty / a pure no-op: flag it.
+        // A fallthrough default hands control to a following case, which does
+        // the work — there is nothing to assert.
+        if (isFallthroughDefault(node, defaultIndex)) return;
+
+        // A deliberate, comment-documented no-op default is honoured; we can't
+        // prove the discriminant is a union without type info, and injecting
+        // assertNever would throw at runtime on a config-string switch.
+        if (isCommentOnlyNoopDefault(defaultCase, context.sourceCode)) return;
+
+        // Otherwise the default is a bare, undocumented no-op: flag it.
         context.report({
           node: defaultCase,
           messageId: "missingAssertNever",

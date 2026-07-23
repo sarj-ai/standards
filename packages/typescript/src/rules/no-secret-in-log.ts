@@ -307,6 +307,20 @@ export default ESLintUtils.RuleCreator(
             }
             continue;
           }
+          if (arg.type === "MemberExpression") {
+            if (
+              !arg.computed &&
+              arg.property.type === "Identifier" &&
+              isSecretKeyword(arg.property.name)
+            ) {
+              context.report({
+                node: arg,
+                messageId: "noSecretInLog",
+                data: { name: arg.property.name },
+              });
+            }
+            continue;
+          }
           if (arg.type === "ObjectExpression") {
             for (const prop of arg.properties) {
               if (prop.type !== "Property") {

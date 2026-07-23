@@ -9,6 +9,29 @@ import { ESLintUtils, type TSESTree } from "@typescript-eslint/utils";
 type MessageIds = "noRawEnv";
 type Options = readonly [];
 
+/** True for the `process.env` member node (dotted or as the base of `process.env[key]`). */
+function isProcessEnv(node: TSESTree.MemberExpression): boolean {
+  return (
+    !node.computed &&
+    node.object.type === "Identifier" &&
+    node.object.name === "process" &&
+    node.property.type === "Identifier" &&
+    node.property.name === "env"
+  );
+}
+
+/** True for the `import.meta.env` member node (dotted or as the base of `import.meta.env[key]`). */
+function isImportMetaEnv(node: TSESTree.MemberExpression): boolean {
+  return (
+    !node.computed &&
+    node.property.type === "Identifier" &&
+    node.property.name === "env" &&
+    node.object.type === "MetaProperty" &&
+    node.object.meta.name === "import" &&
+    node.object.property.name === "meta"
+  );
+}
+
 export default ESLintUtils.RuleCreator(
   (name) =>
     `https://github.com/sarj-ai/linting/blob/main/packages/typescript/src/rules/${name}.ts`,
@@ -30,16 +53,7 @@ export default ESLintUtils.RuleCreator(
   create(context) {
     return {
       MemberExpression(node: TSESTree.MemberExpression): void {
-        if (node.computed) {
-          // Skip dynamic accesses like process["env"] — extremely rare and out of scope.
-          return;
-        }
-        if (
-          node.object.type === "Identifier" &&
-          node.object.name === "process" &&
-          node.property.type === "Identifier" &&
-          node.property.name === "env"
-        ) {
+        if (isProcessEnv(node) || isImportMetaEnv(node)) {
           context.report({
             node,
             messageId: "noRawEnv",

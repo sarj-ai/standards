@@ -18,8 +18,11 @@ ruleTester.run("no-raw-env", rule, {
     { code: "const x = process.cwd();" },
     // A property named `env` on something other than `process` is fine.
     { code: "const x = config.env;" },
-    // Computed access is out of scope.
+    // `process["env"]` (computed on `process`) yields the env object as a whole,
+    // not a specific unvalidated var — out of scope.
     { code: "const x = process['env'];" },
+    // `import.meta.env` on a non-import meta base is unrelated.
+    { code: "const x = config.meta.env;" },
   ],
   invalid: [
     {
@@ -32,6 +35,24 @@ ruleTester.run("no-raw-env", rule, {
     },
     {
       code: "const { FOO } = process.env;",
+      errors: [{ messageId: "noRawEnv" }],
+    },
+    // Computed access into process.env is just as unvalidated as the dotted form.
+    {
+      code: "const url = process.env[key];",
+      errors: [{ messageId: "noRawEnv" }],
+    },
+    // Vite's import.meta.env — dotted and computed.
+    {
+      code: "const dev = import.meta.env.DEV;",
+      errors: [{ messageId: "noRawEnv" }],
+    },
+    {
+      code: "const x = import.meta.env.VITE_X;",
+      errors: [{ messageId: "noRawEnv" }],
+    },
+    {
+      code: "const x = import.meta.env[key];",
       errors: [{ messageId: "noRawEnv" }],
     },
   ],

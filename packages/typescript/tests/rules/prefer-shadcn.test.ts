@@ -30,11 +30,66 @@ ruleTester.run("prefer-shadcn", rule, {
     { code: "const x = <table><tbody /></table>;" },
     // Non-form elements are unrelated.
     { code: "const x = <div className='wrapper' />;" },
+    // `type="hidden"` has no shadcn primitive — skipped.
+    { code: "const x = <input type='hidden' value='x' />;" },
   ],
   invalid: [
     {
       code: "const x = <input type='text' />;",
-      errors: [{ messageId: "preferShadcn" }],
+      errors: [
+        {
+          messageId: "preferShadcn",
+          data: { element: "input", replacement: "Input", lowercase: "input" },
+        },
+      ],
+    },
+    // No type → generic Input.
+    {
+      code: "const x = <input value='' />;",
+      errors: [
+        {
+          messageId: "preferShadcn",
+          data: { element: "input", replacement: "Input", lowercase: "input" },
+        },
+      ],
+    },
+    // type-aware mapping to the correct primitive.
+    {
+      code: "const x = <input type='checkbox' />;",
+      errors: [
+        {
+          messageId: "preferShadcn",
+          data: { element: "input", replacement: "Checkbox", lowercase: "checkbox" },
+        },
+      ],
+    },
+    {
+      code: "const x = <input type='radio' name='g' />;",
+      errors: [
+        {
+          messageId: "preferShadcn",
+          data: { element: "input", replacement: "RadioGroup", lowercase: "radio-group" },
+        },
+      ],
+    },
+    {
+      code: "const x = <input type='range' />;",
+      errors: [
+        {
+          messageId: "preferShadcn",
+          data: { element: "input", replacement: "Slider", lowercase: "slider" },
+        },
+      ],
+    },
+    // Dynamic type falls back to the generic Input rather than a wrong primitive.
+    {
+      code: "const x = <input type={inputType} />;",
+      errors: [
+        {
+          messageId: "preferShadcn",
+          data: { element: "input", replacement: "Input", lowercase: "input" },
+        },
+      ],
     },
     {
       code: "const x = <select><option value='a'>a</option></select>;",

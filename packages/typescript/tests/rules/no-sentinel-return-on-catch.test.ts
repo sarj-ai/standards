@@ -95,7 +95,7 @@ ruleTester.run("no-sentinel-return-on-catch", rule, {
         }
       `,
     },
-    // `return 0` is often legitimate — not flagged.
+    // \`return 0\` is often legitimate — not flagged.
     {
       code: `
         function f() {
@@ -104,7 +104,7 @@ ruleTester.run("no-sentinel-return-on-catch", rule, {
         }
       `,
     },
-    // `return ""` is often legitimate — not flagged.
+    // \`return ""\` is often legitimate — not flagged.
     {
       code: `
         function f() {
@@ -113,7 +113,7 @@ ruleTester.run("no-sentinel-return-on-catch", rule, {
         }
       `,
     },
-    // Bare `return;` — out of scope for this rule.
+    // Bare \`return;\` — out of scope for this rule.
     {
       code: `
         function f() {
@@ -155,9 +155,74 @@ ruleTester.run("no-sentinel-return-on-catch", rule, {
         }
       `,
     },
+    // Real site: error IS logged (console.error), \`[]\` is a degraded return.
+    {
+      code: `
+        function fetchRows() {
+          try { return query(); }
+          catch (e) {
+            console.error("query failed", e);
+            return [];
+          }
+        }
+      `,
+    },
+    // Real site: error reported to a central handler, \`undefined\` is the
+    // declared \`T | undefined\` contract.
+    {
+      code: `
+        function lookup(id) {
+          try { return store.get(id); }
+          catch (err) {
+            onUnexpectedError(err);
+            return undefined;
+          }
+        }
+      `,
+    },
+    // Real site: logger receiver call before the sentinel return.
+    {
+      code: `
+        function load() {
+          try { return read(); }
+          catch (e) {
+            logger.warn("load failed", e);
+            return null;
+          }
+        }
+      `,
+    },
+    // Real site: safe-parse — \`undefined\` on bad input is the contract.
+    {
+      code: `
+        function safeParse(x) {
+          try { return JSON.parse(x); }
+          catch { return undefined; }
+        }
+      `,
+    },
+    // Real site: \`new RegExp\` safe-construct — \`null\` on invalid pattern.
+    {
+      code: `
+        function compile(pattern) {
+          try { return new RegExp(pattern); }
+          catch { return null; }
+        }
+      `,
+    },
+    // Real site: boolean predicate — a normal path also returns a boolean.
+    {
+      code: `
+        function hasFeature(name) {
+          if (!name) return false;
+          try { return registry.check(name); }
+          catch { return false; }
+        }
+      `,
+    },
   ],
   invalid: [
-    // return null
+    // return null — bare swallow, function otherwise returns real data.
     {
       code: `
         function f() {
@@ -167,7 +232,7 @@ ruleTester.run("no-sentinel-return-on-catch", rule, {
       `,
       errors: [{ messageId: "noSentinelReturn" }],
     },
-    // return undefined
+    // return undefined — no logging, no safe-parse contract.
     {
       code: `
         function f() {
@@ -177,7 +242,7 @@ ruleTester.run("no-sentinel-return-on-catch", rule, {
       `,
       errors: [{ messageId: "noSentinelReturn" }],
     },
-    // return false
+    // return false — no normal-path boolean, so not a predicate contract.
     {
       code: `
         function f() {
@@ -207,20 +272,21 @@ ruleTester.run("no-sentinel-return-on-catch", rule, {
       `,
       errors: [{ messageId: "noSentinelReturn" }],
     },
-    // Sentinel return is the FINAL statement after other (non-throwing) work.
+    // Non-logging work then a sentinel return still swallows the error.
     {
       code: `
         function f() {
           try { return run(); }
           catch (e) {
-            log(e);
+            cleanup();
             return [];
           }
         }
       `,
       errors: [{ messageId: "noSentinelReturn" }],
     },
-    // A throw inside a NESTED function does not count as rethrow for this catch.
+    // A throw inside a NESTED function does not count as rethrow for this catch,
+    // and register() neither logs nor reports the error.
     {
       code: `
         function f() {

@@ -1,9 +1,10 @@
 /**
  * @fileoverview Disallow `await` expressions located directly inside the body
- * of a `for` / `for-of` / `for-in` / `while` loop within the same function
- * scope. Awaiting serially inside a loop serializes I/O that is often better
- * expressed as `await Promise.all(xs.map(async (x) => ...))`, letting the
- * operations run concurrently.
+ * of a `for` / `for-of` / `for-in` / `while` loop (or an async `.forEach` /
+ * `.map` / `.filter` callback) within the same function scope. Awaiting serially
+ * inside a loop serializes I/O that is often better expressed as
+ * `await Promise.all(xs.map(async (x) => ...))`, letting the operations run
+ * concurrently.
  *
  * This rule is intentionally conservative — it prefers a false negative over a
  * false positive:
@@ -11,13 +12,46 @@
  *   - awaits inside a function/arrow defined within the loop are NOT flagged
  *     (they belong to a different function scope).
  *   - awaits not inside any loop are NOT flagged.
- * At most one report is emitted per offending loop.
+ *
+ * Real-world sweeps (VS Code, NestJS, Next.js) surfaced whole classes of loops
+ * where serial awaits are REQUIRED and `Promise.all` would change semantics.
+ * Those are suppressed here:
+ *   (a) the loop short-circuits or retries — its body (this scope) contains a
+ *       `return` / `break` / `continue`;
+ *   (b) the awaited value threads through the iteration — `x = await f(x)`,
+ *       `content = await p(content)` (the assignment target is read inside the
+ *       awaited expression);
+ *   (c) the await is a timer yield — `await new Promise((r) => setTimeout(r))`;
+ *   (d) the iterable's name/derivation signals ordering — `*Sorted*`,
+ *       `.reverse()`, lifecycle `hooks`, pipeline `stages`, etc.
+ * The genuinely parallelizable shape — independent awaits whose results are
+ * collected or discarded without a cross-iteration dependency or early exit —
+ * still fires.
+ *
+ * At most one report is emitted per offending loop / callback.
  */
 
 import { ESLintUtils, type TSESTree } from "@typescript-eslint/utils";
 
 type MessageIds = "noSequentialAwait";
 type Options = readonly [];
+
+/**
+ * Array iteration methods whose async callback with an `await` inside is the
+ * classic serial-await footgun (`.forEach` ignores the returned promise
+ * entirely; a discarded `.map` / `.filter` floats its promises).
+ */
+const ARRAY_ITERATION_METHODS = new Set<string>(["forEach", "map", "filter"]);
+
+/**
+ * Text on the iterable (its identifier name or derivation) that signals an
+ * ORDERED sequence whose elements must be processed one-after-another —
+ * lifecycle hooks, sorted / reversed lists, pipeline stages. Awaiting serially
+ * over such a sequence is the contract, so the report is suppressed. Broad by
+ * design: the rule prefers a false negative to a false positive.
+ */
+const SEQUENTIAL_ITERABLE_HINT =
+  /sort|reverse|ordered|sequence|hook|middleware|pipeline|\bstage|\bstep|\bphase|migration|chain/i;
 
 /**
  * Node types that introduce a new function scope. We never descend across one
@@ -32,10 +66,6 @@ function isFunctionLike(node: TSESTree.Node): boolean {
   );
 }
 
-/**
- * Loop node types whose bodies we scan. `ForOfStatement` is handled specially
- * by the caller so that `for await...of` is excluded.
- */
 type LoopNode =
   | TSESTree.ForStatement
   | TSESTree.ForOfStatement
@@ -60,6 +90,143 @@ function isLoop(node: TSESTree.Node): boolean {
   );
 }
 
+function isNode(value: unknown): value is TSESTree.Node {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { type?: unknown }).type === "string"
+  );
+}
+
+/**
+ * Visits `root` and its descendants, calling `visit` on each, without crossing
+ * into a nested function scope or descending into a nested loop — the same
+ * ownership boundaries the rule uses to decide which awaits belong to a loop.
+ */
+function visitScope(
+  root: TSESTree.Node,
+  visit: (node: TSESTree.Node) => void,
+): void {
+  visit(root);
+  for (const key of Object.keys(root) as (keyof TSESTree.Node)[]) {
+    if (key === "parent") {
+      continue;
+    }
+    const value = root[key];
+    const children = Array.isArray(value) ? value : [value];
+    for (const child of children) {
+      if (isNode(child) && !isFunctionLike(child) && !isLoop(child)) {
+        visitScope(child, visit);
+      }
+    }
+  }
+}
+
+function collectAwaits(root: TSESTree.Node): TSESTree.AwaitExpression[] {
+  const awaits: TSESTree.AwaitExpression[] = [];
+  visitScope(root, (node) => {
+    if (node.type === "AwaitExpression") {
+      awaits.push(node);
+    }
+  });
+  return awaits;
+}
+
+/**
+ * Guard (a): the scope contains a `return` / `break` / `continue`, marking a
+ * retry / short-circuit / early-exit loop whose serial awaits are intentional.
+ */
+function hasEarlyExit(root: TSESTree.Node): boolean {
+  let found = false;
+  visitScope(root, (node) => {
+    if (
+      node.type === "ReturnStatement" ||
+      node.type === "BreakStatement" ||
+      node.type === "ContinueStatement"
+    ) {
+      found = true;
+    }
+  });
+  return found;
+}
+
+/**
+ * Guard (c): `await new Promise(...)` — a deliberate event-loop / timer yield,
+ * not parallelizable I/O.
+ */
+function isTimerYield(node: TSESTree.AwaitExpression): boolean {
+  const arg = node.argument;
+  return (
+    arg.type === "NewExpression" &&
+    arg.callee.type === "Identifier" &&
+    arg.callee.name === "Promise"
+  );
+}
+
+function referencesName(root: TSESTree.Node, name: string): boolean {
+  let found = false;
+  visitScope(root, (node) => {
+    if (node.type === "Identifier" && node.name === name) {
+      found = true;
+    }
+  });
+  return found;
+}
+
+/**
+ * Guard (b): the awaited value is threaded into the next iteration — the await
+ * is the RHS of `target = await ...` / `const target = await ...` and `target`
+ * is read inside the awaited expression (`x = await f(x)`,
+ * `content = await p(content)`). Parallelizing would break the data dependency.
+ */
+function isThreadedAccumulator(node: TSESTree.AwaitExpression): boolean {
+  const parent = node.parent;
+  let target: string | null = null;
+  if (
+    parent.type === "AssignmentExpression" &&
+    parent.operator === "=" &&
+    parent.right === node &&
+    parent.left.type === "Identifier"
+  ) {
+    target = parent.left.name;
+  } else if (
+    parent.type === "VariableDeclarator" &&
+    parent.init === node &&
+    parent.id.type === "Identifier"
+  ) {
+    target = parent.id.name;
+  }
+  if (target === null) {
+    return false;
+  }
+  return referencesName(node.argument, target);
+}
+
+/**
+ * Decides whether a set of awaits owned by a loop/callback is worth reporting.
+ * Suppressed when the loop short-circuits (a) or iterates an ordered sequence
+ * (d); otherwise reported if AT LEAST ONE await is genuinely parallelizable —
+ * i.e. not a timer yield (c) and not a threaded accumulator (b).
+ */
+function shouldReport(
+  awaits: readonly TSESTree.AwaitExpression[],
+  earlyExit: boolean,
+  iterableText: string | null,
+): boolean {
+  if (awaits.length === 0) {
+    return false;
+  }
+  if (earlyExit) {
+    return false;
+  }
+  if (iterableText !== null && SEQUENTIAL_ITERABLE_HINT.test(iterableText)) {
+    return false;
+  }
+  return awaits.some(
+    (node) => !isTimerYield(node) && !isThreadedAccumulator(node),
+  );
+}
+
 export default ESLintUtils.RuleCreator(
   (name) =>
     `https://github.com/sarj-ai/linting/blob/main/packages/typescript/src/rules/${name}.ts`,
@@ -80,90 +247,42 @@ export default ESLintUtils.RuleCreator(
   defaultOptions: [],
   create(context) {
     /**
-     * Walks the subtree rooted at `node`, returning the first `AwaitExpression`
-     * that belongs to *this* loop's scope — i.e. reachable without crossing a
-     * nested function/arrow boundary or descending into a nested loop. Returns
-     * `null` if none.
-     *
-     * Stopping at function boundaries excludes awaits in nested functions
-     * (awaited by that function, not the loop). Stopping at nested-loop
-     * boundaries means each loop only "owns" its own direct awaits, so an outer
-     * loop isn't flagged for an await that lives solely in an inner loop, and
-     * every report stays one-per-loop.
+     * The parts of a loop where an await "belonging to this loop" can live: the
+     * body, plus the C-style `for` init/test/update or the for-of/for-in
+     * iterable or the while/do-while test. A part that is itself a nested loop
+     * is owned by that loop and checked when it is visited.
      */
-    function findAwaitInScope(
-      node: TSESTree.Node,
-    ): TSESTree.AwaitExpression | null {
-      if (node.type === "AwaitExpression") {
-        return node;
+    function loopParts(node: LoopNode): (TSESTree.Node | null)[] {
+      if (node.type === "ForStatement") {
+        return [node.body, node.init, node.test, node.update];
       }
-      if (isFunctionLike(node)) {
-        // Crossing into a different function scope — its awaits aren't ours.
-        return null;
+      if (node.type === "ForOfStatement" || node.type === "ForInStatement") {
+        return [node.body, node.right];
       }
+      return [node.body, node.test];
+    }
 
-      for (const key of Object.keys(node) as (keyof TSESTree.Node)[]) {
-        if (key === "parent") {
-          continue;
-        }
-        const value = node[key];
-        if (Array.isArray(value)) {
-          for (const child of value) {
-            if (isNode(child) && !isLoop(child)) {
-              const found = findAwaitInScope(child);
-              if (found) {
-                return found;
-              }
-            }
-          }
-        } else if (isNode(value) && !isLoop(value)) {
-          const found = findAwaitInScope(value);
-          if (found) {
-            return found;
-          }
-        }
+    function iterableTextOf(node: LoopNode): string | null {
+      if (node.type === "ForOfStatement" || node.type === "ForInStatement") {
+        return context.sourceCode.getText(node.right);
       }
-
       return null;
     }
 
-    function isNode(value: unknown): value is TSESTree.Node {
-      return (
-        typeof value === "object" &&
-        value !== null &&
-        typeof (value as { type?: unknown }).type === "string"
-      );
-    }
-
-    /**
-     * Reports the loop if its body contains an `await` belonging to the same
-     * function scope. The loop's `body` (and, for the C-style `for`, its init /
-     * test / update expressions) are the only places an "await in this loop"
-     * can live; awaits in a *nested* loop are caught when that nested loop is
-     * itself visited, keeping reports at one-per-loop.
-     */
     function checkLoop(node: LoopNode): void {
-      const parts: (TSESTree.Node | null)[] = [node.body];
-
-      if (node.type === "ForStatement") {
-        parts.push(node.init, node.test, node.update);
-      } else if (
-        node.type === "ForOfStatement" ||
-        node.type === "ForInStatement"
-      ) {
-        parts.push(node.right);
-      } else {
-        // While / DoWhile.
-        parts.push(node.test);
-      }
-
-      for (const part of parts) {
-        // A part that is itself a loop (e.g. `for (...) for (...) await f()`)
-        // is owned by that inner loop and checked when it is visited.
-        if (part && !isLoop(part) && findAwaitInScope(part)) {
-          context.report({ node, messageId: "noSequentialAwait" });
-          return;
+      const awaits: TSESTree.AwaitExpression[] = [];
+      let earlyExit = false;
+      for (const part of loopParts(node)) {
+        if (part === null || isLoop(part)) {
+          continue;
         }
+        awaits.push(...collectAwaits(part));
+        if (!earlyExit && hasEarlyExit(part)) {
+          earlyExit = true;
+        }
+      }
+      if (shouldReport(awaits, earlyExit, iterableTextOf(node))) {
+        context.report({ node, messageId: "noSequentialAwait" });
       }
     }
 
@@ -178,6 +297,42 @@ export default ESLintUtils.RuleCreator(
           return;
         }
         checkLoop(node);
+      },
+      CallExpression(node: TSESTree.CallExpression): void {
+        const callee = node.callee;
+        if (callee.type !== "MemberExpression" || callee.computed) {
+          return;
+        }
+        if (
+          callee.property.type !== "Identifier" ||
+          !ARRAY_ITERATION_METHODS.has(callee.property.name)
+        ) {
+          return;
+        }
+        const callback = node.arguments[0];
+        if (
+          callback === undefined ||
+          !isFunctionLike(callback) ||
+          !("async" in callback && callback.async)
+        ) {
+          return;
+        }
+        // A discarded `.map` / `.filter` (statement position) floats its
+        // promises just like `.forEach`; when its result is kept
+        // (`Promise.all(...)`, an assignment, a `return`) the awaits are
+        // consumed correctly, so only flag `.forEach` or a bare-statement call.
+        if (
+          callee.property.name !== "forEach" &&
+          node.parent.type !== "ExpressionStatement"
+        ) {
+          return;
+        }
+        const awaits = collectAwaits(callback.body);
+        const earlyExit = hasEarlyExit(callback.body);
+        const iterableText = context.sourceCode.getText(callee.object);
+        if (shouldReport(awaits, earlyExit, iterableText)) {
+          context.report({ node, messageId: "noSequentialAwait" });
+        }
       },
     };
   },

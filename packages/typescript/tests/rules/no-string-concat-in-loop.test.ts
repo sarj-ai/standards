@@ -104,6 +104,16 @@ ruleTester.run("no-string-concat-in-loop", rule, {
         }
       `,
     },
+    // Longhand `=` whose RHS is a `+` but the target is NOT an operand
+    // (`s = x + y`) — this overwrites, it does not accumulate.
+    {
+      code: `
+        let s = "";
+        for (let i = 0; i < n; i++) {
+          s = a + b;
+        }
+      `,
+    },
   ],
   invalid: [
     // Empty-string init, `for` loop — the canonical antipattern.
@@ -174,6 +184,36 @@ ruleTester.run("no-string-concat-in-loop", rule, {
         let csv = '';
         for (let i = 0; i < rows.length; i++) {
           csv += rows[i];
+        }
+      `,
+      errors: [{ messageId: "noStringConcatInLoop" }],
+    },
+    // Longhand reassignment `s = s + x` — identical O(n^2) cost to `s += x`.
+    {
+      code: `
+        let s = "";
+        for (let i = 0; i < n; i++) {
+          s = s + items[i];
+        }
+      `,
+      errors: [{ messageId: "noStringConcatInLoop" }],
+    },
+    // Longhand with the target on the RIGHT of the `+` (`s = prefix + s`).
+    {
+      code: `
+        let s = "";
+        for (const item of items) {
+          s = item + s;
+        }
+      `,
+      errors: [{ messageId: "noStringConcatInLoop" }],
+    },
+    // Longhand across a chained `+` (`s = s + a + b`).
+    {
+      code: `
+        let s = "";
+        for (let i = 0; i < n; i++) {
+          s = s + items[i] + ",";
         }
       `,
       errors: [{ messageId: "noStringConcatInLoop" }],

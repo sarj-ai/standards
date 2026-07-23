@@ -5,22 +5,33 @@
  * the very information you were trying to log.
  *
  * This is a purely syntactic rule (no type information). It flags
- * `JSON.stringify(x)` only when the first argument is an Identifier whose name
- * either:
- *   1. is the binding of an enclosing `catch (x)` clause in scope, OR
- *   2. matches the conventional error-name pattern /^(e|err|error|ex|exc)$/i.
+ * `JSON.stringify(x)` when the first argument is either:
+ *   1. an Identifier that is the binding of an enclosing `catch (x)` clause, or
+ *      matches the conventional error-name pattern /^(e|err|error|ex|exc)$/i, OR
+ *   2. a member expression denoting an error value (`err.cause`, `this.lastError`) —
+ *      an error-suggesting property name, or an error-named base whose property is
+ *      not a plain string accessor (`.message` / `.stack` / `.name`).
  *
- * It is deliberately conservative: member expressions (`JSON.stringify(err.message)`),
- * object literals, and arbitrary identifiers (`JSON.stringify(user)`) are not flagged.
+ * It suppresses the report inside the non-error branch of an `x instanceof Error`
+ * guard (`x instanceof Error ? x : JSON.stringify(x)`), where stringifying the
+ * non-Error fallback is exactly correct.
+ *
+ * Object literals and arbitrary identifiers (`JSON.stringify(user)`) are not flagged.
  */
 
 import { ESLintUtils, type TSESTree } from "@typescript-eslint/utils";
-import type { Scope } from "@typescript-eslint/utils/ts-eslint";
+import type { Scope, SourceCode } from "@typescript-eslint/utils/ts-eslint";
 
 type MessageIds = "noJsonStringifyError";
 type Options = readonly [];
 
 const ERROR_NAME_PATTERN = /^(e|err|error|ex|exc)$/i;
+
+/** Property names whose value is itself an error object (unsafe to stringify). */
+const ERROR_PROP_PATTERN = /^(cause|lastError|error|err|exception|originalError|innerError)$/i;
+
+/** Property names whose value is a plain string — the recommended escape hatch. */
+const SAFE_STRING_PROPS: ReadonlySet<string> = new Set(["message", "stack", "name"]);
 
 /**
  * Walk up the scope chain looking for a `catch` clause whose binding matches
@@ -39,6 +50,107 @@ function isCatchBinding(scope: Scope.Scope, name: string): boolean {
       }
     }
     current = current.upper;
+  }
+  return false;
+}
+
+/**
+ * True if a member-expression argument (`err.cause`, `this.lastError`) denotes an
+ * Error value: an error-suggesting property name, or an error-suggesting base whose
+ * property is not a known string accessor (`.message` / `.stack` / `.name`).
+ */
+function memberSuggestsError(
+  member: TSESTree.MemberExpression,
+  scope: Scope.Scope,
+): boolean {
+  const propName =
+    !member.computed && member.property.type === "Identifier" ? member.property.name : null;
+
+  if (propName !== null && ERROR_PROP_PATTERN.test(propName)) {
+    return true;
+  }
+
+  const base = member.object;
+  const baseSuggestsError =
+    base.type === "Identifier" &&
+    (ERROR_NAME_PATTERN.test(base.name) || isCatchBinding(scope, base.name));
+  if (baseSuggestsError) {
+    return propName === null || !SAFE_STRING_PROPS.has(propName.toLowerCase());
+  }
+
+  return false;
+}
+
+/** The subject `x` of an `x instanceof Error` test, or null. */
+function instanceofErrorSubject(
+  test: TSESTree.Expression,
+): TSESTree.Expression | null {
+  if (
+    test.type === "BinaryExpression" &&
+    test.operator === "instanceof" &&
+    test.right.type === "Identifier" &&
+    test.right.name === "Error"
+  ) {
+    return test.left;
+  }
+  return null;
+}
+
+/** The subject `x` of a negated `!(x instanceof Error)` test, or null. */
+function negatedInstanceofErrorSubject(
+  test: TSESTree.Expression,
+): TSESTree.Expression | null {
+  if (test.type === "UnaryExpression" && test.operator === "!") {
+    return instanceofErrorSubject(test.argument);
+  }
+  return null;
+}
+
+function nodeWithin(node: TSESTree.Node, container: TSESTree.Node | null): boolean {
+  return (
+    container !== null &&
+    node.range[0] >= container.range[0] &&
+    node.range[1] <= container.range[1]
+  );
+}
+
+/**
+ * True if `node` sits in the NON-error branch of an `argExpr instanceof Error`
+ * guard — the branch where `argExpr` is provably not an Error, so stringifying it
+ * is the correct fallback. Handles both the ternary and `if`/`else` shapes,
+ * including the negated `!(x instanceof Error)` form.
+ */
+function isGuardedByInstanceofError(
+  node: TSESTree.Node,
+  argExpr: TSESTree.Expression,
+  sourceCode: Readonly<SourceCode>,
+): boolean {
+  const argText = sourceCode.getText(argExpr);
+  const sameSubject = (subject: TSESTree.Expression): boolean =>
+    sourceCode.getText(subject) === argText;
+
+  let current: TSESTree.Node | undefined = node.parent;
+  while (current) {
+    if (current.type === "ConditionalExpression") {
+      const subject = instanceofErrorSubject(current.test);
+      if (subject && sameSubject(subject) && nodeWithin(node, current.alternate)) {
+        return true;
+      }
+      const negated = negatedInstanceofErrorSubject(current.test);
+      if (negated && sameSubject(negated) && nodeWithin(node, current.consequent)) {
+        return true;
+      }
+    } else if (current.type === "IfStatement") {
+      const subject = instanceofErrorSubject(current.test);
+      if (subject && sameSubject(subject) && nodeWithin(node, current.alternate)) {
+        return true;
+      }
+      const negated = negatedInstanceofErrorSubject(current.test);
+      if (negated && sameSubject(negated) && nodeWithin(node, current.consequent)) {
+        return true;
+      }
+    }
+    current = current.parent;
   }
   return false;
 }
@@ -80,19 +192,34 @@ export default ESLintUtils.RuleCreator(
         }
 
         const firstArg = node.arguments[0];
-        if (!firstArg || firstArg.type !== "Identifier") {
+        if (!firstArg) {
           return;
         }
 
-        const name = firstArg.name;
         const scope = context.sourceCode.getScope(firstArg);
 
-        if (ERROR_NAME_PATTERN.test(name) || isCatchBinding(scope, name)) {
-          context.report({
-            node,
-            messageId: "noJsonStringifyError",
-          });
+        let suggestsError: boolean;
+        if (firstArg.type === "Identifier") {
+          suggestsError =
+            ERROR_NAME_PATTERN.test(firstArg.name) || isCatchBinding(scope, firstArg.name);
+        } else if (firstArg.type === "MemberExpression") {
+          suggestsError = memberSuggestsError(firstArg, scope);
+        } else {
+          return;
         }
+
+        if (!suggestsError) {
+          return;
+        }
+
+        if (isGuardedByInstanceofError(node, firstArg, context.sourceCode)) {
+          return;
+        }
+
+        context.report({
+          node,
+          messageId: "noJsonStringifyError",
+        });
       },
     };
   },

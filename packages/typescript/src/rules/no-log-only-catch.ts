@@ -1,15 +1,24 @@
 /**
- * @fileoverview Disallow `catch` clauses that only log (via `console.*`) or do
- * nothing and then swallow the error. A catch that logs and falls through —
- * with no `throw`, no `return`, and no real recovery — hides failures: the
- * program keeps running in a broken state while the only signal is a log line
- * that is easy to miss. Either rethrow the error or handle it for real.
+ * @fileoverview Disallow `catch` clauses that only log (via `console.*` or a
+ * logger receiver such as `logger.warn(...)` / `Log.error(...)`) and then
+ * swallow the error. A catch that logs and falls through — with no `throw`, no
+ * `return`, and no real recovery — hides failures: the program keeps running in
+ * a broken state while the only signal is a log line that is easy to miss.
+ * Either rethrow the error or handle it for real.
  *
- * This rule is deliberately conservative: it flags ONLY catches whose body is
- * empty or consists exclusively of `console.log/error/warn/info/debug` call
- * statements. Any other statement (a `throw`, a `return`, a fallback
- * assignment, a non-console call, etc.) means the catch is doing something and
- * is left alone — we prefer a false negative over a false positive.
+ * This rule is deliberately conservative and fires in exactly two shapes:
+ *   - `noLogOnlyCatch`: the catch body is non-empty and *every* statement is a
+ *     logging call (`console.*` or a call on a logger-named receiver). Any other
+ *     statement (a `throw`, a `return`, a fallback assignment, a non-logging
+ *     call, etc.) means the catch is doing something and is left alone.
+ *   - `emptyCatch`: the catch body is genuinely empty AND carries no comment.
+ *     A comment-only catch (`catch { /* ignore, safe because … *\/ }`) is treated
+ *     as an intentional, documented ignore and is exempt.
+ *
+ * A previous version fired the "logging then swallowing" message on empty and
+ * comment-only catches that contained no logging call at all — the vast majority
+ * of real-world hits — which was factually wrong. The two distinct message ids
+ * keep each diagnostic accurate.
  *
  * Test files opt out by default (filenames containing `.test.`, `.spec.`, or a
  * `__tests__/` path segment) since swallow-and-log is common and acceptable in
@@ -18,7 +27,9 @@
 
 import { ESLintUtils, type TSESTree } from "@typescript-eslint/utils";
 
-type MessageIds = "noLogOnlyCatch";
+import { isLoggingCall } from "./_logging.js";
+
+type MessageIds = "noLogOnlyCatch" | "emptyCatch";
 type Options = readonly [];
 
 const DEFAULT_IGNORE_PATTERNS: readonly RegExp[] = [
@@ -27,44 +38,12 @@ const DEFAULT_IGNORE_PATTERNS: readonly RegExp[] = [
   /[\\/]__tests__[\\/]/,
 ];
 
-const CONSOLE_METHODS: ReadonlySet<string> = new Set([
-  "log",
-  "error",
-  "warn",
-  "info",
-  "debug",
-]);
-
-/**
- * True when a statement is exactly a bare `console.<method>(...)` call, e.g.
- * `console.error(err);`. Anything else (other objects, optional chaining on a
- * non-`console` base, awaited/returned calls, etc.) returns false so the catch
- * is treated as doing real work.
- */
-function isConsoleCallStatement(statement: TSESTree.Statement): boolean {
+/** True when a statement is exactly a bare logging call, e.g. `console.error(err);` or `logger.warn(err);`. */
+function isLoggingCallStatement(statement: TSESTree.Statement): boolean {
   if (statement.type !== "ExpressionStatement") {
     return false;
   }
-  const expr = statement.expression;
-  if (expr.type !== "CallExpression") {
-    return false;
-  }
-  const callee = expr.callee;
-  if (callee.type !== "MemberExpression") {
-    return false;
-  }
-  const { object, property } = callee;
-  if (object.type !== "Identifier" || object.name !== "console") {
-    return false;
-  }
-  if (callee.computed) {
-    // console["log"](...) — not a plain identifier method; be conservative.
-    return false;
-  }
-  if (property.type !== "Identifier") {
-    return false;
-  }
-  return CONSOLE_METHODS.has(property.name);
+  return isLoggingCall(statement.expression);
 }
 
 export default ESLintUtils.RuleCreator(
@@ -76,12 +55,14 @@ export default ESLintUtils.RuleCreator(
     type: "problem",
     docs: {
       description:
-        "Disallow `catch` clauses that only log (or do nothing) and then swallow the error; rethrow or handle it instead.",
+        "Disallow `catch` clauses that only log (or silently do nothing) and then swallow the error; rethrow or handle it instead.",
     },
     schema: [],
     messages: {
       noLogOnlyCatch:
         "Logging then swallowing the error hides failures. Rethrow the error or handle it for real.",
+      emptyCatch:
+        "Empty catch silently swallows the error. Rethrow it, handle it, or add a comment explaining why it is safe to ignore.",
     },
   },
   defaultOptions: [],
@@ -100,20 +81,21 @@ export default ESLintUtils.RuleCreator(
       CatchClause(node: TSESTree.CatchClause): void {
         const statements = node.body.body;
 
-        // Empty catch: swallows the error silently.
         if (statements.length === 0) {
-          context.report({ node, messageId: "noLogOnlyCatch" });
+          // A comment inside the block documents an intentional ignore; only a
+          // truly empty catch is an unexplained silent swallow.
+          if (context.sourceCode.getCommentsInside(node.body).length > 0) {
+            return;
+          }
+          context.report({ node, messageId: "emptyCatch" });
           return;
         }
 
-        // Flag only if EVERY statement is a bare console.* call. Any other
-        // statement (throw, return, fallback, real handler, etc.) means the
-        // catch is doing something — leave it alone.
-        const everyStatementIsConsoleLog = statements.every((statement) =>
-          isConsoleCallStatement(statement),
+        const everyStatementIsLogging = statements.every((statement) =>
+          isLoggingCallStatement(statement),
         );
 
-        if (everyStatementIsConsoleLog) {
+        if (everyStatementIsLogging) {
           context.report({ node, messageId: "noLogOnlyCatch" });
         }
       },

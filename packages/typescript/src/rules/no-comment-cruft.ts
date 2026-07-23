@@ -16,7 +16,7 @@ type Options = readonly [];
 const LEADING_PREAMBLE_MIN = 4;
 
 const DIRECTIVE_RE =
-  /^(eslint\b|eslint-|@ts-|prettier-ignore|prettier\b|biome-|c8\b|v8\b|istanbul\b|@type\b|@vite|webpack|<reference|global\b|noinspection|todo\b|fixme\b|hack\b|xxx\b)/i;
+  /^(eslint\b|eslint-|@ts-|prettier-ignore|prettier\b|biome-|c8\b|v8\b|istanbul\b|@type\b|@vite|webpack|<reference|<amd|global\b|noinspection|todo\b|fixme\b|hack\b|xxx\b)/i;
 
 const LICENSE_RE =
   /copyright|licen[cs]ed?|spdx|permission is hereby granted|all rights reserved/i;
@@ -37,8 +37,14 @@ const CODE_TAIL_RE = /[;{}()]\s*$|=>\s*$|,\s*$/;
 const CALL_OR_ASSIGN_RE =
   /^[A-Za-z_$][\w.$[\]]*\s*(?:=(?![=>])|\+=|-=|\*=)\s*\S.*[;)}\]]\s*$|^[A-Za-z_$][\w.$]*\([^)]*\)\s*;?\s*$/;
 
+// Placeholders that only appear in grammar productions / desugaring examples,
+// never in real code: `%sent%`, `[opt]`, a standalone `<FunctionBody>`, `…` / `...`.
+const PSEUDOCODE_RE = /%\w+%|\[opt\]|(?:^|\s)<[A-Za-z]\w*>|…|\.\.\./;
+
+// A triple-slash `///` directive keeps its third `/` after ESLint strips the
+// leading `//`, so strip 1–2 leading slashes (not exactly two) for `<reference`.
 function stripCommentMarker(line: string): string {
-  return line.replace(/^\s*\/\//, "").replace(/^\s*\*+/, "").trim();
+  return line.replace(/^\s*\/{1,2}/, "").replace(/^\s*\*+/, "").trim();
 }
 
 function isDirective(text: string): boolean {
@@ -56,6 +62,45 @@ function looksLikeCode(text: string): boolean {
   if (!t) return false;
   if (CODE_KEYWORD_RE.test(t) && CODE_TAIL_RE.test(t)) return true;
   return CALL_OR_ASSIGN_RE.test(t);
+}
+
+function hasPseudocode(text: string): boolean {
+  return PSEUDOCODE_RE.test(text);
+}
+
+// A prose lead-in preceding a code-shaped line marks that line as an
+// illustration (`// For example:`, a grammar production `FunctionExpression:`),
+// not commented-out code.
+function isProse(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  if (t.endsWith(":")) return true;
+  if (
+    /[.!?]$/.test(t) &&
+    /\s/.test(t) &&
+    /[a-z]/.test(t) &&
+    !looksLikeCode(t) &&
+    t.split(/\s+/).length >= 3
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function hasCommentedOutCode(
+  texts: readonly string[],
+  precedingProse: boolean,
+): boolean {
+  for (let i = 0; i < texts.length; i++) {
+    const line = texts[i];
+    if (line === undefined || !looksLikeCode(line) || hasPseudocode(line)) {
+      continue;
+    }
+    const prev = i > 0 ? texts[i - 1] : undefined;
+    if (prev !== undefined ? isProse(prev) : precedingProse) continue;
+    return true;
+  }
+  return false;
 }
 
 export default ESLintUtils.RuleCreator(
@@ -126,15 +171,26 @@ export default ESLintUtils.RuleCreator(
         const firstCodeLine =
           sourceCode.ast.tokens[0]?.loc.start.line ?? Number.MAX_SAFE_INTEGER;
 
-        for (const comment of comments) {
+        for (let i = 0; i < comments.length; i++) {
+          const comment = comments[i];
+          if (comment === undefined) continue;
           if (isJsDoc(comment) || !isStandalone(comment)) continue;
+          if (LICENSE_RE.test(comment.value)) continue;
           const texts = comment.value
             .split("\n")
             .map(stripCommentMarker)
             .filter((l) => l.length > 0 && !isDirective(l));
           if (texts.some(isBanner)) {
             context.report({ node: comment, messageId: "sectionBanner" });
-          } else if (texts.some(looksLikeCode)) {
+            continue;
+          }
+          const prev = comments[i - 1];
+          const precedingProse =
+            prev !== undefined &&
+            prev.type === "Line" &&
+            prev.loc.end.line === comment.loc.start.line - 1 &&
+            isProse(stripCommentMarker(prev.value));
+          if (hasCommentedOutCode(texts, precedingProse)) {
             context.report({ node: comment, messageId: "commentedOutCode" });
           }
         }
