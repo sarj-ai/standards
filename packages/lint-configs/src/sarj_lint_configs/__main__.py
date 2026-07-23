@@ -38,7 +38,8 @@ class _Args(argparse.Namespace):
 def _resolve_dest(dest_arg: str) -> Path:
     dest = Path(dest_arg).resolve()
     if not dest.is_dir():
-        raise SystemExit(f"error: --dest {dest} is not a directory")
+        msg = f"error: --dest {dest} is not a directory"
+        raise SystemExit(msg)
     return dest
 
 

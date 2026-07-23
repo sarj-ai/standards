@@ -12,6 +12,13 @@ line-ending              = "auto"
 select = ["ALL"]
 external = ["SARJ"]
 preview = true
+logger-objects = ["loguru.logger"]  # treat loguru as a logger so G004/G010 fire on it (bulbul house logger)
+# TC001/2/3 stay advisory but are NEVER auto-applied: the rewrite is an *unsafe*
+# fix that silently moves runtime-needed FastAPI/pydantic/livekit annotation
+# imports into `TYPE_CHECKING`, breaking them under PEP 649 (bulbul shipped two
+# prod outages this way). Marking them unfixable removes the foot-gun while
+# leaving the advisory warning intact.
+unfixable = ["TC001", "TC002", "TC003"]
 
 extend-select = [
   "ANN401",
@@ -80,58 +87,41 @@ extend-select = [
   "FBT003",
 ]
 
+# Ignore list = intersection of this standard's prior ignores and bulbul's
+# `[tool.ruff.lint] ignore`. Anything bulbul actively enforces (and this config
+# previously silenced) has been REMOVED so the standard is at least as strict as
+# bulbul — notably TRY002/TRY003, EM101/EM102, SLF001, RUF067, and the
+# docstring-punctuation family (D205/D209/D400/D401/D403/D413/D415/DOC201/
+# DOC402/DOC501) are now ENFORCED. Naming rules (N801/N802/N806/N999) are never
+# ignored here and stay active.
 ignore = [
-  "RUF102",
-
   "A002",
   "A003",
 
-  "TRY002",
-  "TRY003",
-
-  # Complexity is a code-smell heuristic, not a correctness rule. We disable the
-  # whole family consistently — counting branches/returns/args/statements just
-  # nags without catching bugs.
+  # Complexity is a code-smell heuristic, not a correctness rule. These four are
+  # the subset bulbul also disables; the rest of the PLR09xx family stays active
+  # (this standard is intentionally stricter than bulbul on complexity).
   "C901",
   "PLR0911",
   "PLR0912",
   "PLR0913",
   "PLR0915",
 
-  # Docstrings are optional here (D100-107 off). Given that, policing the
-  # punctuation, sections, and return/yield/raises documentation of the few
-  # docstrings that DO exist is pure noise — and mandatory copyright headers and
-  # darglint-style return docs are a waste of time, not a quality signal.
+  # Docstrings are optional (D100-107 off); D203/D213 conflict with D211/D212.
+  # Everything else in the D/DOC families is enforced (matches bulbul).
   "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",
   "D203",
-  "D205",
-  "D209",
   "D213",
-  "D400",
-  "D401",
-  "D403",
-  "D413",
-  "D415",
-  "DOC201",
-  "DOC402",
-  "DOC501",
   "CPY001",
 
   "COM812",
   "E501",
-  "EM101",
-  "EM102",
   "INP001",
   "S101",
   "S105",
   "S106",
 
   "RUF001",
-  "SLF001",
-
-  # Normal packages legitimately put re-exports, __version__, and small registry
-  # wiring in __init__.py. RUF067 (preview) bans any code there — too aggressive.
-  "RUF067",
 ]
 
 [lint.isort]
@@ -139,11 +129,50 @@ force-single-line          = false
 lines-after-imports        = 2
 force-sort-within-sections = true
 
+# Under PEP 649 (py314) plain annotations are lazy, so TC001-003 moving their
+# imports into `TYPE_CHECKING` is safe — EXCEPT for constructs that eagerly read
+# `__annotations__` at class-creation time (pydantic models/settings, dataclasses,
+# NamedTuple, TypedDict) and FastAPI route decorators that resolve body/param
+# models at request time. Listing them stops TC001-003 from flagging (and its
+# unsafe fix from breaking) their field-type imports.
+[lint.flake8-type-checking]
+runtime-evaluated-base-classes = [
+  "pydantic.BaseModel",
+  "pydantic_settings.BaseSettings",
+  "typing.NamedTuple",
+  "typing.TypedDict",
+]
+runtime-evaluated-decorators = [
+  "pydantic.dataclasses.dataclass",
+  "dataclasses.dataclass",
+  "fastapi.APIRouter.post",
+  "fastapi.APIRouter.get",
+  "fastapi.APIRouter.put",
+  "fastapi.APIRouter.delete",
+  "fastapi.APIRouter.patch",
+  "fastapi.APIRouter.head",
+  "fastapi.APIRouter.options",
+  "fastapi.APIRouter.trace",
+  "fastapi.APIRouter.websocket",
+  "fastapi.APIRouter.api_route",
+  "fastapi.FastAPI.post",
+  "fastapi.FastAPI.get",
+  "fastapi.FastAPI.put",
+  "fastapi.FastAPI.delete",
+  "fastapi.FastAPI.patch",
+  "fastapi.FastAPI.head",
+  "fastapi.FastAPI.options",
+  "fastapi.FastAPI.trace",
+  "fastapi.FastAPI.websocket",
+  "fastapi.FastAPI.api_route",
+]
+
 [lint.flake8-tidy-imports.banned-api]
 "unittest.mock.Mock".msg              = "Prefer real fixtures or hand-rolled fakes implementing the relevant ABC. If a mock is genuinely required, import with `# noqa: TID251 — <reason>`."
 "unittest.mock.AsyncMock".msg         = "Same as Mock."
 "unittest.mock.MagicMock".msg         = "Same as Mock."
 "unittest.mock.patch".msg             = "Prefer dependency injection via fixtures over monkey-patching."
+"pytest_mock".msg                     = "pytest-mock's `mocker` fixture is unittest.mock with a different spelling — it bypasses the mock bans above without any noqa trail. Use real fixtures/fakes; for a genuine external boundary use `from unittest import mock` + inline `# noqa: TID251 — <reason>`."
 
 "datetime.datetime.utcnow".msg        = "Deprecated in Python 3.12. Use `datetime.now(UTC)`."
 "pickle.load".msg                     = "Pickle deserializes arbitrary objects and is unsafe on untrusted input. Use JSON via Pydantic, or msgspec/orjson."
@@ -156,11 +185,15 @@ force-sort-within-sections = true
 "pydantic.alias_generators.to_camel".msg = "Don't camelCase API contracts in the backend. Keep snake_case; transform on the frontend with Zod."
 "typing.cast".msg                     = "Prefer discriminated unions or `isinstance` narrowing over `cast`."
 "psycopg.sql.Literal".msg             = "Use parameterized queries (psycopg's `%s` placeholders) instead of sql.Literal."
+"uuid.uuid4".msg                      = "Use uuid.uuid7() — time-ordered, aligns with the DB uuidv7() default. For unguessable secrets use secrets.token_urlsafe(), not a UUID."
 
 [lint.per-file-ignores]
 # Tests routinely assert, take boolean params, use magic numbers, and shell out
 # to the binary under test (subprocess) — none of that is a smell in a test.
-"**/tests/**"     = ["S101", "FBT001", "FBT002", "FBT003", "PLR2004", "S404", "S603", "S607"]
+# Union of this standard's prior test idioms and bulbul's: subprocess (S404/603/607)
+# for CLI tools that shell out to the binary under test; RUF076 (autouse) and
+# PLR6301 (test methods that never use self) for pytest class/fixture idioms.
+"**/tests/**"     = ["S101", "FBT001", "FBT002", "FBT003", "PLR2004", "S404", "S603", "S607", "RUF076", "PLR6301"]
 "**/test_*.py"    = ["ANN201", "ANN202"]
 "scripts/**"      = ["T201", "S", "BLE001", "TRY002"]
 # CLI entrypoints print to stdout — that's their job, not stray debug output.

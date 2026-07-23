@@ -4,6 +4,9 @@ import reactHooks from "eslint-plugin-react-hooks";
 import unicorn from "eslint-plugin-unicorn";
 import eslintComments from "@eslint-community/eslint-plugin-eslint-comments";
 import zod from "eslint-plugin-zod";
+import perfectionist from "eslint-plugin-perfectionist";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
+import betterTailwindcss from "eslint-plugin-better-tailwindcss";
 import sarj from "@sarj/eslint-plugin";
 
 
@@ -13,6 +16,10 @@ const config = [
   ...tseslint.configs.stylisticTypeChecked,
 
   {
+    // Dead eslint-disable directives are an error (parity with ruff RUF100).
+    linterOptions: {
+      reportUnusedDisableDirectives: "error",
+    },
     plugins: {
       "@typescript-eslint": tseslint.plugin,
       react,
@@ -20,6 +27,8 @@ const config = [
       unicorn,
       "@eslint-community/eslint-comments": eslintComments,
       zod,
+      perfectionist,
+      "simple-import-sort": simpleImportSort,
       "@sarj": sarj,
     },
     languageOptions: {
@@ -78,11 +87,36 @@ const config = [
         { selector: "parameter", format: ["camelCase", "snake_case"], leadingUnderscore: "allow" },
       ],
 
+      // Additional type-aware strictness incorporated from bulbul's base config.
+      "@typescript-eslint/prefer-as-const": "error",
+      "@typescript-eslint/no-unnecessary-condition": "error",
+      "@typescript-eslint/prefer-nullish-coalescing": "error",
+      "@typescript-eslint/prefer-optional-chain": "error",
+      "@typescript-eslint/promise-function-async": "error",
+      "@typescript-eslint/no-non-null-asserted-optional-chain": "error",
+      "@typescript-eslint/no-unnecessary-type-assertion": "error",
+      "@typescript-eslint/no-redundant-type-constituents": "error",
+      "@typescript-eslint/require-array-sort-compare": "error",
+      "@typescript-eslint/no-unsafe-type-assertion": "error",
+      "@typescript-eslint/no-unsafe-enum-comparison": "error",
+      "@typescript-eslint/no-base-to-string": "error",
+      "@typescript-eslint/no-misused-spread": "error",
+      "@typescript-eslint/no-unnecessary-type-conversion": "error",
+      "@typescript-eslint/prefer-includes": "error",
+      "@typescript-eslint/prefer-string-starts-ends-with": "error",
+      "@typescript-eslint/no-confusing-non-null-assertion": "error",
+      "@typescript-eslint/no-duplicate-type-constituents": "error",
+      "@typescript-eslint/no-invalid-void-type": "error",
+      "@typescript-eslint/no-unnecessary-template-expression": "error",
+      "@typescript-eslint/no-import-type-side-effects": "error",
+      "@typescript-eslint/array-type": "error",
+      "no-else-return": "error",
+
       "react/jsx-no-leaked-render": ["error", { validStrategies: ["ternary", "coerce"] }],
       "react/no-unstable-nested-components": ["error", { prohibitLocalVariables: true }],
       "react-hooks/exhaustive-deps": "error",
       "react-hooks/rules-of-hooks": "error",
-      "react/forbid-elements": ["warn", { forbid: [
+      "react/forbid-elements": ["error", { forbid: [
         { element: "button",   message: "Use <Button> from your design system." },
         { element: "input",    message: "Use <Input> / <Checkbox> / <RadioGroup> from your design system." },
         { element: "select",   message: "Use <Select> from your design system." },
@@ -90,9 +124,28 @@ const config = [
         { element: "dialog",   message: "Use <Dialog> / <AlertDialog> from your design system." },
         { element: "table",    message: "Use <Table> family from your design system." },
       ]}],
+      "react/forbid-component-props": ["error", { forbid: [
+        { propName: "style", message: "Use design-token utility classes. For dynamic values, set a CSS custom property and reference it via an arbitrary-value class." },
+      ]}],
+      "react/forbid-dom-props": ["error", { forbid: [
+        { propName: "style", message: "Use design-token utility classes. For dynamic values, set a CSS custom property and reference it via an arbitrary-value class." },
+      ]}],
+      "react/jsx-pascal-case": "error",
+      "react/no-danger": "error",
+      "react/no-this-in-sfc": "error",
+      "react/jsx-no-comment-textnodes": "error",
+      "react/jsx-no-duplicate-props": "error",
+      "react/jsx-no-target-blank": "error",
+      "react/jsx-no-undef": "error",
+      "react/void-dom-elements-no-children": "error",
+      "react/jsx-fragments": "error",
+      "react/jsx-no-script-url": "error",
+      "react/self-closing-comp": "error",
+      "react/jsx-no-useless-fragment": "error",
+      "react/jsx-boolean-value": ["error", "never"],
 
       "unicorn/consistent-function-scoping": "error",
-      "unicorn/filename-case": ["error", { cases: { kebabCase: true } }],
+      "unicorn/filename-case": ["error", { cases: { kebabCase: true }, ignore: [String.raw`\.d\.ts$`] }],
       "unicorn/prefer-switch": "warn",
       "unicorn/no-array-for-each": "warn",
       "unicorn/no-useless-undefined": "error",
@@ -107,25 +160,32 @@ const config = [
 
       "zod/prefer-enum-over-literal-union": "error",
 
+      // Deterministic ordering (incorporated from bulbul). perfectionist sorts
+      // structural members; simple-import-sort owns import/export ordering
+      // (chosen over eslint-plugin-import to avoid Next.js resolver conflicts).
+      "perfectionist/sort-objects": ["error", { type: "natural", order: "asc" }],
+      "perfectionist/sort-interfaces": "error",
+      "perfectionist/sort-classes": "error",
+      "perfectionist/sort-jsx-props": "error",
+      "perfectionist/sort-union-types": "error",
+      "simple-import-sort/imports": "error",
+      "simple-import-sort/exports": "error",
+
       "@eslint-community/eslint-comments/require-description": ["error", { ignore: [] }],
       "@eslint-community/eslint-comments/no-restricted-disable": ["warn",
         "no-console",
         "react-hooks/exhaustive-deps",
       ],
 
+      // Dedup: TS-enum ban → @sarj/no-enum, oversized-try-block ban →
+      // @sarj/no-fat-try-blocks, and process.env ban → @sarj/no-raw-env (all
+      // added below). Only the selectors WITHOUT a @sarj equivalent stay here,
+      // so each concern fires exactly one diagnostic.
       "no-restricted-syntax": [
         "error",
         {
-          selector: "TSEnumDeclaration",
-          message: "Use union types or `as const` objects.",
-        },
-        {
           selector: "TSModuleDeclaration[kind='namespace']",
           message: "Use ES modules instead of namespaces.",
-        },
-        {
-          selector: "TryStatement > BlockStatement[body.length > 3]",
-          message: "Try blocks should not contain more than 3 statements. Isolate the throwing statement.",
         },
         {
           selector: "CallExpression[callee.name='useCallback']",
@@ -136,22 +196,20 @@ const config = [
           message: "Don't memoize by hand — the React Compiler handles it. Remove useMemo (extract a plain function or compute inline).",
         },
       ],
-      "no-restricted-properties": ["error", {
-        object: "process",
-        property: "env",
-        message: "Use a Zod-validated env object instead of reading process.env directly.",
+      "no-restricted-imports": ["error", {
+        paths: [
+          {
+            name: "@clerk/nextjs",
+            importNames: ["auth", "currentUser"],
+            message: "Prefer an internal user-service wrapper.",
+          },
+          {
+            name: "@clerk/nextjs/server",
+            message: "Prefer an internal user-service wrapper.",
+          },
+        ],
+        patterns: ["*/index", "*/index.ts"],
       }],
-      "no-restricted-imports": ["error", { paths: [
-        {
-          name: "@clerk/nextjs",
-          importNames: ["auth", "currentUser"],
-          message: "Prefer an internal user-service wrapper.",
-        },
-        {
-          name: "@clerk/nextjs/server",
-          message: "Prefer an internal user-service wrapper.",
-        },
-      ]}],
 
       "object-shorthand": ["error", "always"],
       "no-return-await": "error",
@@ -167,18 +225,37 @@ const config = [
       "no-shadow": "off",
       "@typescript-eslint/no-shadow": "error",
 
+      // Full @sarj/eslint-plugin@2.4.0 strict ruleset. Tiers mirror the plugin's
+      // own `configs.strict`: error for most, warn for the three stylistic/
+      // high-volume rules (enforce-file-structure, prefer-semantic-colors,
+      // prefer-string-literal-union). no-enum / no-fat-try-blocks / no-raw-env
+      // are the single owners of the enum / oversized-try / process.env concerns
+      // (the native no-restricted-* equivalents were removed above).
+      "@sarj/zod-naming-convention": "error",
       "@sarj/require-assert-never": "error",
       "@sarj/require-zod-form-validation": "error",
-      "@sarj/enforce-file-structure": "warn",
       "@sarj/prefer-schema-for-api-payload": "error",
-      "@sarj/no-unnecessary-use-client": "warn",
       "@sarj/no-client-side-data-fetching": "error",
-      "@sarj/prefer-server-actions": "warn",
-      "@sarj/zod-naming-convention": "error",
-
-      // Frontend / styling — distilled from frontend PR-review mining. Stylistic,
-      // no autofix → warn (rollout should prove the FP rate before raising it).
+      "@sarj/prefer-server-actions": "error",
+      "@sarj/no-unnecessary-use-client": "error",
+      "@sarj/no-enum": "error",
+      "@sarj/no-raw-env": "error",
+      "@sarj/prefer-shadcn": "error",
+      "@sarj/no-sequential-await": "error",
+      "@sarj/no-sentinel-return-on-catch": "error",
+      "@sarj/no-log-only-catch": "error",
+      "@sarj/no-insecure-random-id": "error",
+      "@sarj/no-json-stringify-error": "error",
+      "@sarj/no-string-concat-in-loop": "error",
+      "@sarj/prefer-discriminated-union": "error",
+      "@sarj/no-comment-cruft": "error",
+      "@sarj/no-fat-try-blocks": "error",
+      "@sarj/no-cors-wildcard-with-credentials": "error",
+      "@sarj/no-secret-in-log": "error",
+      "@sarj/single-public-export": "error",
+      "@sarj/enforce-file-structure": "warn",
       "@sarj/prefer-semantic-colors": "warn",
+      "@sarj/prefer-string-literal-union": "warn",
     },
   },
 
@@ -199,6 +276,10 @@ const config = [
   },
 
   {
+    // The env source-of-truth files parse process.env into a Zod-validated
+    // object the rest of the app imports; they're the one place raw env access
+    // is legitimate, so @sarj/no-raw-env (which replaced the native
+    // no-restricted-properties process.env ban) is disabled here.
     files: [
       "**/*.config.{ts,tsx,js,jsx,mjs,cjs,mts,cts}",
       "**/scripts/**",
@@ -206,9 +287,28 @@ const config = [
       "**/env.{ts,tsx,js,mjs}",
       "**/server-env.{ts,tsx,js,mjs}",
       "**/client-env.{ts,tsx,js,mjs}",
+      "**/server-settings.{ts,tsx,js,mjs}",
+      "**/client-settings.{ts,tsx,js,mjs}",
     ],
     rules: {
-      "no-restricted-properties": "off",
+      "@sarj/no-raw-env": "off",
+    },
+  },
+
+  // better-tailwindcss: class-string hygiene for Tailwind repos. Scoped to JSX/TSX
+  // (where className strings live) and harmless where no Tailwind classes exist —
+  // these three rules only inspect literal class strings, so non-Tailwind repos
+  // simply see zero findings. Kept in its own block so the plugin is only wired
+  // where it applies.
+  {
+    files: ["**/*.{jsx,tsx}"],
+    plugins: {
+      "better-tailwindcss": betterTailwindcss,
+    },
+    rules: {
+      "better-tailwindcss/no-conflicting-classes": "error",
+      "better-tailwindcss/no-duplicate-classes": "error",
+      "better-tailwindcss/no-deprecated-classes": "error",
     },
   },
 ];

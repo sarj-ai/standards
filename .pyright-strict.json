@@ -19,14 +19,14 @@
   "reportUnusedFunction": false,
   "reportMissingTypeStubs": false,
 
-  "reportUnknownMemberType": false,
-  "reportUnknownParameterType": false,
-  "reportMissingParameterType": false,
-  "reportUnknownVariableType": false,
-  "reportUnknownArgumentType": false,
-  "reportMissingTypeArgument": false,
-  "reportUnknownLambdaType": false,
-  "reportUnusedClass": false,
+  "reportUnknownMemberType": "error",
+  "reportUnknownParameterType": "error",
+  "reportMissingParameterType": "error",
+  "reportUnknownVariableType": "error",
+  "reportUnknownArgumentType": "error",
+  "reportMissingTypeArgument": "error",
+  "reportUnknownLambdaType": "error",
+  "reportUnusedClass": "error",
   // Fires on every builder/fluent call (argparse.add_argument, query builders, …)
   // where the returned handle is intentionally discarded — noise, not type safety.
   "reportUnusedCallResult": false,
