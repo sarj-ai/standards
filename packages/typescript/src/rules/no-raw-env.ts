@@ -32,6 +32,28 @@ function isImportMetaEnv(node: TSESTree.MemberExpression): boolean {
   );
 }
 
+// Build-time constants that bundlers (webpack/Vite) statically replace — there is
+// no runtime env value to route through the validated layer, so they are exempt.
+const BUILD_TIME_CONSTANTS: ReadonlySet<string> = new Set([
+  "NODE_ENV",
+  "MODE",
+  "DEV",
+  "PROD",
+  "SSR",
+]);
+
+/** True when `node` is the base of a build-time-constant access like `process.env.NODE_ENV`. */
+function isBuildTimeConstantAccess(node: TSESTree.MemberExpression): boolean {
+  const parent = node.parent;
+  return (
+    parent.type === "MemberExpression" &&
+    parent.object === node &&
+    !parent.computed &&
+    parent.property.type === "Identifier" &&
+    BUILD_TIME_CONSTANTS.has(parent.property.name)
+  );
+}
+
 export default ESLintUtils.RuleCreator(
   (name) =>
     `https://github.com/sarj-ai/linting/blob/main/packages/typescript/src/rules/${name}.ts`,
@@ -53,7 +75,10 @@ export default ESLintUtils.RuleCreator(
   create(context) {
     return {
       MemberExpression(node: TSESTree.MemberExpression): void {
-        if (isProcessEnv(node) || isImportMetaEnv(node)) {
+        if (
+          (isProcessEnv(node) || isImportMetaEnv(node)) &&
+          !isBuildTimeConstantAccess(node)
+        ) {
           context.report({
             node,
             messageId: "noRawEnv",

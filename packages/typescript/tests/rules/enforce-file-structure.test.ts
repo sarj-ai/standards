@@ -11,10 +11,6 @@ RuleTester.itOnly = it.only;
 
 const ruleTester = new RuleTester();
 
-// Non-action filename — avoid triggering the use-server check by default.
-// `<input>` is the default filename used by RuleTester when none is supplied;
-// it doesn't include "action" or "/actions/", so the use-server check stays
-// out of the way for ordering-focused fixtures.
 const NON_ACTION_FILENAME = "src/components/some-component.ts";
 const ACTION_FILENAME = "src/actions/create-user.ts";
 
@@ -51,6 +47,39 @@ ruleTester.run("enforce-file-structure", rule, {
         'use server';
         import { z } from 'zod';
         export async function createUser() {}
+      `,
+    },
+    // A component living under an `actions/` directory that is NOT a Next.js
+    // server action (a UI dropdown, a Zustand store, a `*ActionService` class).
+    // Without a `use server` directive present, the path must NOT force one.
+    // Mirrors cal.com's `components/booking/actions/BookingActionsDropdown.tsx`.
+    {
+      filename: "apps/web/components/booking/actions/BookingActionsDropdown.tsx",
+      code: `
+        import { useState } from 'react';
+        export function BookingActionsDropdown() {
+          const [open, setOpen] = useState(false);
+          return open;
+        }
+      `,
+    },
+    // A domain `*ActionService` under `lib/actions/` — a plain class, not an RSC
+    // server action. No directive present → not flagged.
+    {
+      filename: "packages/features/booking-audit/lib/actions/CreatedAuditActionService.ts",
+      code: `
+        export class CreatedAuditActionService {
+          run() { return true; }
+        }
+      `,
+    },
+    // A bare `actions.ts` file with no `use server` directive — the filename
+    // alone must not force the directive.
+    {
+      filename: "app/dashboard/actions.ts",
+      code: `
+        import { z } from 'zod';
+        export const schema = z.string();
       `,
     },
     // Multiple imports in a row
@@ -184,12 +213,24 @@ ruleTester.run("enforce-file-structure", rule, {
       `,
       errors: [{ messageId: "importsFirst" }],
     },
-    // Server action file missing 'use server'
+    // Genuinely misplaced `use server`: the directive is present but sits after
+    // an import instead of being the first statement, so it is inert at runtime.
     {
       filename: ACTION_FILENAME,
       code: `
         import { z } from 'zod';
-        export async function createUser() {}
+        'use server';
+        export async function createUser() { z.string(); }
+      `,
+      errors: [{ messageId: "useServerDirective" }],
+    },
+    // Misplaced `use server` below a body statement, in a non-action filename —
+    // the trigger is the directive itself, not the path.
+    {
+      filename: NON_ACTION_FILENAME,
+      code: `
+        export const x = 1;
+        'use server';
       `,
       errors: [{ messageId: "useServerDirective" }],
     },

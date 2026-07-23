@@ -21,6 +21,25 @@ ruleTester.run("no-sequential-await", rule, {
     {
       code: "async function f(xs) { await Promise.all(xs.map(async (x) => g(x))); }",
     },
+    // The `await` is on the for-of ITERABLE — evaluated once, already concurrent.
+    {
+      code: "async function f(cbs) { for (const r of await Promise.allSettled(cbs)) { handle(r); } }",
+    },
+    // A poll/throttle loop yielding via a timer helper is deliberately serial.
+    {
+      code: "async function f() { while (!done()) { await sleep(10); } }",
+    },
+    {
+      code: "async function f() { while (busy) { await this.delay(); } }",
+    },
+    // Draining a mutable queue is order-dependent — cannot be parallelized.
+    {
+      code: "async function f() { while (this.queue.length > 0) { await this.queue.shift(); } }",
+    },
+    // Ordered iterable (name signals a sequence that must run in order).
+    {
+      code: "async function f(ctx) { for (const key in ctx.teleports) { ctx.teleports[key] = await unroll(key); } }",
+    },
     // `for await...of` is correct async iteration and must NOT be flagged.
     {
       code: "async function f(xs) { for await (const x of xs) { handle(x); } }",

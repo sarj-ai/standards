@@ -96,14 +96,91 @@ function instanceofErrorSubject(
   return null;
 }
 
-/** The subject `x` of a negated `!(x instanceof Error)` test, or null. */
+/** Names of a user-defined type-guard predicate: `isErrorLike`, `isError`, `hasErrorShape`. */
+const TYPE_GUARD_PATTERN = /^(is|has)[A-Z]/;
+
+/** The narrowed subject `x` of a user-defined type-guard call `isFoo(x)`, or null. */
+function typeGuardSubject(
+  test: TSESTree.Expression,
+): TSESTree.Expression | null {
+  const arg = test.type === "CallExpression" ? test.arguments[0] : undefined;
+  if (
+    test.type === "CallExpression" &&
+    test.callee.type === "Identifier" &&
+    TYPE_GUARD_PATTERN.test(test.callee.name) &&
+    test.arguments.length === 1 &&
+    arg !== undefined &&
+    arg.type !== "SpreadElement"
+  ) {
+    return arg;
+  }
+  return null;
+}
+
+/**
+ * The subject `x` of a positive error-narrowing test — `x instanceof Error` or a
+ * user-defined guard `isErrorLike(x)`. In both, the value IS the error in the
+ * truthy branch, so `JSON.stringify(x)` belongs in the falsy (alternate) branch.
+ */
+function positiveErrorSubject(
+  test: TSESTree.Expression,
+): TSESTree.Expression | null {
+  return instanceofErrorSubject(test) ?? typeGuardSubject(test);
+}
+
+/** The subject `x` of a negated error-narrowing test — `!(x instanceof Error)` / `!isErrorLike(x)`. */
 function negatedInstanceofErrorSubject(
   test: TSESTree.Expression,
 ): TSESTree.Expression | null {
   if (test.type === "UnaryExpression" && test.operator === "!") {
-    return instanceofErrorSubject(test.argument);
+    return positiveErrorSubject(test.argument);
   }
   return null;
+}
+
+/** Whether a branch statement unconditionally exits (its last statement returns/throws). */
+function branchTerminates(branch: TSESTree.Statement): boolean {
+  const body = branch.type === "BlockStatement" ? branch.body : [branch];
+  const last = body[body.length - 1];
+  return (
+    last !== undefined &&
+    (last.type === "ReturnStatement" || last.type === "ThrowStatement")
+  );
+}
+
+/**
+ * True if an earlier guard `if (isErrorLike(arg)) return …` (or `instanceof Error`)
+ * in an enclosing block narrows `argExpr` away from the error case before `node`,
+ * so by the time `JSON.stringify(arg)` runs the value is the non-Error fallback.
+ */
+function isNarrowedByEarlyReturn(
+  node: TSESTree.Node,
+  argExpr: TSESTree.Expression,
+  sourceCode: Readonly<SourceCode>,
+): boolean {
+  const argText = sourceCode.getText(argExpr);
+  let current: TSESTree.Node | undefined = node.parent;
+  while (current) {
+    if (current.type === "BlockStatement" || current.type === "Program") {
+      for (const stmt of current.body) {
+        if (stmt.range[0] >= node.range[0]) {
+          break;
+        }
+        if (
+          stmt.type === "IfStatement" &&
+          stmt.alternate === null &&
+          branchTerminates(stmt.consequent)
+        ) {
+          const subject = positiveErrorSubject(stmt.test);
+          if (subject && sourceCode.getText(subject) === argText) {
+            return true;
+          }
+        }
+      }
+    }
+    current = current.parent;
+  }
+  return false;
 }
 
 function nodeWithin(node: TSESTree.Node, container: TSESTree.Node | null): boolean {
@@ -132,7 +209,7 @@ function isGuardedByInstanceofError(
   let current: TSESTree.Node | undefined = node.parent;
   while (current) {
     if (current.type === "ConditionalExpression") {
-      const subject = instanceofErrorSubject(current.test);
+      const subject = positiveErrorSubject(current.test);
       if (subject && sameSubject(subject) && nodeWithin(node, current.alternate)) {
         return true;
       }
@@ -141,7 +218,7 @@ function isGuardedByInstanceofError(
         return true;
       }
     } else if (current.type === "IfStatement") {
-      const subject = instanceofErrorSubject(current.test);
+      const subject = positiveErrorSubject(current.test);
       if (subject && sameSubject(subject) && nodeWithin(node, current.alternate)) {
         return true;
       }
@@ -212,7 +289,10 @@ export default ESLintUtils.RuleCreator(
           return;
         }
 
-        if (isGuardedByInstanceofError(node, firstArg, context.sourceCode)) {
+        if (
+          isGuardedByInstanceofError(node, firstArg, context.sourceCode) ||
+          isNarrowedByEarlyReturn(node, firstArg, context.sourceCode)
+        ) {
           return;
         }
 

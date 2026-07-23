@@ -51,7 +51,7 @@ const ARRAY_ITERATION_METHODS = new Set<string>(["forEach", "map", "filter"]);
  * design: the rule prefers a false negative to a false positive.
  */
 const SEQUENTIAL_ITERABLE_HINT =
-  /sort|reverse|ordered|sequence|hook|middleware|pipeline|\bstage|\bstep|\bphase|migration|chain/i;
+  /sort|reverse|ordered|sequence|hook|middleware|pipeline|\bstage|\bstep|\bphase|migration|chain|buffer|stream|teleport|chunk|\bqueue|drain/i;
 
 /**
  * Node types that introduce a new function scope. We never descend across one
@@ -154,12 +154,54 @@ function hasEarlyExit(root: TSESTree.Node): boolean {
  * Guard (c): `await new Promise(...)` — a deliberate event-loop / timer yield,
  * not parallelizable I/O.
  */
+const TIMER_HELPER_RE = /^(sleep|timeout|delay|wait|pause|tick)$/i;
+
+function calleeName(callee: TSESTree.Node): string | null {
+  if (callee.type === "Identifier") return callee.name;
+  if (
+    callee.type === "MemberExpression" &&
+    !callee.computed &&
+    callee.property.type === "Identifier"
+  ) {
+    return callee.property.name;
+  }
+  return null;
+}
+
 function isTimerYield(node: TSESTree.AwaitExpression): boolean {
   const arg = node.argument;
-  return (
+  // `await new Promise((r) => setTimeout(r))` — the canonical event-loop yield.
+  if (
     arg.type === "NewExpression" &&
     arg.callee.type === "Identifier" &&
     arg.callee.name === "Promise"
+  ) {
+    return true;
+  }
+  // `await sleep(ms)` / `await delay()` / `await this.wait()` — a poll/throttle
+  // yield in a `while` loop, deliberately serial.
+  if (arg.type === "CallExpression") {
+    const name = calleeName(arg.callee);
+    return name !== null && TIMER_HELPER_RE.test(name);
+  }
+  return false;
+}
+
+const QUEUE_DRAIN_METHODS = /^(shift|pop|dequeue|next|poll)$/;
+
+/**
+ * Guard: `await queue.shift()` / `await this.stack.pop()` — draining a mutable
+ * receiver one element at a time. Each call consumes the shared queue, so the
+ * iterations are order-dependent and cannot be parallelized.
+ */
+function isQueueDrain(node: TSESTree.AwaitExpression): boolean {
+  const arg = node.argument;
+  return (
+    arg.type === "CallExpression" &&
+    arg.callee.type === "MemberExpression" &&
+    !arg.callee.computed &&
+    arg.callee.property.type === "Identifier" &&
+    QUEUE_DRAIN_METHODS.test(arg.callee.property.name)
   );
 }
 
@@ -223,7 +265,10 @@ function shouldReport(
     return false;
   }
   return awaits.some(
-    (node) => !isTimerYield(node) && !isThreadedAccumulator(node),
+    (node) =>
+      !isTimerYield(node) &&
+      !isThreadedAccumulator(node) &&
+      !isQueueDrain(node),
   );
 }
 
@@ -253,11 +298,15 @@ export default ESLintUtils.RuleCreator(
      * is owned by that loop and checked when it is visited.
      */
     function loopParts(node: LoopNode): (TSESTree.Node | null)[] {
+      // Only parts that run PER ITERATION can serialize awaits. The C-`for`
+      // init and the for-of/for-in iterable are evaluated ONCE, so an `await`
+      // there (`for (const x of await Promise.allSettled(...))`) is a single
+      // await, not a loop-serialized one — exclude them.
       if (node.type === "ForStatement") {
-        return [node.body, node.init, node.test, node.update];
+        return [node.body, node.test, node.update];
       }
       if (node.type === "ForOfStatement" || node.type === "ForInStatement") {
-        return [node.body, node.right];
+        return [node.body];
       }
       return [node.body, node.test];
     }
