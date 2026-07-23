@@ -149,8 +149,16 @@ def test_wrong_noqa_code_not_suppressed():
     assert len(_kept(src)) == 1
 
 
-def test_fires_regardless_of_filename():
-    assert len(_check('q = "LIMIT %s OFFSET %s"\n', path="service.py")) == 1
+@pytest.mark.parametrize("path", ["call_store.py", "stores/call.py"])
+def test_store_file_flagged(path: str):
+    assert len(_check('q = "LIMIT %s OFFSET %s"\n', path=path)) == 1
+
+
+@pytest.mark.parametrize(
+    "path", ["app/views.py", "blog.py", "sqlalchemy/sql/compiler.py"]
+)
+def test_nonstore_file_not_flagged(path: str):
+    assert _check('q = "LIMIT %s OFFSET %s"\n', path=path) == []
 
 
 @pytest.mark.parametrize(
