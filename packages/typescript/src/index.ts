@@ -21,6 +21,7 @@ import zodNamingConvention from "./rules/zod-naming-convention.js";
 import noCorsWildcardWithCredentials from "./rules/no-cors-wildcard-with-credentials.js";
 import noFatTryBlocks from "./rules/no-fat-try-blocks.js";
 import noSecretInLog from "./rules/no-secret-in-log.js";
+import noUnsafeCast from "./rules/no-unsafe-cast.js";
 import preferStringLiteralUnion from "./rules/prefer-string-literal-union.js";
 import singlePublicExport from "./rules/single-public-export.js";
 
@@ -48,6 +49,7 @@ const rules = {
   "no-cors-wildcard-with-credentials": noCorsWildcardWithCredentials,
   "no-fat-try-blocks": noFatTryBlocks,
   "no-secret-in-log": noSecretInLog,
+  "no-unsafe-cast": noUnsafeCast,
   "prefer-string-literal-union": preferStringLiteralUnion,
   "single-public-export": singlePublicExport,
 };
@@ -55,7 +57,7 @@ const rules = {
 const plugin = {
   meta: {
     name: "@sarj/eslint-plugin",
-    version: "2.4.1",
+    version: "2.5.0",
   },
   rules,
   configs: {
@@ -85,6 +87,7 @@ const plugin = {
         "@sarj/no-fat-try-blocks": "warn",
         "@sarj/no-cors-wildcard-with-credentials": "warn",
         "@sarj/no-secret-in-log": "warn",
+        "@sarj/no-unsafe-cast": "warn",
         "@sarj/single-public-export": "warn",
         "@sarj/prefer-string-literal-union": "warn",
       },
@@ -119,6 +122,7 @@ const plugin = {
         "@sarj/no-fat-try-blocks": "error",
         "@sarj/no-cors-wildcard-with-credentials": "error",
         "@sarj/no-secret-in-log": "error",
+        "@sarj/no-unsafe-cast": "warn",
         "@sarj/single-public-export": "error",
         // High-volume/stylistic — warn until rollout proves FP rate.
         "@sarj/prefer-string-literal-union": "warn",
