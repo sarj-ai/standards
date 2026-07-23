@@ -32,6 +32,15 @@ ruleTester.run("no-json-stringify-error", rule, {
     { code: "let s; if (e instanceof Error) { s = e.message; } else { s = JSON.stringify(e); }" },
     { code: "const s = !(e instanceof Error) ? JSON.stringify(e) : e.message;" },
     { code: "let s; if (!(err instanceof Error)) { s = JSON.stringify(err); }" },
+    // A user-defined type guard narrows the error away before the stringify.
+    {
+      code: "function f(e) { if (isErrorLike(e)) return e.message; return JSON.stringify(e); }",
+    },
+    {
+      code: "function f(e) { if (isError(e)) { throw e; } logInfo({ error: JSON.stringify(e) }); }",
+    },
+    { code: "const s = isErrorLike(e) ? e.message : JSON.stringify(e);" },
+    { code: "let s; if (!isErrorLike(err)) { s = JSON.stringify(err); }" },
     // A function whose param is named `data` (not an error name).
     { code: "function f(data) { return JSON.stringify(data); }" },
     // Names that merely contain an error-like substring don't match the anchored regex.

@@ -31,6 +31,10 @@ ruleTester.run("prefer-semantic-colors", rule, {
     // literal #fff/#000, so fill/stroke inside them never fires.
     { code: `const x = <svg><clipPath id="a"><path fill="#fff" d="M0 0h1v1H0z" /></clipPath></svg>;` },
     { code: `const x = <svg><mask id="m"><rect fill="#fff" /><rect fill="#000" /></mask></svg>;` },
+    // SVG artwork drawing elements (not just defs containers) carry inherent
+    // illustration colors — not reusable UI tokens.
+    { code: `const x = <svg><path fill="#e6e6e6" d="M0 0h1v1H0z" /></svg>;` },
+    { code: `const x = <svg viewBox="0 0 20 20"><circle fill="#d0d6d7" cx="10" cy="10" r="5" /><polygon stroke="#D06B64" points="0,0 1,1" /></svg>;` },
     { code: `const x = <svg><linearGradient><stop stopColor="#D06B64" /></linearGradient></svg>;` },
     // Neutral drawing literals are exempt on fill/stroke everywhere.
     { code: `const x = <path fill="#fff" stroke="#000" />;` },

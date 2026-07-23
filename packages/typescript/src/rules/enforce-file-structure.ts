@@ -3,12 +3,6 @@ import { ESLintUtils, type TSESTree, AST_NODE_TYPES } from "@typescript-eslint/u
 type MessageIds = "importsFirst" | "useServerDirective";
 type Options = readonly [];
 
-// Server-action files: anchored to an `/actions/` path segment, a `*.action.ts`
-// filename, or a bare `actions.ts` file. Substrings like `transaction-service`
-// or `redaction.ts` deliberately do NOT match.
-const SERVER_ACTION_FILE_RE =
-  /(?:^|\/)actions\/|\.action\.[jt]sx?$|(?:^|\/)actions\.[jt]sx?$/;
-
 type StatementKind = "import" | "reexport" | "body";
 
 /**
@@ -56,9 +50,8 @@ const isStringDirective = (statement: TSESTree.ProgramStatement): boolean =>
   statement.expression.value.startsWith("use ");
 
 const isUseServerDirective = (
-  statement: TSESTree.ProgramStatement | undefined,
+  statement: TSESTree.ProgramStatement,
 ): boolean => {
-  if (statement === undefined) return false;
   if (statement.type !== AST_NODE_TYPES.ExpressionStatement) return false;
   const expr = statement.expression;
   if (expr.type !== AST_NODE_TYPES.Literal) return false;
@@ -74,27 +67,28 @@ export default ESLintUtils.RuleCreator(
     type: "suggestion",
     docs: {
       description:
-        "Require `import` statements to come first, then allow step-down ordering (public API first, private helpers below) for the rest of the file. Exported statements are classified by WHAT they export — an exported interface is a declaration, an exported function is a function — so a public exported function followed by a private helper, or an exported interface among declarations, is allowed. Re-exports (`export { … } from`, `export *`, `export { … }`) are a neutral group, so generated namespace barrels pass. Server-action files (under `/actions/`, named `*.action.ts`, or `actions.ts`) must also begin with a `use server` directive.",
+        "Require `import` statements to come first, then allow step-down ordering (public API first, private helpers below) for the rest of the file. Exported statements are classified by WHAT they export — an exported interface is a declaration, an exported function is a function — so a public exported function followed by a private helper, or an exported interface among declarations, is allowed. Re-exports (`export { … } from`, `export *`, `export { … }`) are a neutral group, so generated namespace barrels pass. When a module contains a `use server` directive, it must be the first statement in the file.",
     },
     schema: [],
     messages: {
       importsFirst:
         "File structure violation: import statements must come before other declarations",
       useServerDirective:
-        "Server action files must start with 'use server' directive",
+        "A 'use server' directive must be the first statement in the file",
     },
   },
   defaultOptions: [],
   create(context) {
-    const isServerAction = SERVER_ACTION_FILE_RE.test(context.filename);
-
     return {
       Program(node: TSESTree.Program): void {
         const body = node.body;
 
-        if (isServerAction && !isUseServerDirective(body[0])) {
+        const misplacedUseServer = body.find(
+          (statement, index) => index > 0 && isUseServerDirective(statement),
+        );
+        if (misplacedUseServer !== undefined) {
           context.report({
-            node,
+            node: misplacedUseServer,
             messageId: "useServerDirective",
           });
         }

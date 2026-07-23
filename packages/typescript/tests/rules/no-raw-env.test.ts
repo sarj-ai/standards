@@ -23,14 +23,17 @@ ruleTester.run("no-raw-env", rule, {
     { code: "const x = process['env'];" },
     // `import.meta.env` on a non-import meta base is unrelated.
     { code: "const x = config.meta.env;" },
+    // Build-time constants are statically replaced by the bundler — there is no
+    // runtime env value to validate, so they are exempt.
+    { code: "if (process.env.NODE_ENV === 'production') {}" },
+    { code: "const dev = import.meta.env.DEV;" },
+    { code: "const mode = import.meta.env.MODE;" },
+    { code: "const prod = import.meta.env.PROD;" },
+    { code: "const ssr = import.meta.env.SSR;" },
   ],
   invalid: [
     {
       code: "const url = process.env.DATABASE_URL;",
-      errors: [{ messageId: "noRawEnv" }],
-    },
-    {
-      code: "if (process.env.NODE_ENV === 'production') {}",
       errors: [{ messageId: "noRawEnv" }],
     },
     {
@@ -42,11 +45,7 @@ ruleTester.run("no-raw-env", rule, {
       code: "const url = process.env[key];",
       errors: [{ messageId: "noRawEnv" }],
     },
-    // Vite's import.meta.env — dotted and computed.
-    {
-      code: "const dev = import.meta.env.DEV;",
-      errors: [{ messageId: "noRawEnv" }],
-    },
+    // A real runtime Vite var (not a build-time constant) still fires.
     {
       code: "const x = import.meta.env.VITE_X;",
       errors: [{ messageId: "noRawEnv" }],

@@ -98,13 +98,18 @@ const SVG_EXEMPT_COLOR_VALUES = new Set<string>([
   "inherit",
 ]);
 
-const isInsideSvgDefsContainer = (node: TSESTree.Node): boolean => {
+// A `fill`/`stroke` literal anywhere inside an `<svg>` subtree is drawing data
+// (icon/illustration artwork), not a reusable UI token — the color is inherent to
+// the graphic. Exempt any descendant of `<svg>` (which subsumes the defs
+// containers `<mask>`/`<clipPath>`/`<defs>`/`<pattern>`/gradients).
+const isInsideSvg = (node: TSESTree.Node): boolean => {
   let current: TSESTree.Node | null | undefined = node.parent;
   while (current !== undefined && current !== null) {
     if (
       current.type === AST_NODE_TYPES.JSXElement &&
       current.openingElement.name.type === AST_NODE_TYPES.JSXIdentifier &&
-      SVG_DEFS_CONTAINERS.has(current.openingElement.name.name)
+      (current.openingElement.name.name === "svg" ||
+        SVG_DEFS_CONTAINERS.has(current.openingElement.name.name))
     ) {
       return true;
     }
@@ -236,7 +241,7 @@ export default ESLintUtils.RuleCreator(
         ) {
           return;
         }
-        if (isInsideSvgDefsContainer(node)) return;
+        if (isInsideSvg(node)) return;
         checkColorValueNode(node.value);
       },
       // Inline style objects: style={{ color: "#111827", backgroundColor: "#fff" }}
